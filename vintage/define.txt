@@ -1,0 +1,13 @@
+#define P8255_1_CNT_PORT	0x303
+#define	P8255_1_A_PORT		0x300
+#define P8255_1_B_PORT		0x301
+#define	P8255_1_C_PORT		0x302
+#define P8255_2_CNT_PORT	0x307
+#define	P8255_2_A_PORT		0x304
+#define P8255_2_B_PORT		0x305
+#define	P8255_2_C_PORT		0x306
+#define P8253_CNT_PORT		0x30f
+#define	P8253_TIMER_0		0x30c
+#define TRUE			1
+#define FALSE			0
+
