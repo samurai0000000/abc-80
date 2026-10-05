@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC-80 Z80 Microcomputer Learning Kit Emulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;700;800&family=Inter:wght@400;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4">
+    <style>
+        .col-left-chips {
+            position: relative !important;
+        }
+        .col1-discrete-column-drivers {
+            position: absolute !important;
+            left: -70px !important;
+            bottom: 2px !important;
+            width: 68px !important;
+            height: 84px !important;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
+            z-index: 25 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        .to92-transistor-column {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            width: 14px !important;
+            height: 84px !important;
+        }
+        .to92-bank {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 3px !important;
+        }
+        .transistor-to92 {
+            display: flex !important;
+            align-items: center !important;
+            width: 14px !important;
+            height: 7px !important;
+            position: relative !important;
+        }
+        .to92-body {
+            width: 9px !important;
+            height: 7px !important;
+            background: linear-gradient(90deg, #181c19 0%, #2c332d 40%, #1e2420 85%, #141715 100%) !important;
+            border: 0.8px solid #0d100e !important;
+            border-radius: 4px 1px 1px 4px !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.2) !important;
+            box-sizing: border-box !important;
+            flex-shrink: 0 !important;
+        }
+        .to92-pad {
+            width: 4px !important;
+            height: 1.5px !important;
+            background: #c2baaa !important;
+            box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.6) !important;
+            flex-shrink: 0 !important;
+        }
+        .resistor-ladder-3k3 {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            width: 50px !important;
+            height: 84px !important;
+        }
+        .res-row-3k3 {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            height: 7px !important;
+        }
+        .res-lead-l,
+        .res-lead-r {
+            height: 1.2px !important;
+            flex: 1 !important;
+            background: #9ba199 !important;
+            box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.5) !important;
+        }
+        .res-body-3k3 {
+            width: 16px !important;
+            height: 4.5px !important;
+            border-radius: 1.5px !important;
+            background: linear-gradient(180deg, #ded2b9 0%, #c4b596 50%, #9e9075 100%) !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.4) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-evenly !important;
+            padding: 0 1px !important;
+            box-sizing: border-box !important;
+            flex-shrink: 0 !important;
+        }
+        .res-body-3k3 .b-org {
+            display: block !important;
+            width: 1.5px !important;
+            height: 100% !important;
+            background: #d35400 !important;
+        }
+        .res-body-3k3 .b-red {
+            display: block !important;
+            width: 1.5px !important;
+            height: 100% !important;
+            background: #c0392b !important;
+        }
+        .res-body-3k3 .b-gld {
+            display: block !important;
+            width: 1.5px !important;
+            height: 100% !important;
+            background: #d4af37 !important;
+        }
+        .sip-cantgo-silk {
+            position: absolute !important;
+            left: -72px !important;
+            bottom: -11px !important;
+            font-family: var(--font-mono), monospace !important;
+            font-size: 6px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.5px !important;
+            color: rgba(255, 255, 255, 0.75) !important;
+            width: 22px !important;
+            text-align: center !important;
+            z-index: 25 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Top App Bar -->
+        <header id="main-header">
+            <div class="header-left">
+                <span class="brand-badge">Z80A @ 2.5MHz</span>
+                <h1 class="brand-title">ABC-80 <span class="brand-subtitle">Educational Microcomputer</span></h1>
+            </div>
+            <div class="header-center">
+                <div class="backend-status-pill">
+                    <span class="status-dot dot-connected" id="host-ws-dot"></span>
+                    <span class="status-text" id="host-ws-text">x86_64 HOST: ONLINE</span>
+                </div>
+                <div class="clock-display">
+                    <span class="clock-label">CLK:</span>
+                    <span class="clock-val" id="cpu-freq">2.500 MHz</span>
+                    <span class="clock-divider">|</span>
+                    <span class="clock-label">CYCLES:</span>
+                    <span class="clock-val" id="cycle-counter">0</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button id="btn-toggle-inspector" class="header-btn" title="Toggle Developer Inspector (F12)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                    <span>Inspector</span>
+                </button>
+                <button id="btn-sound-toggle" class="header-btn sound-active" title="Toggle Sound">
+                    <svg id="sound-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <span>Sound</span>
+                </button>
+                <button id="btn-help" class="header-btn" title="Help Guide">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <span>Guide</span>
+                </button>
+                <button id="btn-calibration-mode" class="header-btn" title="Toggle IC Calibration & Drag-and-Drop Placement Mode">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3 3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>
+                    <span>Calibrate</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace (Trainer on Left/Center, Debugger Drawer on Right) -->
+        <main id="main-workspace">
+            <section id="hardware-panel-section">
+                <!-- Floating Viewport Pan & Zoom Controls -->
+                <div id="canvas-view-controls" class="canvas-view-controls" title="Board Viewport Navigation">
+                    <div class="view-ctrl-group">
+                        <button id="btn-zoom-in" class="view-ctrl-btn" title="Zoom In (+)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        </button>
+                        <span id="view-zoom-badge" class="view-zoom-badge" title="Current Zoom Level">100%</span>
+                        <button id="btn-zoom-out" class="view-ctrl-btn" title="Zoom Out (-)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        </button>
+                        <button id="btn-zoom-reset" class="view-ctrl-btn view-btn-text" title="Reset Viewport (1:1 / 0)">1:1</button>
+                    </div>
+                    <div class="view-dpad-group">
+                        <button id="btn-pan-up" class="view-dpad-btn dpad-up" title="Pan Up (Alt+Up)">▲</button>
+                        <div class="view-dpad-mid">
+                            <button id="btn-pan-left" class="view-dpad-btn dpad-left" title="Pan Left (Alt+Left)">◀</button>
+                            <button id="btn-pan-center" class="view-dpad-btn dpad-center" title="Center Pan">•</button>
+                            <button id="btn-pan-right" class="view-dpad-btn dpad-right" title="Pan Right (Alt+Right)">▶</button>
+                        </div>
+                        <button id="btn-pan-down" class="view-dpad-btn dpad-down" title="Pan Down (Alt+Down)">▼</button>
+                    </div>
+                </div>
+
+                <!-- Authentic Pure CSS/SVG Digital Twin Hardware Chassis -->
+                <div class="trainer-chassis" id="board-container">
+                    <div class="chassis-outer-shell">
+                        <div class="chassis-step-rim">
+                            <div class="chassis-inner-well">
+                                <div class="abc80-pcb">
+
+                                    <!-- Phase 3: Discrete Components Layer (Anchored to Page 98 drilled pads) -->
+                                    <div class="pcb-discretes-layer" id="pcb-discretes-layer">
+                                        <!-- Stage 3.1: Top Edge Power, Reset & Audio Jack Subsystem -->
+                                        <!-- C2: 100uF 16V Bulk Electrolytic Capacitor (Top Left) -->
+                                        <div class="discrete-component disc-electrolytic-cap calibratable-component" id="disc-cap-c2" data-label="C2 (100uF)" title="C2: 100uF 16V VCC Bulk Electrolytic Capacitor">
+                                            <div class="electrolytic-cap blue-cap-100uf">
+                                                <div class="cap-aluminum-top">
+                                                    <div class="cap-vent-mercedes"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- INT: Single-Step Interrupt Jumper Header (2 Gold Pins) -->
+                                        <div class="discrete-component disc-jumper-header calibratable-component" id="disc-int-header" data-label="INT Header" title="INT: Single-Step Interrupt Jumper Header">
+                                            <span class="silk-txt xxs">INT</span>
+                                            <div class="gold-pin-pair"><span></span><span></span></div>
+                                        </div>
+
+                                        <!-- $909: Hardware Reset Switch (Tactile Switch with Red Plunger) -->
+                                        <div class="discrete-component disc-tactile-btn calibratable-component" id="disc-hw-rst" data-label="$909 Reset" title="Hardware Reset Switch ($909)">
+                                            <button class="hw-reset-tactile-btn" id="btn-hw-rst" title="Hardware Reset Switch ($909)" data-key="RST" data-code="0x18">
+                                                <div class="tactile-red-plunger"></div>
+                                            </button>
+                                            <span class="silk-txt xs silk-909">$909</span>
+                                        </div>
+
+                                        <!-- J2: EAR Cassette Audio Input Jack (3.5mm) -->
+                                        <div class="discrete-component disc-audio-jack calibratable-component" id="disc-jack-ear" data-label="EAR Jack" title="J2: EAR Cassette Audio Input Jack (3.5mm)">
+                                            <div class="phone-jack-35mm"><div class="jack-bushing"></div></div>
+                                            <span class="silk-txt xxs" style="margin-top: 1px;">R</span>
+                                        </div>
+
+                                        <!-- J3: MIC Cassette Audio Output Jack (3.5mm) -->
+                                        <div class="discrete-component disc-audio-jack calibratable-component" id="disc-jack-mic" data-label="MIC Jack" title="J3: MIC Cassette Audio Output Jack (3.5mm)">
+                                            <div class="phone-jack-35mm"><div class="jack-bushing"></div></div>
+                                            <span class="silk-txt xxs" style="margin-top: 1px;">M</span>
+                                        </div>
+
+                                        <!-- DC Power Jack (2.1mm Barrel Jack) -->
+                                        <div class="discrete-component disc-barrel-jack calibratable-component" id="disc-jack-dc" data-label="DC Jack" title="DC Power Jack (2.1mm / 9V DC)">
+                                            <div class="dc-barrel-jack">
+                                                <div class="jack-wire-exit"></div>
+                                                <div class="jack-body"><div class="jack-center-pin"></div></div>
+                                            </div>
+                                            <span class="silk-txt xxs" style="margin-top: 1px;">DC</span>
+                                        </div>
+
+                                        <!-- C1: 100uF/220uF 16V Radial Electrolytic Capacitor -->
+                                        <div class="discrete-component disc-electrolytic-cap calibratable-component" id="disc-cap-c1" data-label="C1 (220uF)" title="C1: 100uF/220uF 16V Power Filter Capacitor">
+                                            <div class="electrolytic-cap blue-cap-220uf">
+                                                <div class="cap-aluminum-top">
+                                                    <div class="cap-vent-mercedes"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- LM7805: +5V Voltage Regulator with Extruded Aluminum Heatsink -->
+                                        <div class="discrete-component disc-lm7805 calibratable-component" id="disc-lm7805" data-label="LM7805" title="LM7805 +5V Voltage Regulator with Black Heatsink">
+                                            <div class="lm7805-regulator">
+                                                <div class="to220-heatsink">
+                                                    <div class="heatsink-screw"></div>
+                                                </div>
+                                                <div class="to220-metal-tab"><div class="tab-hole"></div></div>
+                                                <div class="to220-plastic-body"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Stage 3.2: Column 1 Keypad Driver Subsystem -->
+                                        <!-- Column 1 Bus Pull-Up Resistor Arrays alongside U1 (Z80) -->
+                                        <!-- Column 1 Bus Pull-Up Resistor Ladder: 18x 10k Individual Resistors alongside U1 & U5 -->
+                                        <div class="discrete-component disc-col1-bus-pullups-container" id="disc-col1-bus-pullups-container" title="10K Pull-Up Resistors (18x 10K, alongside U1 and U5)">
+                                            <!-- Top 4 Resistors beside U1 top -->
+                                            <div class="res-row calibratable-component" id="disc-r-pu1" data-label="R(PU1) 10K" title="RP1.1: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu2" data-label="R(PU2) 10K" title="RP1.2: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu3" data-label="R(PU3) 10K" title="RP1.3: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu4" data-label="R(PU4) 10K" title="RP1.4: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+
+                                            <!-- Mid 7 Resistors beside U1 mid -->
+                                            <div class="res-row calibratable-component" id="disc-r-pu5" data-label="R(PU5) 10K" title="RP1.5: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu6" data-label="R(PU6) 10K" title="RP1.6: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu7" data-label="R(PU7) 10K" title="RP1.7: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu8" data-label="R(PU8) 10K" title="RP1.8: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu9" data-label="R(PU9) 10K" title="RP1.9: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu10" data-label="R(PU10) 10K" title="RP1.10: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu11" data-label="R(PU11) 10K" title="RP1.11: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+
+                                            <!-- Lower 7 Resistors beside U5 top -->
+                                            <div class="res-row calibratable-component" id="disc-r-pu12" data-label="R(PU12) 10K" title="RP1.12: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu13" data-label="R(PU13) 10K" title="RP1.13: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu14" data-label="R(PU14) 10K" title="RP1.14: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu15" data-label="R(PU15) 10K" title="RP1.15: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu16" data-label="R(PU16) 10K" title="RP1.16: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu17" data-label="R(PU17) 10K" title="RP1.17: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-pu18" data-label="R(PU18) 10K" title="RP1.18: 10k Bus Pull-up"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                        </div>
+
+                                        <!-- 8x Discrete TO-92 PNP Transistors (Q9 - Q16) alongside U5 -->
+                                        <div class="discrete-component disc-col1-transistors" id="disc-col1-transistors" title="Q9-Q16: 8x TO-92 PNP Keypad Column Driver Transistors">
+                                            <div class="to92-item calibratable-component" id="disc-q9" data-label="Q9 (PNP)" title="Q9: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q10" data-label="Q10 (PNP)" title="Q10: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q11" data-label="Q11 (PNP)" title="Q11: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q12" data-label="Q12 (PNP)" title="Q12: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q13" data-label="Q13 (PNP)" title="Q13: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q14" data-label="Q14 (PNP)" title="Q14: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q15" data-label="Q15 (PNP)" title="Q15: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q16" data-label="Q16 (PNP)" title="Q16: TO-92 PNP"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                        </div>
+
+                                        <!-- 8x 3.3k Pull-Up Resistors Bridging Q9-Q16 to U5 -->
+                                        <div class="discrete-component disc-col1-pullups" id="disc-col1-pullups" title="3.3k x 8 Carbon-Film Resistor Ladder (Connecting to U5 8255)">
+                                            <div class="res-row calibratable-component" id="disc-r-q9" data-label="R(Q9) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q10" data-label="R(Q10) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q11" data-label="R(Q11) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q12" data-label="R(Q12) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q13" data-label="R(Q13) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q14" data-label="R(Q14) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q15" data-label="R(Q15) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-q16" data-label="R(Q16) 3.3K"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                        </div>
+
+                                        <!-- CONTO Header Footprint & Silkscreen -->
+                                        <div class="discrete-component disc-conto-socket calibratable-component" id="disc-conto-socket" data-label="CONTO Socket" title="CONTO Expansion Port Area">
+                                            <span class="silk-txt xs silk-conto">CONTO</span>
+                                        </div>
+
+                                        <!-- Stage 3.3: Mid-Board Passives, Clock Crystal & Red Tantalum Capacitor -->
+                                        <!-- CP: Red Tantalum Bead Capacitor (10uF 35V) above U7 -->
+                                        <div class="discrete-component disc-tantalum-cp calibratable-component" id="disc-tantalum-cp" data-label="CP Tantalum" title="CP: 10uF 35V Red Tantalum Bead Capacitor">
+                                            <div class="tantalum-bead-body">
+                                                <div class="tantalum-bead-plus">+</div>
+                                            </div>
+                                            <div class="tantalum-bead-leads"><span></span><span></span></div>
+                                            <span class="silk-txt xxs silk-cp-label">CP</span>
+                                        </div>
+
+                                        <!-- Clock Oscillator: HC-49 2.500 MHz Crystal & Loading Passives -->
+                                        <div class="discrete-component disc-clock-section calibratable-component" id="disc-clock-section" data-label="Clock Crystal" title="Clock Circuit: HC-49 2.500MHz Crystal & Loading Passives">
+                                            <div class="hc49-crystal-can" title="2.500 MHz HC-49 Quartz Crystal">
+                                                <div class="crystal-metal-rim"></div>
+                                                <span class="crystal-engraving">2.500MHz</span>
+                                            </div>
+                                            <!-- Clock loading capacitors (100pF x 2) -->
+                                            <div class="ceramic-disc-cap c-disc-clock-1" title="100pF Ceramic Loading Cap">
+                                                <span class="c-disc-body">101</span>
+                                            </div>
+                                            <div class="ceramic-disc-cap c-disc-clock-2" title="100pF Ceramic Loading Cap">
+                                                <span class="c-disc-body">101</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- 330 ohm oscillator bias resistor (Individual Calibratable) -->
+                                        <div class="res-row calibratable-component" id="disc-r-clock" data-label="R(CLK) 330R" title="330 Ohm Oscillator Bias Resistor">
+                                            <span class="res-pad-l"></span>
+                                            <div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-brn"></span><span class="b-gld"></span></div>
+                                            <span class="res-pad-r"></span>
+                                        </div>
+
+                                        <!-- EPROM Programmer & Bias Passives (Beside U6 and U10/U11) -->
+                                        <div class="discrete-component disc-prog-passives" id="disc-prog-passives" title="EPROM Programming & Bias Circuit">
+                                            <!-- 33 Ohm 28V Resistor below U3 -->
+                                            <div class="res-row prog-res-33 calibratable-component" id="disc-res-28v" data-label="R 28V (33R)" title="33 Ohm 28V Programming Resistor">
+                                                <span class="res-pad-l"></span>
+                                                <div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-blk"></span><span class="b-gld"></span></div>
+                                                <span class="res-pad-r"></span>
+                                                <span class="silk-txt xxs silk-28v">28V</span>
+                                            </div>
+                                            <!-- Q17: TO-92 EPROM Programming Strobe Transistor -->
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q17" data-label="Q17 (PNP)" title="Q17: TO-92 PNP Programming Strobe Transistor">
+                                                <div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div>
+                                            </div>
+                                            <!-- Programmer Driver Resistors beside U10 (1.8k, 3.3k, 560, 47k) - All Individual -->
+                                            <div class="res-row calibratable-component" id="disc-r-prog1" data-label="R(PROG1) 1.8K" title="1.8k Resistor"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-gry"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-prog2" data-label="R(PROG2) 3.3K" title="3.3k Resistor"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-prog3" data-label="R(PROG3) 560R" title="560 Ohm Resistor"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-grn"></span><span class="b-blu"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-prog4" data-label="R(PROG4) 47K" title="47k Resistor"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-yel"></span><span class="b-vio"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                        </div>
+
+                                        <!-- Decoupling Ceramic Disc Capacitors (0.02uF / 203) along VCC Rails -->
+                                        <div class="discrete-component disc-decoupling-caps" id="disc-decoupling-caps" title="VCC Decoupling Ceramic Capacitors">
+                                            <div class="ceramic-disc-cap disc-cap-vcc1 calibratable-component" id="disc-cap-vcc1" data-label="Cap VCC1" title="0.02uF Decoupling"><span class="c-disc-body">203</span></div>
+                                            <div class="ceramic-disc-cap disc-cap-vcc2 calibratable-component" id="disc-cap-vcc2" data-label="Cap VCC2" title="0.02uF Decoupling"><span class="c-disc-body">203</span></div>
+                                            <div class="ceramic-disc-cap disc-cap-vcc3 calibratable-component" id="disc-cap-vcc3" data-label="Cap VCC3" title="0.02uF Decoupling"><span class="c-disc-body">203</span></div>
+                                        </div>
+
+                                        <!-- Stage 3.4: Display Strobes & Audio Transducer Subsystem -->
+                                        <!-- 120 Ohm x 8 Resistor Ladder (Segment Current Limit) beside Display -->
+                                        <div class="discrete-component disc-disp-resistors" id="disc-disp-resistors" title="120 Ohm x 8 Segment Current Limit Resistors">
+                                            <div class="res-row calibratable-component" id="disc-r-seg1" data-label="R(SEG1) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg2" data-label="R(SEG2) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg3" data-label="R(SEG3) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg4" data-label="R(SEG4) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg5" data-label="R(SEG5) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg6" data-label="R(SEG6) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg7" data-label="R(SEG7) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                            <div class="res-row calibratable-component" id="disc-r-seg8" data-label="R(SEG8) 120R"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-red"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                        </div>
+
+                                        <!-- 6x TO-92 Digit Strobe Transistors (Q1 - Q6) directly above Display digits -->
+                                        <div class="discrete-component disc-disp-strobes" id="disc-disp-strobes" title="Q1-Q6: 6x TO-92 PNP Digit Multiplex Strobe Transistors">
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q1" data-label="Q1 (Strobe)" title="Q1: TO-92 PNP Digit 1 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q2" data-label="Q2 (Strobe)" title="Q2: TO-92 PNP Digit 2 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q3" data-label="Q3 (Strobe)" title="Q3: TO-92 PNP Digit 3 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q4" data-label="Q4 (Strobe)" title="Q4: TO-92 PNP Digit 4 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q5" data-label="Q5 (Strobe)" title="Q5: TO-92 PNP Digit 5 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item to92-up calibratable-component" id="disc-q6" data-label="Q6 (Strobe)" title="Q6: TO-92 PNP Digit 6 Strobe"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                        </div>
+
+                                        <!-- DISP1..DISP6: Individual 7-Segment LED Displays (DIP-10 Packages with PCB Solder Pads) -->
+                                        <!-- DISP1 (A3: Address Digit 3) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-a3" data-label="DISP1 (A3)" title="DISP1: 7-Segment LED (Address A3)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-a3" data-digit="3">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b active" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- DISP2 (A2: Address Digit 2) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-a2" data-label="DISP2 (A2)" title="DISP2: 7-Segment LED (Address A2)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-a2" data-digit="2">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a active" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b active" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d active" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e active" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f active" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- DISP3 (A1: Address Digit 1) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-a1" data-label="DISP3 (A1)" title="DISP3: 7-Segment LED (Address A1)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-a1" data-digit="1">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a active" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b active" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d active" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e active" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f active" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- DISP4 (A0: Address Digit 0) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-a0" data-label="DISP4 (A0)" title="DISP4: 7-Segment LED (Address A0)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-a0" data-digit="0">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a active" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b active" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d active" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e active" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f active" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- DISP5 (D1: Data Digit 1) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-d1" data-label="DISP5 (D1)" title="DISP5: 7-Segment LED (Data D1)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-d1" data-digit="5">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a active" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b active" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d active" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g active" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- DISP6 (D0: Data Digit 0) -->
+                                        <div class="discrete-component disc-7seg-pkg calibratable-component" id="disc-disp-d0" data-label="DISP6 (D0)" title="DISP6: 7-Segment LED (Data D0)">
+                                            <div class="disp-pads-row disp-pads-top">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                            <div class="disp-pkg-body">
+                                                <div class="disp-pin1-mark"></div>
+                                                <div class="seg-digit" id="digit-d0" data-digit="4">
+                                                    <svg class="seg-svg" viewBox="0 0 32 52">
+                                                        <polygon class="seg-path seg-a active" points="6,4 24,4 20,8 10,8"/>
+                                                        <polygon class="seg-path seg-b" points="25,5 28,8 25,23 21,20"/>
+                                                        <polygon class="seg-path seg-c active" points="24,27 27,30 24,45 20,42"/>
+                                                        <polygon class="seg-path seg-d active" points="6,46 24,46 20,42 10,42"/>
+                                                        <polygon class="seg-path seg-e active" points="5,27 9,25 9,42 5,45"/>
+                                                        <polygon class="seg-path seg-f active" points="5,8 9,10 9,23 5,20"/>
+                                                        <polygon class="seg-path seg-g active" points="8,24 22,24 24,26 22,28 8,28 6,26"/>
+                                                        <circle class="seg-path seg-dp active" cx="29" cy="46" r="2.2"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="disp-pads-row disp-pads-bot">
+                                                <span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span><span class="disp-pad"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- SP: Piezoelectric Audio Transducer Disk & Driver Section -->
+                                        <div class="discrete-component disc-speaker-section" id="disc-speaker-section" title="SP: 20mm Piezoelectric Speaker & Driver Transistors">
+                                            <div class="piezo-transducer-disk calibratable-component" id="disc-piezo-disk" data-label="Piezo SP" title="SP: Piezo Transducer 20mm">
+                                                <div class="piezo-brass-base">
+                                                    <div class="piezo-ceramic-center">
+                                                        <div class="piezo-solder-joint joint-1"></div>
+                                                        <div class="piezo-solder-joint joint-2"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Q7, Q8: Audio Drivers (TO-92) -->
+                                            <div class="to92-item calibratable-component" id="disc-q7" data-label="Q7 Audio" title="Q7: TO-92 Audio Driver"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                            <div class="to92-item calibratable-component" id="disc-q8" data-label="Q8 Audio" title="Q8: TO-92 Audio Driver"><div class="to92-body"><div class="to92-leads"><span></span><span></span><span></span></div></div></div>
+                                        </div>
+
+                                        <!-- Dual 3x4 Keypad Modules (Page 98 Footprint Anchored) -->
+                                        <!-- Left 3x4 Module: RST, C, D, TO TAPE, 8, 9, FROM TAPE, 4, 5, GO EXEC, 0, 1 -->
+                                        <div class="discrete-component keypad-bezel-module left-module calibratable-component" id="disc-keypad-left" data-label="Keypad Left (3x4)" title="Keypad Left 3x4 Module">
+                                            <div class="keypad-grid-3x4">
+                                                <!-- Row 0 -->
+                                                <button class="key-btn key-fn key-rst" data-key="RST" data-code="0x18" title="Reset CPU (0000H) [Esc/F5]">
+                                                    <div class="key-dish"><span class="key-label">RST</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="C" data-code="0x0C" title="Hex C [C]">
+                                                    <div class="key-dish"><span class="key-label">C</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="D" data-code="0x0D" title="Hex D [D]">
+                                                    <div class="key-dish"><span class="key-label">D</span></div>
+                                                </button>
+
+                                                <!-- Row 1 -->
+                                                <button class="key-btn key-fn" data-key="TO TAPE" data-code="0x17" title="Write to Tape [W]">
+                                                    <div class="key-dish"><span class="key-label multiline">TO<br>TAPE</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="8" data-code="0x08" title="Hex 8 [8]">
+                                                    <div class="key-dish"><span class="key-label">8</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="9" data-code="0x09" title="Hex 9 [9]">
+                                                    <div class="key-dish"><span class="key-label">9</span></div>
+                                                </button>
+
+                                                <!-- Row 2 -->
+                                                <button class="key-btn key-fn" data-key="FROM TAPE" data-code="0x16" title="Read from Tape [L]">
+                                                    <div class="key-dish"><span class="key-label multiline">FROM<br>TAPE</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="4" data-code="0x04" title="Hex 4 [4]">
+                                                    <div class="key-dish"><span class="key-label">4</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="5" data-code="0x05" title="Hex 5 [5]">
+                                                    <div class="key-dish"><span class="key-label">5</span></div>
+                                                </button>
+
+                                                <!-- Row 3 -->
+                                                <button class="key-btn key-fn key-go" data-key="GO EXEC" data-code="0x11" title="Execute Program (GO) [Enter/G]">
+                                                    <div class="key-dish"><span class="key-label multiline">GO<br>EXEC</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="0" data-code="0x00" title="Hex 0 [0]">
+                                                    <div class="key-dish"><span class="key-label">0</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="1" data-code="0x01" title="Hex 1 [1]">
+                                                    <div class="key-dish"><span class="key-label">1</span></div>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Right 3x4 Module: E, F, ADRS, A, B, DATA, 6, 7, +, 2, 3, - -->
+                                        <div class="discrete-component keypad-bezel-module right-module calibratable-component" id="disc-keypad-right" data-label="Keypad Right (3x4)" title="Keypad Right 3x4 Module">
+                                            <div class="keypad-grid-3x4">
+                                                <!-- Row 0 -->
+                                                <button class="key-btn key-hex" data-key="E" data-code="0x0E" title="Hex E [E]">
+                                                    <div class="key-dish"><span class="key-label">E</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="F" data-code="0x0F" title="Hex F [F]">
+                                                    <div class="key-dish"><span class="key-label">F</span></div>
+                                                </button>
+                                                <button class="key-btn key-fn" data-key="ADRS" data-code="0x14" title="Set/Examine Address [A/M]">
+                                                    <div class="key-dish"><span class="key-label">ADRS</span></div>
+                                                </button>
+
+                                                <!-- Row 1 -->
+                                                <button class="key-btn key-hex" data-key="A" data-code="0x0A" title="Hex A [A]">
+                                                    <div class="key-dish"><span class="key-label">A</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="B" data-code="0x0B" title="Hex B [B]">
+                                                    <div class="key-dish"><span class="key-label">B</span></div>
+                                                </button>
+                                                <button class="key-btn key-fn" data-key="DATA" data-code="0x12" title="Set/Examine Data [D]">
+                                                    <div class="key-dish"><span class="key-label">DATA</span></div>
+                                                </button>
+
+                                                <!-- Row 2 -->
+                                                <button class="key-btn key-hex" data-key="6" data-code="0x06" title="Hex 6 [6]">
+                                                    <div class="key-dish"><span class="key-label">6</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="7" data-code="0x07" title="Hex 7 [7]">
+                                                    <div class="key-dish"><span class="key-label">7</span></div>
+                                                </button>
+                                                <button class="key-btn key-fn key-step" data-key="+" data-code="0x13" title="Increment Address / Next (+) [+/→]">
+                                                    <div class="key-dish"><span class="key-label">+</span></div>
+                                                </button>
+
+                                                <!-- Row 3 -->
+                                                <button class="key-btn key-hex" data-key="2" data-code="0x02" title="Hex 2 [2]">
+                                                    <div class="key-dish"><span class="key-label">2</span></div>
+                                                </button>
+                                                <button class="key-btn key-hex" data-key="3" data-code="0x03" title="Hex 3 [3]">
+                                                    <div class="key-dish"><span class="key-label">3</span></div>
+                                                </button>
+                                                <button class="key-btn key-fn" data-key="-" data-code="0x10" title="Single-Step / Decrement (-) [-/Space]">
+                                                    <div class="key-dish"><span class="key-label">-</span></div>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phase 2: 11 Mounted DIP ICs (U1 - U11) anchored to Page 98 pad footprints -->
+                                    <div class="pcb-ics-layer" id="pcb-ics-layer">
+                                        <!-- U1: Zilog Z80A CPU (40-Pin DIP in 40p socket) -->
+                                        <div class="ic-socket-package" id="ic-u1" data-designator="U1" data-label="U1: Z80A CPU" data-part="Z-80 CPU" title="U1: Zilog Z80A CPU (40-Pin DIP in 40p socket, 2.500MHz)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-40 chip-z80-cpu">
+                                                <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body dip-40-body">
+                                                    <div class="dip-notch"></div>
+                                                    <div class="dip-dimple"></div>
+                                                    <div class="dip-laser-silk dip-spine-silk">
+                                                         <span class="silk-main">Z80A CPU</span>
+                                                         <span class="silk-sub">Z8400A PS</span>
+                                                         <span class="silk-date">ZILOG 8830</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U5: 8255A PPI #1 (40-Pin DIP in 40p socket) -->
+                                        <div class="ic-socket-package" id="ic-u5" data-designator="U5" data-label="U5: 8255A PPI #1" data-part="8255 PPI #1" title="U5: 8255A PPI #1 System I/O (40-Pin DIP in 40p socket)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-40 chip-8255-sys">
+                                                <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body dip-40-body">
+                                                    <div class="dip-notch"></div>
+                                                    <div class="dip-dimple"></div>
+                                                    <div class="dip-laser-silk dip-spine-silk">
+                                                        <svg class="nec-logo-svg" viewBox="0 0 20 20" width="13" height="13">
+                                                            <path d="M10 2 L4 8 M10 2 L16 8 M10 6 L5 11 M10 6 L15 11 M10 10 L6 14 M10 10 L14 14 M10 14 L10 18" stroke="#8e9490" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                                                        </svg>
+                                                        <span class="silk-main">D8255AC-2</span>
+                                                        <span class="silk-sub">NEC JAPAN</span>
+                                                        <span class="silk-date">8818X5</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U9: SN74LS14N Hex Schmitt-Trigger Inverter (14-Pin DIP narrow) -->
+                                        <div class="ic-socket-package" id="ic-u9" data-designator="U9" data-label="U9: 74LS04" data-part="74LS14" title="U9: SN74LS14N Hex Schmitt-Trigger Inverter (14-Pin DIP)">
+                                            <div class="ic-silkscreen-box"><span class="silk-box-label">RGD</span></div>
+                                            <div class="dip-ic dip-14 chip-74ls14-top">
+                                                <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body xs">
+                                                    <div class="dip-notch sm"></div>
+                                                    <span class="silk-xs">74LS14</span>
+                                                </div>
+                                                <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U2: 2732 Monitor EPROM (24-Pin Ceramic DIP 600mil with Quartz Window in 24p socket) -->
+                                        <div class="ic-socket-package" id="ic-u2" data-designator="U2" data-label="U2: 2732 EPROM" data-part="2732 EPROM" title="U2: 2732 4KB Monitor EPROM (24-Pin Ceramic DIP 600mil in 24p socket)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-24 ceramic-eprom" id="chip-eprom">
+                                                <div class="dip-pins left-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body ceramic-pkg">
+                                                    <div class="ceramic-notch"></div>
+                                                    <div class="eprom-silk-top">
+                                                        <span class="eprom-part-no">M5L2732K</span>
+                                                    </div>
+                                                    <div class="eprom-silver-braze-plate">
+                                                        <div class="braze-fingers braze-top"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-bottom"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-left"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-right"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="eprom-kovar-ring">
+                                                            <div class="eprom-quartz-window">
+                                                                <div class="eprom-die-cavity">
+                                                                    <div class="eprom-silicon-die">
+                                                                        <div class="die-corner-wire wire-tl"></div>
+                                                                        <div class="die-corner-wire wire-tr"></div>
+                                                                        <div class="die-corner-wire wire-bl"></div>
+                                                                        <div class="die-corner-wire wire-br"></div>
+                                                                        <div class="die-silicon-pattern"></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="quartz-glare-sheen"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="eprom-silk-bottom">
+                                                        <span class="eprom-date-code">◆◆◆ JAPAN 8835</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U6: 8255A PPI #2 (40-Pin DIP in 40p socket) -->
+                                        <div class="ic-socket-package" id="ic-u6" data-designator="U6" data-label="U6: 8255A PPI #2" data-part="8255 PPI #2" title="U6: 8255A PPI #2 EPROM Programmer (40-Pin DIP in 40p socket)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-40 chip-8255-burner">
+                                                <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body dip-40-body">
+                                                    <div class="dip-notch"></div>
+                                                    <div class="dip-dimple"></div>
+                                                    <div class="dip-laser-silk dip-spine-silk">
+                                                        <svg class="nec-logo-svg" viewBox="0 0 20 20" width="13" height="13">
+                                                            <path d="M10 2 L4 8 M10 2 L16 8 M10 6 L5 11 M10 6 L15 11 M10 10 L6 14 M10 10 L14 14 M10 14 L10 18" stroke="#8e9490" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                                                        </svg>
+                                                        <span class="silk-main">D8255AC-2</span>
+                                                        <span class="silk-sub">NEC JAPAN</span>
+                                                        <span class="silk-date">8824M2</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U8: SN74LS139N Dual 2-to-4 Decoder (16-Pin DIP) -->
+                                        <div class="ic-socket-package" id="ic-u8" data-designator="U8" data-label="U8: 74LS138" data-part="74LS139" title="U8: SN74LS139N Address Decoder (16-Pin DIP)">
+                                            <div class="ic-silkscreen-box"><span class="silk-box-label">NET 0</span></div>
+                                            <div class="dip-ic dip-16 chip-74ls139">
+                                                <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body xs">
+                                                    <div class="dip-notch sm"></div>
+                                                    <span class="silk-xs">74LS139</span>
+                                                </div>
+                                                <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U3: 2732 Expansion EPROM (24-Pin Ceramic DIP 600mil with Quartz Window in 24p socket) -->
+                                        <div class="ic-socket-package" id="ic-u3" data-designator="U3" data-label="U3: 2732 EPROM" data-part="2732 EPROM" title="U3: 2732 4KB Expansion EPROM (24-Pin Ceramic DIP 600mil in 24p socket)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-24 ceramic-eprom" id="chip-eprom-u3">
+                                                <div class="dip-pins left-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body ceramic-pkg">
+                                                    <div class="ceramic-notch"></div>
+                                                    <div class="eprom-silk-top">
+                                                        <span class="eprom-part-no">M5L2732K</span>
+                                                    </div>
+                                                    <div class="eprom-silver-braze-plate">
+                                                        <div class="braze-fingers braze-top"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-bottom"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-left"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="braze-fingers braze-right"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="eprom-kovar-ring">
+                                                            <div class="eprom-quartz-window">
+                                                                <div class="eprom-die-cavity">
+                                                                    <div class="eprom-silicon-die">
+                                                                        <div class="die-corner-wire wire-tl"></div>
+                                                                        <div class="die-corner-wire wire-tr"></div>
+                                                                        <div class="die-corner-wire wire-bl"></div>
+                                                                        <div class="die-corner-wire wire-br"></div>
+                                                                        <div class="die-silicon-pattern"></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="quartz-glare-sheen"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="eprom-silk-bottom">
+                                                        <span class="eprom-date-code">◆◆◆ JAPAN 8835</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U10: SN7404N Hex Inverter (14-Pin DIP narrow) -->
+                                        <div class="ic-socket-package" id="ic-u10" data-designator="U10" data-label="U10: 74LS00" data-part="7404" title="U10: SN7404N Hex Inverter Tape Demodulator (14-Pin DIP)">
+                                            <div class="ic-silkscreen-box"><span class="silk-box-label">04</span></div>
+                                            <div class="dip-ic dip-14 chip-u10-7404">
+                                                <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body xs">
+                                                    <div class="dip-notch sm"></div>
+                                                    <span class="silk-xs">7404</span>
+                                                </div>
+                                                <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U11: LM741 Single Operational Amplifier (8-Pin DIP narrow) -->
+                                        <div class="ic-socket-package" id="ic-u11" data-designator="U11" data-label="U11: 74LS10" data-part="LM741" title="U11: LM741 Single Operational Amplifier (8-Pin DIP)">
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-8 chip-u11-741">
+                                                <div class="dip-pins left-pins xs"><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body xxs">
+                                                    <div class="dip-notch sm"></div>
+                                                    <span class="silk-xxs">LM741</span>
+                                                </div>
+                                                <div class="dip-pins right-pins xs"><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U4: HM6116P-3 2KB Static RAM (24-Pin DIP 600mil in 24p socket) -->
+                                        <div class="ic-socket-package" id="ic-u4" data-designator="U4" data-label="U4: 6116 SRAM" data-part="6116 SRAM" title="U4: HM6116P-3 2KB High-Speed CMOS Static RAM (24-Pin DIP 600mil in 24p socket)">
+                                            <div class="ic-socket-underlay"></div>
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="dip-ic dip-24 chip-user-sram">
+                                                <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="dip-body">
+                                                    <div class="dip-notch"></div>
+                                                    <div class="dip-laser-silk dip-spine-silk">
+                                                        <span class="silk-main">HM6116P-3</span>
+                                                        <span class="silk-sub">JAPAN 8835</span>
+                                                    </div>
+                                                </div>
+                                                <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- U7: Target EPROM Programmer Socket (28-Pin Wide DIP Ladder Socket) -->
+                                        <div class="ic-socket-package" id="ic-u7" data-designator="U7" data-label="U7: EPROM Sock" data-part="EPROM Programmer Socket" title="U7: Target EPROM Programmer Socket (28-Pin Wide DIP)">
+                                            <div class="ic-silkscreen-box"></div>
+                                            <div class="empty-ladder-socket socket-28p socket-u7-frame">
+                                                <div class="socket-top-notch"></div>
+                                                <div class="socket-rail socket-rail-left">
+                                                    <div class="socket-cavity"><span class="pin-no">1</span><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="pin-no">14</span><span class="wipe-leaf"></span></div>
+                                                </div>
+                                                <div class="socket-center-bay">
+                                                    <div class="socket-window socket-window-top"></div>
+                                                    <div class="socket-cross-rib">
+                                                        <span class="rib-emboss">TARGET 28P</span>
+                                                    </div>
+                                                    <div class="socket-window socket-window-bottom"></div>
+                                                </div>
+                                                <div class="socket-rail socket-rail-right">
+                                                    <div class="socket-cavity"><span class="pin-no">28</span><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="wipe-leaf"></span></div>
+                                                    <div class="socket-cavity"><span class="pin-no">15</span><span class="wipe-leaf"></span></div>
+                                                </div>
+                                                <div class="socket-bottom-notch"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Silkscreen Overlay: ABC-80 EPROM (Draggable & Transparent) -->
+                                        <div class="ic-socket-package silk-overlay-package" id="silk-abc80-eprom" data-designator="SILK-EPROM" data-label="SILK: ABC-80 EPROM" data-part="ABC-80 EPROM Silk" title="PCB Silkscreen: ABC-80 EPROM">
+                                            <div class="silk-abc80-eprom-text">
+                                                <span class="silk-line-1">ABC-80</span>
+                                                <span class="silk-line-2">EPROM</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phase 3-4 Staged Component Layer (hidden in Phase 2) -->
+                                    <div class="pcb-components-layer" id="pcb-components-layer" style="display: none;">
+                                        <!-- Authoritative Brand Silkscreen Emblem -->
+                                        <div class="pcb-brand-silk">
+                                        <svg class="brand-silk-svg" width="24" height="15" viewBox="0 0 41 26">
+                                            <rect x="0" y="0" width="41" height="6" fill="#dce0d6" />
+                                            <rect x="0" y="6" width="8" height="20" fill="#dce0d6" />
+                                            <rect x="14" y="6" width="13" height="20" fill="#dce0d6" />
+                                            <rect x="33" y="6" width="8" height="20" fill="#dce0d6" />
+                                        </svg>
+                                    </div>
+
+                                    <!-- Top Power & Silk Header Section -->
+                                    <div class="pcb-top-header">
+                                        <div class="top-left-bulk-cap">
+                                            <div class="electrolytic-cap blue-cap-100uf" title="C2: 100uF 16V VCC Bulk Decoupling Capacitor">
+                                                <div class="cap-aluminum-top">
+                                                    <div class="cap-vent-mercedes"></div>
+                                                </div>
+                                            </div>
+                                            <div class="top-int-header" title="INT Single-Step Interrupt Jumper Header">
+                                                <span class="silk-txt xxs">INT</span>
+                                                <div class="gold-pin-pair"><span></span><span></span></div>
+                                            </div>
+                                        </div>
+                                        <div class="top-reset-group">
+                                            <button class="hw-reset-tactile-btn" id="btn-hw-rst" title="Hardware Reset Switch ($909)" data-key="RST" data-code="0x18">
+                                                <div class="tactile-red-plunger"></div>
+                                            </button>
+                                            <span class="silk-txt xs silk-909">$909</span>
+                                        </div>
+                                        <div class="top-center-audio-jacks">
+                                            <div class="audio-jack-module" title="J2: EAR Cassette Audio Input Jack">
+                                                <div class="phone-jack-35mm"><div class="jack-bushing"></div></div>
+                                            </div>
+                                            <div class="audio-jack-module" title="J3: MIC Cassette Audio Output Jack">
+                                                <div class="phone-jack-35mm"><div class="jack-bushing"></div></div>
+                                            </div>
+                                        </div>
+                                        <div class="top-power-group">
+                                            <div class="dc-barrel-jack" title="DC Power Jack">
+                                                <div class="jack-wire-exit"></div>
+                                                <div class="jack-body">
+                                                    <div class="jack-center-pin"></div>
+                                                </div>
+                                            </div>
+                                            <div class="lm7805-regulator" title="LM7805 5V Voltage Regulator with Heatsink">
+                                                <div class="to220-heatsink">
+                                                    <div class="heatsink-screw"></div>
+                                                </div>
+                                                <div class="to220-metal-tab"><div class="tab-hole"></div></div>
+                                                <div class="to220-plastic-body"></div>
+                                            </div>
+                                            <div class="electrolytic-cap blue-cap-220uf" title="220uF 16V Radial Electrolytic Capacitor">
+                                                <div class="cap-aluminum-top">
+                                                    <div class="cap-vent-mercedes"></div>
+                                                </div>
+                                            </div>
+                                            <div class="disc-cap orange-disc" title="0.1uF Decoupling"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3 Columns Component Subsystems Layout -->
+                                                                        <div class="pcb-mid-components">
+                                        <!-- Column 1 (Left) -->
+                                        <!-- Column 1 (Left: 26 Resistors, 16-Pin Socket Strip, Q9..Q16, Historical Z80 CPU & Z80A PIO DIP-40s) -->
+                                        <div class="col-stack col-left">
+                                            <div class="col-left-discretes">
+                                                <!-- CONTO Silkscreen Header -->
+                                                <div class="conto-silk-header">
+                                                    <span class="silk-txt xs silk-conto">CONTO</span>
+                                                </div>
+
+                                                <!-- FECU Silkscreen Box: Encloses FECU-, 4 resistors, and 7 resistors alongside Z80 -->
+                                                <div class="fecu-silk-frame">
+                                                    <div class="fecu-title-row">
+                                                        <span class="pcb-via-pad"></span>
+                                                        <span class="silk-txt xxs silk-fecu">FECU —</span>
+                                                    </div>
+                                                    <!-- Top 4 Resistors -->
+                                                    <div class="resistor-ladder-block res-group-4">
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    </div>
+                                                    <!-- Mid 7 Resistors alongside Z80 -->
+                                                    <div class="resistor-ladder-block res-group-7">
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    </div>
+                                                    <span class="pcb-via-pad via-corner-bl"></span>
+                                                </div>
+
+                                                <!-- Top 8 Resistors alongside PIO -->
+                                                <div class="resistor-ladder-block res-group-8-pio">
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                </div>
+
+                                                <!-- Bottom Section: 16-Pin SIP Socket Strip on Left + 8 Resistors on Right -->
+                                                <div class="pio-sip-resistor-section">
+                                                    <div class="single-row-socket-strip socket-16pin" title="Expansion Socket (16-Pin SIP Strip)">
+                                                        <div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div>
+                                                        <div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div>
+                                                        <div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div>
+                                                        <div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div><div class="sk-hole"></div>
+                                                    </div>
+                                                    <div class="resistor-ladder-block res-group-8-sip">
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                        <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-blk"></span><span class="b-org"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-left-chips">
+                                                <div class="halt-led-cluster" title="LED1: 3mm Red HALT Indicator LED">
+                                                    <div class="discrete-led-3mm led-red"></div>
+                                                    <span class="silk-txt xxs">HALT</span>
+                                                </div>
+                                                <span class="silk-txt xxs silk-db">DB</span>
+                                                <!-- Historical Zilog Z80 CPU 40-Pin DIP Package in Dual-Wipe Socket -->
+                                                <div class="dip-socket-rim">
+                                                    <div class="dip-ic dip-40 chip-z80-cpu" id="chip-z80" title="Zilog Z80 CPU (40-Pin DIP, 2.500MHz)">
+                                                        <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="dip-body">
+                                                            <div class="dip-notch"></div>
+                                                            <div class="dip-dimple"></div>
+                                                            <div class="dip-laser-silk">
+                                                                <span class="silk-main">Z80 CPU</span>
+                                                                <span class="silk-sub">OEM 8706</span>
+                                                                <span class="silk-sub">GM 048</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Page 98 Authoritative Discrete Keypad Column Drivers: 8x TO-92 PNP Transistors (Q9-Q16) & 3.3k x 8 Resistor Ladder -->
+                                                <div class="col1-discrete-column-drivers" id="col1-drivers" title="Keypad Column Drivers: 8x PNP Transistors (Q9-Q16) and 3.3k x 8 Resistor Ladder">
+                                                    <!-- 8x Discrete TO-92 PNP Transistors in 2 banks of 4 -->
+                                                    <div class="to92-transistor-column">
+                                                        <div class="to92-bank bank-top">
+                                                            <div class="transistor-to92" title="Q9 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q10 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q11 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q12 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                        </div>
+                                                        <div class="to92-bank bank-bottom">
+                                                            <div class="transistor-to92" title="Q13 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q14 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q15 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                            <div class="transistor-to92" title="Q16 PNP Transistor (TO-92)"><span class="to92-body"></span><span class="to92-pad"></span></div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- 3.3k x 8 Horizontal Carbon-Film Resistor Ladder bridging to 8255 -->
+                                                    <div class="resistor-ladder-3k3" title="3.3k Ohm x 8 Pull-up Resistor Ladder">
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                        <div class="res-row-3k3"><span class="res-lead-l"></span><div class="res-body-3k3"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-lead-r"></span></div>
+                                                    </div>
+                                                </div>
+                                                <span class="sip-cantgo-silk" title="Silkscreen CANTGO">CANTGO</span>
+
+                                                <!-- Historical Mostek/Zilog Z80A PIO 40-Pin DIP Package with Winged Logo -->
+                                                <div class="dip-socket-rim rim-8255">
+                                                    <div class="dip-ic dip-40 chip-z80-pio" id="chip-8255" title="Z80A PIO Parallel I/O (40-Pin DIP)">
+                                                        <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="dip-body">
+                                                            <div class="dip-notch"></div>
+                                                            <div class="dip-dimple"></div>
+                                                            <div class="dip-laser-silk">
+                                                                <svg class="zilog-winged-emblem" viewBox="0 0 24 16" width="18" height="12">
+                                                                    <path d="M12,1 L9,7 L12,5 L15,7 Z" fill="#b0b8c0"/>
+                                                                    <path d="M6,6 L3,12 L7,10 L10,12 Z" fill="#b0b8c0"/>
+                                                                    <path d="M18,6 L14,12 L17,10 L21,12 Z" fill="#b0b8c0"/>
+                                                                    <path d="M11,8 L13,8 L13,15 L11,15 Z" fill="#b0b8c0"/>
+                                                                </svg>
+                                                                <span class="silk-main">Z8420A PS</span>
+                                                                <span class="silk-sub">Z80A PIO</span>
+                                                                <span class="silk-sub">8925 M5</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Glass Diode / Axial Capacitor Bridge under PIO -->
+                                                <div class="axial-glass-diode" title="Germanium/Schottky Axial Diode">
+                                                    <span class="diode-wire-l"></span>
+                                                    <div class="diode-body-glass"><span class="diode-cathode-band"></span></div>
+                                                    <span class="diode-wire-r"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Column 2 (Center) -->
+                                        <div class="col-stack col-center">
+                                            <!-- Quartz Crystal Oscillator (XTAL 2.500 MHz) -->
+                                            <div class="crystal-oscillator-hc49" title="2.500 MHz Quartz Crystal Oscillator (XTAL)">
+                                                <span class="xtal-freq">2.500</span>
+                                            </div>
+                                            <!-- Clock Inverter 74LS04 (14-Pin DIP) with ROD silk box -->
+                                            <div class="col2-top-chip-box">
+                                                <span class="silk-txt xxs silk-rod">ROD</span>
+                                                <div class="dip-ic dip-14 chip-74ls04-top" title="SN74LS04N Hex Inverter (Clock Oscillator)">
+                                                    <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body xs"><span class="silk-xs">74LS04</span></div>
+                                                    <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-center-chips-frame">
+                                                <!-- Ceramic 2716/2732 Monitor EPROM with Silver Center Foil Sticker (24-Pin DIP) -->
+                                                <div class="dip-ic dip-24 ceramic-eprom" id="chip-eprom" title="Ceramic Monitor EPROM (24-Pin DIP with Silver Window Sticker)">
+                                                    <div class="dip-pins left-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body ceramic-pkg">
+                                                        <div class="dip-notch"></div>
+                                                        <div class="eprom-silver-frame">
+                                                            <div class="eprom-quartz-window">
+                                                                <div class="eprom-die"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="dip-pins right-pins gold-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                </div>
+
+                                                <!-- 8255 PPI #2 (40-Pin DIP Package in Socket for EPROM Programmer) -->
+                                                <div class="dip-socket-rim">
+                                                    <div class="dip-ic dip-40 chip-8255-burner" id="chip-8255-burner" title="8255A PPI #2 EPROM Programmer (40-Pin DIP)">
+                                                        <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                        <div class="dip-body">
+                                                            <div class="dip-notch"></div>
+                                                            <div class="dip-dimple"></div>
+                                                            <div class="dip-laser-silk">
+                                                                <span class="silk-main">SMC 8837</span>
+                                                                <span class="silk-sub">8255A / DIRS</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    </div>
+                                                </div>
+                                                <div class="disc-cap yellow-disc-bridge"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Column 3 (Mid-Right) -->
+                                        <!-- Column 3 (Mid-Right: NET 0, Empty 28-Pin Socket, Silk & Discrete Burner, 74LS138) -->
+                                        <div class="col-stack col-mid-right">
+                                            <div class="col3-top-chip-box">
+                                                <span class="silk-txt xxs silk-net">NET 0</span>
+                                                <div class="dip-ic dip-14 chip-net0" title="NET 0 (14-Pin DIP)">
+                                                    <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body xs"><span class="silk-xs">NET 0</span></div>
+                                                    <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="dip-socket-frame socket-empty-28" title="Target EPROM Programmer Socket (28-Pin)">
+                                                <div class="socket-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="socket-inner-cutout">
+                                                    <span class="socket-inner-silk">825 P</span>
+                                                    <div class="socket-window-divider"></div>
+                                                </div>
+                                                <div class="socket-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+
+                                            <div class="col-right-mid-silk">
+                                                <div class="mid-silk-labels">
+                                                    <span class="silk-txt xxs">BO</span>
+                                                    <span class="silk-txt xxs">618 V</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="burner-discrete-group">
+                                                <div class="transistor-to92 to92-right" title="Q17 (CS9013 NPN 21V Switch)"></div>
+                                                <div class="burner-resistor-stack">
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-org"></span><span class="b-org"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-brn"></span><span class="b-gry"></span><span class="b-red"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                    <div class="res-row"><span class="res-pad-l"></span><div class="res-carbon-film"><span class="b-grn"></span><span class="b-blu"></span><span class="b-brn"></span><span class="b-gld"></span></div><span class="res-pad-r"></span></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="col3-bottom-chip-box" title="u10 (7404 Hex Inverter) & u11 (LM741 Op-Amp) Tape Audio Demodulator">
+                                                <span class="silk-txt xxs silk-04">04</span>
+                                                <!-- u10: 7404 / 74LS04 (14-Pin DIP Hex Inverter) -->
+                                                <div class="dip-ic dip-14 chip-u10-7404" id="chip-u10" title="u10: SN74LS04N Hex Inverter (14-Pin DIP)">
+                                                    <div class="dip-pins left-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body xs"><span class="silk-xs">74LS04</span></div>
+                                                    <div class="dip-pins right-pins sm"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                </div>
+                                                <!-- PCB Silkscreen Divider between u10 and u11 -->
+                                                <div class="tandem-ic-divider">
+                                                    <span class="pin-silk-l">7</span>
+                                                    <div class="divider-line"></div>
+                                                    <span class="pin-silk-r">8</span>
+                                                </div>
+                                                <!-- u11: LM741 (8-Pin DIP Single Operational Amplifier) -->
+                                                <div class="dip-ic dip-8 chip-u11-741" id="chip-u11" title="u11: LM741 Single Operational Amplifier (8-Pin DIP)">
+                                                    <div class="dip-pins left-pins xs"><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body xxs"><span class="silk-xxs">LM741</span></div>
+                                                    <div class="dip-pins right-pins xs"><span></span><span></span><span></span><span></span></div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="green-bead-cap"></div>
+                                        </div>
+
+                                        <!-- Column 4 (HM6116 SRAM, CP Tantalum Drop, Expansion Socket) -->
+                                        <div class="col-stack col-sram">
+                                            <div class="sram-chip-box">
+                                                <div class="dip-ic dip-24 chip-user-sram" id="chip-sram" title="HM6116P-3 / RAM (24-Pin DIP)">
+                                                    <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                    <div class="dip-body">
+                                                        <div class="dip-notch"></div>
+                                                        <div class="dip-laser-silk">
+                                                            <span class="silk-main">97688 8935</span>
+                                                            <span class="silk-sub">SY2128-3</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="dip-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="tantalum-cp-cluster">
+                                                <div class="tantalum-cap-drop red-drop" title="Tantalum Drop CP"></div>
+                                                <span class="silk-txt xxs">CP</span>
+                                            </div>
+
+                                            <div class="dip-socket-frame socket-empty-28 socket-empty-sram" title="SRAM Expansion Socket (24-Pin)">
+                                                <div class="socket-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                                <div class="socket-inner-cutout">
+                                                    <div class="socket-window-divider"></div>
+                                                </div>
+                                                <div class="socket-pins right-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Column 5 (Prototyping Grid & Expansion Bus) -->
+                                        <div class="col-stack col-proto">
+                                            <div class="col-right-proto">
+                                                <!-- Authentic Radial Electrolytic Capacitor near Proto Grid -->
+                                                <div class="electrolytic-cap blue-cap-100uf" title="100uF 25V Radial Electrolytic Capacitor">
+                                                    <div class="cap-aluminum-top">
+                                                        <div class="cap-vent-mercedes"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="ep-led-cluster" title="LED2: 3mm Green EP Indicator LED (+21V Burner Active)">
+                                                    <div class="discrete-led-3mm led-green"></div>
+                                                    <span class="silk-txt xxs">EP</span>
+                                                </div>
+
+                                                 <!-- Prototyping Plated Through-Hole Grid Matrix and Expansion Bus -->
+                                                <div class="proto-area-composite">
+                                                    <div class="proto-grid-container" title="System Prototyping Breadboard Grid">
+                                                        <svg class="proto-hole-grid-svg" width="102" height="236" viewBox="0 0 102 236" preserveAspectRatio="none">
+                                                            <defs>
+                                                                <pattern id="proto-pad" width="6.6" height="6.6" patternUnits="userSpaceOnUse">
+                                                                    <circle cx="3.3" cy="3.3" r="2.1" fill="#729070" stroke="#3d503b" stroke-width="0.3"/>
+                                                                    <circle cx="3.3" cy="3.3" r="0.9" fill="#142016"/>
+                                                                </pattern>
+                                                            </defs>
+                                                            <rect width="102" height="236" fill="url(#proto-pad)"/>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="vertical-expansion-bus" title="44-Pin Gold Edge Connector Bus">
+                                                        <svg class="expansion-bus-svg" width="14" height="236" viewBox="0 0 14 236">
+                                                            <defs>
+                                                                <pattern id="bus-pad-pair" width="14" height="5.5" patternUnits="userSpaceOnUse">
+                                                                    <rect x="0.5" y="0.4" width="6" height="4.7" rx="1" fill="#dbd090" stroke="#a08830" stroke-width="0.4"/>
+                                                                    <circle cx="3.5" cy="2.75" r="0.9" fill="#302810"/>
+                                                                    <rect x="7.5" y="0.4" width="6" height="4.7" rx="1" fill="#dbd090" stroke="#a08830" stroke-width="0.4"/>
+                                                                    <circle cx="10.5" cy="2.75" r="0.9" fill="#302810"/>
+                                                                </pattern>
+                                                            </defs>
+                                                            <rect width="14" height="236" fill="url(#bus-pad-pair)"/>
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- End pcb-components-layer -->
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Collapsible Developer Inspector Drawer -->
+            <section id="inspector-section" class="inspector-expanded">
+                <div class="inspector-card">
+                    <div class="inspector-tabs-bar">
+                        <button class="tab-btn active" data-tab="tab-cpu">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
+                            <span>Z80 CPU & Disasm</span>
+                        </button>
+                        <button class="tab-btn" data-tab="tab-memory">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                            <span>Memory Map</span>
+                        </button>
+                        <button class="tab-btn" data-tab="tab-tape">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            <span>Cassette Tape</span>
+                        </button>
+                    </div>
+
+                    <!-- Tab 1: CPU Registers & Live Disassembly -->
+                    <div class="tab-pane active" id="tab-cpu">
+                        <div class="inspector-box">
+                            <div class="box-title">Z80 CPU REGISTERS</div>
+                            <div class="reg-grid">
+                                <div class="reg-cell"><span class="reg-k">PC:</span><span class="reg-v" id="reg-pc">0x0000</span></div>
+                                <div class="reg-cell"><span class="reg-k">SP:</span><span class="reg-v" id="reg-sp">0x17FE</span></div>
+                                <div class="reg-cell"><span class="reg-k">AF:</span><span class="reg-v" id="reg-af">0x0040</span></div>
+                                <div class="reg-cell"><span class="reg-k">BC:</span><span class="reg-v" id="reg-bc">0x0006</span></div>
+                                <div class="reg-cell"><span class="reg-k">DE:</span><span class="reg-v" id="reg-de">0x1000</span></div>
+                                <div class="reg-cell"><span class="reg-k">HL:</span><span class="reg-v" id="reg-hl">0x2000</span></div>
+                                <div class="reg-cell"><span class="reg-k">IX:</span><span class="reg-v" id="reg-ix">0x0000</span></div>
+                                <div class="reg-cell"><span class="reg-k">IY:</span><span class="reg-v" id="reg-iy">0x0000</span></div>
+                            </div>
+                            <div class="flags-bar">
+                                <span class="flags-title">FLAGS:</span>
+                                <span class="flag-bit" id="flag-s">S</span>
+                                <span class="flag-bit active" id="flag-z">Z</span>
+                                <span class="flag-bit" id="flag-h">H</span>
+                                <span class="flag-bit" id="flag-pv">P/V</span>
+                                <span class="flag-bit" id="flag-n">N</span>
+                                <span class="flag-bit" id="flag-c">C</span>
+                            </div>
+                        </div>
+
+                        <div class="inspector-box disasm-box">
+                            <div class="box-title-bar">
+                                <span class="box-title">DISASSEMBLY STREAM</span>
+                                <button class="mini-btn" id="btn-disasm-step">Single Step (Space)</button>
+                            </div>
+                            <div class="disasm-list" id="disasm-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Memory Map -->
+                    <div class="tab-pane" id="tab-memory">
+                        <div class="inspector-box hex-box">
+                            <div class="box-title-bar">
+                                <span class="box-title">MEMORY HEX VIEWER</span>
+                                <div class="mem-jump-bar">
+                                    <button class="chip-btn active" data-addr="0x0000">ROM 0000H</button>
+                                    <button class="chip-btn" data-addr="0x1000">RAM 1000H</button>
+                                    <button class="chip-btn" data-addr="0x2000">PPI 2000H</button>
+                                </div>
+                            </div>
+                            <div class="hex-editor-table" id="hex-editor-table"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Cassette Tape FSK -->
+                    <div class="tab-pane" id="tab-tape">
+                        <div class="inspector-box">
+                            <div class="box-title">FSK CASSETTE AUDIO INTERFACE (PC6 / PC7)</div>
+                            <div class="tape-controls-row">
+                                <button class="tape-btn" id="btn-tape-play">▶ PLAY</button>
+                                <button class="tape-btn" id="btn-tape-rec">⏺ RECORD</button>
+                                <button class="tape-btn" id="btn-tape-stop">■ STOP</button>
+                                <button class="tape-btn" id="btn-tape-rew">⏪ REW</button>
+                            </div>
+                            <div class="oscilloscope-container">
+                                <canvas id="tape-scope-canvas" width="360" height="85"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer id="main-footer">
+            <div class="footer-item">
+                <span class="footer-dot dot-online"></span>
+                <span>ABC-80 TRAINER EMULATOR • READY</span>
+            </div>
+            <div class="footer-item">
+                <span>KEYS: <code>0-9</code>, <code>A-F</code>, <code>+</code>, <code>-</code>, <code>ADRS</code>, <code>DATA</code>, <code>GO EXEC</code>, <code>RST</code></span>
+            </div>
+            <div class="footer-item copyright-item">
+                <span>Copyright (C) 2026, Charles Chiou</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>ABC-80 Microcomputer Learning Kit Guide</h2>
+                <button id="btn-close-modal" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3>Keypad Controls & PC Keyboard Mapping</h3>
+                <table class="shortcuts-table">
+                    <thead><tr><th>ABC-80 Key</th><th>PC Key</th><th>Function Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>0</code> – <code>9</code>, <code>A</code> – <code>F</code></td><td><kbd>0</kbd>–<kbd>9</kbd>, <kbd>A</kbd>–<kbd>F</kbd></td><td>Hexadecimal address & data input</td></tr>
+                        <tr><td><code>ADRS</code></td><td><kbd>A</kbd> / <kbd>M</kbd></td><td>Set / examine memory address (A3 A2 A1 A0)</td></tr>
+                        <tr><td><code>DATA</code></td><td><kbd>D</kbd></td><td>Set / examine memory byte data (D1 D0)</td></tr>
+                        <tr><td><code>+</code> (NEXT)</td><td><kbd>+</kbd> / <kbd>→</kbd></td><td>Increment address and display next byte</td></tr>
+                        <tr><td><code>-</code> (STEP)</td><td><kbd>-</kbd> / <kbd>Space</kbd></td><td>Single-step execute current instruction</td></tr>
+                        <tr><td><code>GO EXEC</code></td><td><kbd>Enter</kbd> / <kbd>G</kbd></td><td>Execute program starting at current address</td></tr>
+                        <tr><td><code>RST</code></td><td><kbd>Escape</kbd> / <kbd>F5</kbd></td><td>Hardware CPU Reset vector jump (0000H)</td></tr>
+                        <tr><td><code>TO TAPE</code></td><td><kbd>W</kbd></td><td>Write/save memory block to cassette audio tape</td></tr>
+                        <tr><td><code>FROM TAPE</code></td><td><kbd>L</kbd></td><td>Read/load program from cassette audio tape</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating IC Calibration & Drag-and-Drop HUD -->
+    <div id="ic-calibration-hud" class="calibration-hud hidden">
+        <div class="hud-header">
+            <div class="hud-title-bar">
+                <span class="hud-icon">📐</span>
+                <span class="hud-title">Universal Placement & Calibration Tool</span>
+            </div>
+            <button id="btn-close-calib" class="hud-close-btn" title="Close Calibration Mode">&times;</button>
+        </div>
+        <div class="hud-body">
+            <div class="hud-row">
+                <label for="calib-chip-select">Component:</label>
+                <select id="calib-chip-select">
+                    <optgroup label="── DIP ICs & Silkscreen ──">
+                        <option value="ic-u1">U1: Z80 CPU (DIP-40)</option>
+                        <option value="ic-u2">U2: 2732 EPROM (DIP-24 600mil)</option>
+                        <option value="ic-u3">U3: 2732 EPROM (DIP-24 600mil)</option>
+                        <option value="ic-u4">U4: 6116 SRAM (DIP-24 600mil)</option>
+                        <option value="ic-u5">U5: 8255A PPI #1 (DIP-40)</option>
+                        <option value="ic-u6">U6: 8255A PPI #2 (DIP-40)</option>
+                        <option value="ic-u7">U7: EPROM Sock (DIP-28)</option>
+                        <option value="ic-u8">U8: 74LS138 Decoder (DIP-16)</option>
+                        <option value="ic-u9">U9: 74LS04 Inverter (DIP-14)</option>
+                        <option value="ic-u10">U10: 74LS00 NAND (DIP-14)</option>
+                        <option value="ic-u11">U11: 74LS10 Triple NAND (DIP-14)</option>
+                        <option value="silk-abc80-eprom">SILK: ABC-80 EPROM Text</option>
+                    </optgroup>
+                    <optgroup label="── Transistors (TO-92 +50%) ──">
+                        <option value="disc-q1">Q1: Digit 1 Strobe (Upright)</option>
+                        <option value="disc-q2">Q2: Digit 2 Strobe (Upright)</option>
+                        <option value="disc-q3">Q3: Digit 3 Strobe (Upright)</option>
+                        <option value="disc-q4">Q4: Digit 4 Strobe (Upright)</option>
+                        <option value="disc-q5">Q5: Digit 5 Strobe (Upright)</option>
+                        <option value="disc-q6">Q6: Digit 6 Strobe (Upright)</option>
+                        <option value="disc-q7">Q7: Audio Driver 1 (Push-Pull)</option>
+                        <option value="disc-q8">Q8: Audio Driver 2 (Push-Pull)</option>
+                        <option value="disc-q9">Q9: Keypad Col 1 Driver (Horizontal)</option>
+                        <option value="disc-q10">Q10: Keypad Col 2 Driver (Horizontal)</option>
+                        <option value="disc-q11">Q11: Keypad Col 3 Driver (Horizontal)</option>
+                        <option value="disc-q12">Q12: Keypad Col 4 Driver (Horizontal)</option>
+                        <option value="disc-q13">Q13: Keypad Col 5 Driver (Horizontal)</option>
+                        <option value="disc-q14">Q14: Keypad Col 6 Driver (Horizontal)</option>
+                        <option value="disc-q15">Q15: Keypad Col 7 Driver (Horizontal)</option>
+                        <option value="disc-q16">Q16: Keypad Col 8 Driver (Horizontal)</option>
+                        <option value="disc-q17">Q17: EPROM Prog Strobe (Upright)</option>
+                    </optgroup>
+                    <optgroup label="── Bus Pull-Up Resistors (18x 10k) ──">
+                        <option value="disc-r-pu1">R(PU1): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu2">R(PU2): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu3">R(PU3): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu4">R(PU4): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu5">R(PU5): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu6">R(PU6): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu7">R(PU7): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu8">R(PU8): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu9">R(PU9): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu10">R(PU10): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu11">R(PU11): 10k Bus Pullup (U1)</option>
+                        <option value="disc-r-pu12">R(PU12): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu13">R(PU13): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu14">R(PU14): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu15">R(PU15): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu16">R(PU16): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu17">R(PU17): 10k Bus Pullup (U5)</option>
+                        <option value="disc-r-pu18">R(PU18): 10k Bus Pullup (U5)</option>
+                    </optgroup>
+                    <optgroup label="── Discrete Resistors ──">
+                        <option value="disc-r-q9">R(Q9): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q10">R(Q10): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q11">R(Q11): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q12">R(Q12): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q13">R(Q13): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q14">R(Q14): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q15">R(Q15): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-q16">R(Q16): 3.3k Keypad Pullup</option>
+                        <option value="disc-r-prog1">R(PROG1): 1.8k Programmer</option>
+                        <option value="disc-r-prog2">R(PROG2): 3.3k Programmer</option>
+                        <option value="disc-r-prog3">R(PROG3): 560R Transistor Bias</option>
+                        <option value="disc-r-prog4">R(PROG4): 47k Feedback</option>
+                        <option value="disc-r-clock">R(CLK): 330R Clock Bias</option>
+                        <option value="disc-res-28v">R28V: 33R 28V Line Resistor</option>
+                        <option value="disc-r-seg1">R(SEG1): 120R Segment Limit</option>
+                        <option value="disc-r-seg2">R(SEG2): 120R Segment Limit</option>
+                        <option value="disc-r-seg3">R(SEG3): 120R Segment Limit</option>
+                        <option value="disc-r-seg4">R(SEG4): 120R Segment Limit</option>
+                        <option value="disc-r-seg5">R(SEG5): 120R Segment Limit</option>
+                        <option value="disc-r-seg6">R(SEG6): 120R Segment Limit</option>
+                        <option value="disc-r-seg7">R(SEG7): 120R Segment Limit</option>
+                        <option value="disc-r-seg8">R(SEG8): 120R Segment Limit</option>
+                    </optgroup>
+                    <optgroup label="── Capacitors ──">
+                        <option value="disc-cap-c2">C2: 100uF 16V Bulk Electrolytic</option>
+                        <option value="disc-cap-c1">C1: 220uF 16V Filter Electrolytic</option>
+                        <option value="disc-tantalum-cp">CP: 10uF 35V Red Tantalum Bead</option>
+                        <option value="disc-cap-vcc1">C(VCC1): 0.02uF Decoupling (203)</option>
+                        <option value="disc-cap-vcc2">C(VCC2): 0.02uF Decoupling (203)</option>
+                        <option value="disc-cap-vcc3">C(VCC3): 0.02uF Decoupling (203)</option>
+                    </optgroup>
+                    <optgroup label="── Power, Switches & Ports ──">
+                        <option value="disc-lm7805">LM7805: +5V Regulator & Heatsink</option>
+                        <option value="disc-jack-dc">DC: 2.1mm Power Jack</option>
+                        <option value="disc-jack-ear">EAR: 3.5mm Audio In Jack</option>
+                        <option value="disc-jack-mic">MIC: 3.5mm Audio Out Jack</option>
+                        <option value="disc-hw-rst">RST: $909 Reset Tactile Button</option>
+                        <option value="disc-int-header">INT: Single-Step Interrupt Header</option>
+                        <option value="disc-conto-socket">CONTO: Expansion Port Socket</option>
+                        <option value="disc-clock-section">XTAL: 2.500MHz Crystal Section</option>
+                    </optgroup>
+                    <optgroup label="── 7-Segment LED Displays (6x) ──">
+                        <option value="disc-disp-a3">DISP1: 7-Seg LED (A3)</option>
+                        <option value="disc-disp-a2">DISP2: 7-Seg LED (A2)</option>
+                        <option value="disc-disp-a1">DISP3: 7-Seg LED (A1)</option>
+                        <option value="disc-disp-a0">DISP4: 7-Seg LED (A0)</option>
+                        <option value="disc-disp-d1">DISP5: 7-Seg LED (D1)</option>
+                        <option value="disc-disp-d0">DISP6: 7-Seg LED (D0)</option>
+                    </optgroup>
+                    <optgroup label="── Audio / Speaker ──">
+                        <option value="disc-piezo-disk">SP: 50mm Piezo Transducer Disk</option>
+                    </optgroup>
+                    <optgroup label="── Dual 3×4 Keypads ──">
+                        <option value="disc-keypad-left">KEYPAD-L: Left 3x4 Module (RST, C, D...)</option>
+                        <option value="disc-keypad-right">KEYPAD-R: Right 3x4 Module (E, F, ADRS...)</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="hud-row">
+                <label for="calib-opacity-slider">Opacity / X-Ray:</label>
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <input type="range" id="calib-opacity-slider" min="0.1" max="1.0" step="0.05" value="0.65" style="flex: 1; cursor: pointer;" />
+                    <span id="calib-opacity-val" style="font-family: var(--font-mono); font-size: 10px; width: 32px; text-align: right; color: #00e5ff;">65%</span>
+                </div>
+            </div>
+            <div class="hud-grid-coords">
+                <div class="hud-coord-item">
+                    <span class="coord-label">Left (X):</span>
+                    <input type="number" id="calib-input-x" step="0.5" class="coord-input" />
+                    <span class="coord-unit">px</span>
+                </div>
+                <div class="hud-coord-item">
+                    <span class="coord-label">Top (Y):</span>
+                    <input type="number" id="calib-input-y" step="0.5" class="coord-input" />
+                    <span class="coord-unit">px</span>
+                </div>
+                <div class="hud-coord-item">
+                    <span class="coord-label">Width:</span>
+                    <input type="number" id="calib-input-w" step="0.5" class="coord-input" />
+                    <span class="coord-unit">px</span>
+                </div>
+                <div class="hud-coord-item">
+                    <span class="coord-label">Height:</span>
+                    <input type="number" id="calib-input-h" step="0.5" class="coord-input" />
+                    <span class="coord-unit">px</span>
+                </div>
+            </div>
+            <div class="hud-nudge-controls">
+                <span class="nudge-title">Keyboard Arrows or Nudge:</span>
+                <div class="nudge-cluster">
+                    <button class="nudge-btn" data-axis="y" data-delta="-1" title="Nudge Up">▲</button>
+                    <div class="nudge-cluster-mid">
+                        <button class="nudge-btn" data-axis="x" data-delta="-1" title="Nudge Left">◀</button>
+                        <button class="nudge-btn" data-axis="x" data-delta="1" title="Nudge Right">▶</button>
+                    </div>
+                    <button class="nudge-btn" data-axis="y" data-delta="1" title="Nudge Down">▼</button>
+                </div>
+                <div class="step-selector">
+                    <span class="step-label">Step:</span>
+                    <button class="step-btn active" data-step="1">1px</button>
+                    <button class="step-btn" data-step="5">5px</button>
+                    <button class="step-btn" data-step="0.2">0.2px</button>
+                </div>
+            </div>
+            <div class="hud-actions">
+                <button id="btn-copy-css" class="hud-btn hud-btn-primary">📋 Copy CSS Rules</button>
+                <button id="btn-reset-positions" class="hud-btn hud-btn-danger">↺ Reset Page 98 Defaults</button>
+            </div>
+            <div class="hud-hint">
+                💡 Click ANY component on the PCB or select from dropdown. Drag with mouse or nudge with Arrows (Shift=5px, Alt=0.2px).
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+
+
+</body>
+</html>

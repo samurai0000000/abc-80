@@ -1,0 +1,20 @@
+# AI workspace symlinks
+.agents
+.cursor
+.claude
+
+# Build artifacts & cache
+plan/
+build/
+__pycache__/
+*.pyc
+
+# Scanned reference documentation
+scanned_docs/
+
+# System / editor temporaries
+Thumbs.db
+.DS_Store
+*~
+*.swp
+*.tmp
