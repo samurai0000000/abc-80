@@ -234,6 +234,98 @@ body {
     cursor: grabbing !important;
 }
 
+/* Production Presentation: Calibration & Floating Navigation HUDs Hidden by Default */
+#btn-calibration-mode {
+    display: none !important;
+}
+
+.canvas-view-controls {
+    display: none !important;
+}
+
+body.dev-tools-visible #btn-calibration-mode {
+    display: flex !important;
+}
+
+body.dev-tools-visible .canvas-view-controls {
+    display: flex !important;
+}
+
+/* ==========================================================================
+   Interactive Component Inspection Tooltip (CAD Yellow Box)
+   ========================================================================== */
+.component-tooltip-box {
+    position: fixed;
+    z-index: 99999;
+    display: none;
+    pointer-events: none;
+    background: linear-gradient(135deg, #fef9c3 0%, #fef08a 100%);
+    color: #0f172a;
+    border: 1.5px solid #d97706;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.15);
+    max-width: 300px;
+    min-width: 160px;
+    white-space: normal;
+    word-break: break-word;
+    opacity: 0;
+    transition: opacity 0.12s ease-out;
+}
+
+.component-tooltip-box.visible {
+    display: block;
+    opacity: 1;
+}
+
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid rgba(180, 83, 9, 0.35);
+    padding-bottom: 3px;
+    margin-bottom: 4px;
+}
+
+.tooltip-refdes {
+    font-weight: 800;
+    font-size: 11.5px;
+    color: #b45309;
+    letter-spacing: 0.5px;
+}
+
+.tooltip-pkg {
+    font-size: 9.5px;
+    color: #475569;
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+.tooltip-name {
+    font-weight: 700;
+    font-size: 11px;
+    color: #1e293b;
+    margin-bottom: 2px;
+}
+
+.tooltip-specs {
+    font-size: 10px;
+    color: #334155;
+    margin-bottom: 2px;
+}
+
+.tooltip-role {
+    font-size: 9.5px;
+    color: #64748b;
+    font-style: italic;
+}
+
 /* Floating Viewport Pan & Zoom Controls */
 .canvas-view-controls {
     position: absolute;
@@ -505,6 +597,24 @@ body {
     gap: 1px;
 }
 
+#disc-hw-rst .hw-reset-tactile-btn {
+    width: 100% !important;
+    height: calc(100% - 8px) !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#disc-hw-rst .tactile-red-plunger {
+    width: 65% !important;
+    height: 65% !important;
+    border-radius: 50% !important;
+    box-sizing: border-box !important;
+}
+
 #disc-jack-ear {
     left: 288px;
     top: 8px;
@@ -529,30 +639,46 @@ body {
 #disc-jack-dc .dc-barrel-jack {
     background: linear-gradient(135deg, #ded8c4 0%, #cfc8b0 100%) !important;
     border: 1.2px solid #b5ad94 !important;
-    width: 17px !important;
-    height: 17px !important;
+    width: 100% !important;
+    height: calc(100% - 8px) !important;
     border-radius: 2px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#disc-jack-dc .jack-body {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 #disc-jack-dc .jack-center-pin {
-    width: 9px !important;
-    height: 9px !important;
+    width: 55% !important;
+    height: 55% !important;
     background: #0c0f12 !important;
     border: 1px solid #1a202c !important;
     border-radius: 50% !important;
     box-shadow: inset 0 1px 2px #000 !important;
     position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 #disc-jack-dc .jack-center-pin::after {
     content: "" !important;
     position: absolute !important;
-    width: 3px !important;
-    height: 3px !important;
+    width: 35% !important;
+    height: 35% !important;
     background: #b45309 !important;
     border-radius: 50% !important;
-    top: 2px !important;
-    left: 2px !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
 }
 
 #disc-cap-c1 {
@@ -576,22 +702,24 @@ body {
 }
 
 #disc-lm7805 .lm7805-regulator {
-    width: 48px;
-    height: 46px;
-    position: relative;
+    width: 100% !important;
+    height: 100% !important;
+    position: relative !important;
+    box-sizing: border-box !important;
 }
 
 #disc-lm7805 .to220-heatsink {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 44px;
-    height: 42px;
+    position: absolute !important;
+    top: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 92% !important;
+    height: 92% !important;
     background: #111417;
     border: 1.2px solid #23272e;
     border-radius: 2px;
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+    box-sizing: border-box !important;
 }
 
 #disc-lm7805 .to220-heatsink::before,
@@ -632,30 +760,32 @@ body {
 }
 
 #disc-lm7805 .to220-metal-tab {
-    position: absolute;
-    top: 6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 16px;
+    position: absolute !important;
+    top: 12% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 42% !important;
+    height: 35% !important;
     background: linear-gradient(180deg, #e4d5a8 0%, #d4c18c 45%, #b59f63 80%, #786638 100%);
     border-radius: 2px 2px 0 0;
     border: 0.8px solid #998347;
     z-index: 2;
+    box-sizing: border-box !important;
 }
 
 #disc-lm7805 .to220-plastic-body {
-    position: absolute;
-    bottom: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 14px;
+    position: absolute !important;
+    bottom: 4% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 42% !important;
+    height: 30% !important;
     background: #181b1e;
     border-radius: 0 0 1px 1px;
     border: 0.8px solid #282d33;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
     z-index: 2;
+    box-sizing: border-box !important;
 }
 
 /* Stage 3.2: Column 1 Keypad Driver Subsystem */
@@ -715,9 +845,9 @@ body {
     box-sizing: border-box;
 }
 
-.to92-body {
-    width: 16.5px;
-    height: 10.5px;
+.to92-item .to92-body {
+    width: 100%;
+    height: 100%;
     background: linear-gradient(180deg, #2a2e33 0%, #15181b 60%, #0d0f11 100%);
     border: 1px solid #3b424a;
     border-radius: 6px 1.5px 1.5px 6px;
@@ -786,19 +916,7 @@ body {
 #disc-r-q15 { left: 41px; top: 321.3px; }
 #disc-r-q16 { left: 41px; top: 336.8px; }
 
-#disc-conto-socket {
-    left: 28px;
-    top: 362px;
-    width: 26px;
-    height: 12px;
-}
 
-#disc-conto-socket .silk-conto {
-    font-size: 7px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-    letter-spacing: 0.5px;
-}
 
 /* Stage 3.3: Mid-Board Passives, Clock Crystal & Red Tantalum Capacitor */
 /* CP: Red Tantalum Bead Capacitor */
@@ -954,6 +1072,142 @@ body {
     color: rgba(255, 255, 255, 0.85);
 }
 
+/* Stage 3.3b: Reset & Clock Passives Subsystem (Between U8 and Reset/Audio Jacks) */
+#disc-cap-50p,
+#disc-cap-101a,
+#disc-cap-101b {
+    position: absolute;
+    width: 14px;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+#disc-cap-50p .ceramic-disc-body,
+#disc-cap-101a .ceramic-disc-body,
+#disc-cap-101b .ceramic-disc-body {
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 35% 35%, #fed7aa 0%, #f97316 60%, #9a3412 100%);
+    border-radius: 50%;
+    border: 0.6px solid #c2410c;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#disc-cap-50p .c-disc-body,
+#disc-cap-101a .c-disc-body,
+#disc-cap-101b .c-disc-body {
+    font-family: var(--font-mono);
+    font-size: 4px;
+    font-weight: 800;
+    color: #431407;
+    line-height: 1;
+}
+
+#disc-cap-10u {
+    position: absolute;
+    width: 14px;
+    height: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+#disc-cap-10u .blue-cap-10uf {
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, #1e40af 0%, #3b82f6 40%, #1d4ed8 75%, #172554 100%);
+    border-radius: 3px 3px 4px 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.75);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#disc-cap-10u .cap-aluminum-top {
+    width: 100%;
+    height: 35%;
+    background: radial-gradient(ellipse at 45% 45%, #ffffff 0%, #e2e8f0 45%, #94a3b8 80%, #64748b 100%);
+    border-radius: 50%;
+    border-bottom: 1px solid #1e3a8a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#disc-cap-10u .cap-plus-mark {
+    font-size: 5px;
+    font-weight: 900;
+    color: #1e3a8a;
+    line-height: 1;
+}
+
+#disc-cap-10u .cap-negative-stripe {
+    position: absolute;
+    bottom: 2px;
+    width: 100%;
+    text-align: center;
+    font-size: 6px;
+    font-weight: 900;
+    color: #ffffff;
+    line-height: 1;
+}
+
+#disc-r-rst-10k {
+    position: absolute;
+    width: 20px;
+    height: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: auto;
+}
+
+#disc-d-rst {
+    position: absolute;
+    width: 20px;
+    height: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: auto;
+}
+
+#disc-d-rst .diode-wire-l,
+#disc-d-rst .diode-wire-r {
+    flex: 1;
+    height: 1px;
+    background: #94a3b8;
+}
+
+#disc-d-rst .diode-body-glass {
+    width: 10px;
+    height: 5px;
+    background: linear-gradient(180deg, #fdba74 0%, #ea580c 50%, #9a3412 100%);
+    border-radius: 1.5px;
+    border: 0.5px solid #7c2d12;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+#disc-d-rst .diode-cathode-band {
+    position: absolute;
+    left: 1.5px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #18181b;
+    border-radius: 1px 0 0 1px;
+}
+
 #disc-q17 {
     position: absolute;
     left: 196px;
@@ -961,14 +1215,34 @@ body {
     pointer-events: auto;
 }
 
-#disc-prog-passives .res-row {
+#disc-prog-passives .res-row,
+#disc-prog-passives .discrete-led-pkg {
     position: absolute;
-    width: 22px;
-    height: 4px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     pointer-events: auto;
+}
+
+.silk-ep {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 5.5px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Staged Proto Area Components (Hidden per operator directive) */
+#disc-clock-section,
+#disc-tantalum-cp,
+#disc-r-clock,
+#disc-decoupling-caps,
+#disc-cap-vcc1,
+#disc-cap-vcc2,
+#disc-cap-vcc3 {
+    display: none !important;
 }
 
 /* VCC Decoupling Capacitors */
@@ -1050,8 +1324,8 @@ body {
 }
 
 .to92-item.to92-up .to92-body {
-    width: 15px;
-    height: 12px;
+    width: 100%;
+    height: 100%;
     background: linear-gradient(180deg, #2a2e33 0%, #15181b 60%, #0d0f11 100%);
     border: 1px solid #3b424a;
     border-radius: 6px 6px 1.5px 1.5px;
@@ -1059,6 +1333,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
 }
 
 .to92-item.to92-up .to92-leads {
@@ -1146,7 +1421,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transform: skewX(-5deg);
+    transform: skewX(-6.5deg);
 }
 
 #disc-disp-a3 { left: 60.3px; top: 379.1px; width: 38px; height: 56px; }
@@ -1207,9 +1482,13 @@ body {
     display: none;
 }
 
-/* Q7, Q8 Speaker Drivers */
-#disc-speaker-section #disc-q7 { position: absolute; left: 324px; top: 372px; pointer-events: auto; }
-#disc-speaker-section #disc-q8 { position: absolute; left: 324px; top: 392px; pointer-events: auto; }
+/* Q7, Q8 Speaker Drivers & Discrete Passives/LEDs */
+#disc-speaker-section .to92-item,
+#disc-speaker-section .res-row,
+#disc-speaker-section .discrete-led-pkg {
+    position: absolute;
+    pointer-events: auto;
+}
 
 /* Phase 2: 11 Mounted DIP ICs Layer (Anchored to Page 98 pad grid) */
 .pcb-ics-layer {
@@ -1299,89 +1578,111 @@ body {
 
 
 /* --- TO-92 Transistors (+50% Enlarged) --- */
-#disc-q1 { left: 77px; top: 363.5px; }
-#disc-q2 { left: 116px; top: 362.5px; }
-#disc-q3 { left: 155px; top: 362.5px; }
-#disc-q4 { left: 193px; top: 362px; }
-#disc-q5 { left: 237px; top: 362.4px; }
-#disc-q6 { left: 273.1px; top: 362.4px; }
-#disc-q7 { left: 309.6px; top: 365.6px; }
-#disc-q8 { left: 313.6px; top: 392.8px; }
-#disc-q9 { left: 21.1px; top: 233.5px; }
-#disc-q10 { left: 21.4px; top: 247.2px; }
-#disc-q11 { left: 20.6px; top: 277.8px; }
-#disc-q12 { left: 21px; top: 263px; }
-#disc-q13 { left: 21.8px; top: 292px; }
-#disc-q14 { left: 21.4px; top: 307.5px; }
-#disc-q15 { left: 21.4px; top: 324.1px; }
-#disc-q16 { left: 21.8px; top: 339.6px; }
-#disc-q17 { left: 196px; top: 218px; }
+#disc-q1 { left: 77px; top: 363.5px; width: 18px; height: 15px; }
+#disc-q2 { left: 116px; top: 362.5px; width: 18px; height: 15px; }
+#disc-q3 { left: 155px; top: 362.5px; width: 18px; height: 15px; }
+#disc-q4 { left: 193px; top: 362px; width: 18px; height: 15px; }
+#disc-q5 { left: 237px; top: 362.4px; width: 18px; height: 15px; }
+#disc-q6 { left: 273.1px; top: 362.4px; width: 18px; height: 15px; }
+#disc-q7 { left: 303.2px; top: 412.4px; width: 18px; height: 12px; }
+#disc-q8 { left: 304px; top: 427.4px; width: 18px; height: 12px; }
+#disc-q9 { left: 21.1px; top: 233.5px; width: 18px; height: 12px; }
+#disc-q10 { left: 21.4px; top: 247.2px; width: 18px; height: 12px; }
+#disc-q11 { left: 20.6px; top: 277.8px; width: 18px; height: 12px; }
+#disc-q12 { left: 21px; top: 263px; width: 18px; height: 12px; }
+#disc-q13 { left: 21.8px; top: 292px; width: 18px; height: 12px; }
+#disc-q14 { left: 21.4px; top: 307.5px; width: 18px; height: 12px; }
+#disc-q15 { left: 21.4px; top: 324.1px; width: 18px; height: 12px; }
+#disc-q16 { left: 21.8px; top: 339.6px; width: 18px; height: 12px; }
+#disc-q17 { left: 208.2px; top: 245.5px; width: 18px; height: 15px; transform: rotate(270deg); transform-origin: center center; }
 
 /* --- Bus Pull-Up Resistors (18x 10k) --- */
-#disc-r-pu1 { left: 36px; top: 74px; }
-#disc-r-pu2 { left: 36px; top: 82px; }
-#disc-r-pu3 { left: 36px; top: 90px; }
-#disc-r-pu4 { left: 36px; top: 98px; }
-#disc-r-pu5 { left: 36px; top: 103.1px; }
-#disc-r-pu6 { left: 34.5px; top: 113.4px; }
-#disc-r-pu7 { left: 36px; top: 121.4px; }
-#disc-r-pu8 { left: 35.4px; top: 129.4px; }
-#disc-r-pu9 { left: 36px; top: 137.4px; }
-#disc-r-pu10 { left: 35.4px; top: 144.3px; }
-#disc-r-pu11 { left: 36.6px; top: 152.8px; }
-#disc-r-pu12 { left: 35.6px; top: 160px; }
-#disc-r-pu13 { left: 37.9px; top: 188.9px; }
-#disc-r-pu14 { left: 37.3px; top: 196.2px; }
-#disc-r-pu15 { left: 37.1px; top: 203.7px; }
-#disc-r-pu16 { left: 36.1px; top: 211.6px; }
-#disc-r-pu17 { left: 37px; top: 219px; }
-#disc-r-pu18 { left: 40.5px; top: 240.5px; }
+#disc-r-pu1 { left: 36px; top: 74px; width: 22px; height: 4px; }
+#disc-r-pu2 { left: 36px; top: 82px; width: 22px; height: 4px; }
+#disc-r-pu3 { left: 36px; top: 90px; width: 22px; height: 4px; }
+#disc-r-pu4 { left: 36px; top: 98px; width: 22px; height: 4px; }
+#disc-r-pu5 { left: 36px; top: 103.1px; width: 22px; height: 4px; }
+#disc-r-pu6 { left: 34.5px; top: 113.4px; width: 22px; height: 4px; }
+#disc-r-pu7 { left: 36px; top: 121.4px; width: 22px; height: 4px; }
+#disc-r-pu8 { left: 35.4px; top: 129.4px; width: 22px; height: 4px; }
+#disc-r-pu9 { left: 36px; top: 137.4px; width: 22px; height: 4px; }
+#disc-r-pu10 { left: 35.4px; top: 144.3px; width: 22px; height: 4px; }
+#disc-r-pu11 { left: 36.6px; top: 152.8px; width: 22px; height: 4px; }
+#disc-r-pu12 { left: 35.6px; top: 160px; width: 22px; height: 4px; }
+#disc-r-pu13 { left: 37.9px; top: 188.9px; width: 22px; height: 4px; }
+#disc-r-pu14 { left: 37.3px; top: 196.2px; width: 22px; height: 4px; }
+#disc-r-pu15 { left: 37.1px; top: 203.7px; width: 22px; height: 4px; }
+#disc-r-pu16 { left: 36.1px; top: 211.6px; width: 22px; height: 4px; }
+#disc-r-pu17 { left: 37px; top: 219px; width: 22px; height: 4px; }
+#disc-r-pu18 { left: 40.5px; top: 240.5px; width: 22px; height: 4px; }
 
 /* --- Keypad Column Pull-Up Resistors (8x 3.3k) --- */
-#disc-r-q9 { left: 36.4px; top: 226.1px; }
-#disc-r-q10 { left: 40.2px; top: 256px; }
-#disc-r-q11 { left: 41.4px; top: 270.2px; }
-#disc-r-q12 { left: 39.8px; top: 286.6px; }
-#disc-r-q13 { left: 41.4px; top: 303.2px; }
-#disc-r-q14 { left: 39.8px; top: 318.7px; }
-#disc-r-q15 { left: 39.8px; top: 334.1px; }
-#disc-r-q16 { left: 39.8px; top: 350.4px; }
+#disc-r-q9 { left: 36.4px; top: 226.1px; width: 19px; height: 4px; }
+#disc-r-q10 { left: 40.2px; top: 256px; width: 19px; height: 4px; }
+#disc-r-q11 { left: 41.4px; top: 270.2px; width: 19px; height: 4px; }
+#disc-r-q12 { left: 39.8px; top: 286.6px; width: 19px; height: 4px; }
+#disc-r-q13 { left: 41.4px; top: 303.2px; width: 19px; height: 4px; }
+#disc-r-q14 { left: 39.8px; top: 318.7px; width: 19px; height: 4px; }
+#disc-r-q15 { left: 39.8px; top: 334.1px; width: 19px; height: 4px; }
+#disc-r-q16 { left: 39.8px; top: 350.4px; width: 19px; height: 4px; }
 
 /* --- Programmer & Clock Bias Resistors --- */
-#disc-res-28v { left: 383.7px; top: 132.2px; }
-#disc-r-prog1 { left: 208px; top: 236px; }
-#disc-r-prog2 { left: 208px; top: 244.7px; }
-#disc-r-prog3 { left: 208px; top: 252px; }
-#disc-r-prog4 { left: 208px; top: 260px; }
-#disc-r-clock { left: 216px; top: 83px; }
+#disc-res-28v { left: 257.8px; top: 206.3px; width: 24px; height: 5px; }
+#disc-led-ep { left: 323.2px; top: 205.8px; width: 12px; height: 12px; }
+#disc-r-ep-1k8 { left: 332.8px; top: 221.9px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-prog1 { left: 202.2px; top: 288.5px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-prog2 { left: 216.3px; top: 277.3px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-prog3 { left: 209.9px; top: 304px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-prog-10k { left: 202.2px; top: 318px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-prog4 { left: 263.1px; top: 295.2px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-clock { left: 365.3px; top: 120.8px; width: 20px; height: 4px; }
+
+/* --- Reset & Clock Subsystem Passives --- */
+#disc-cap-50p { left: 238.8px; top: 23px; width: 14px; height: 10px; transform: rotate(90deg); transform-origin: center center; }
+#disc-cap-101a { left: 238px; top: 65.7px; width: 14px; height: 10px; transform: rotate(270deg); transform-origin: center center; }
+#disc-cap-101b { left: 248.8px; top: 63.6px; width: 10px; height: 14px; }
+#disc-cap-10u { left: 259.2px; top: 57.5px; width: 14px; height: 18px; }
+#disc-r-rst-10k { left: 266.8px; top: 63.6px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-d-rst { left: 274.9px; top: 63px; width: 20px; height: 5px; transform: rotate(90deg); transform-origin: center center; }
+
+/* --- Power & Cassette Header Subsystem Passives --- */
+#disc-r-ear-330 { left: 282.8px; top: 63.6px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-d-ear { left: 290.9px; top: 63px; width: 20px; height: 5px; transform: rotate(90deg); transform-origin: center center; }
+#disc-cap-ear-203 { left: 298.1px; top: 72.9px; width: 14px; height: 10px; }
+#disc-cap-mic-203 { left: 310px; top: 63.6px; width: 10px; height: 14px; }
+#disc-r-mic-10k1 { left: 320px; top: 63.6px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-mic-10k2 { left: 326px; top: 63.6px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-mic-10k3 { left: 332px; top: 63.6px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-cap-dc-203 { left: 346px; top: 63.6px; width: 10px; height: 14px; }
+#disc-cap-dc-100u { left: 358px; top: 57.5px; width: 18px; height: 24px; }
+#disc-cap-7805-203 { left: 382px; top: 76px; width: 14px; height: 10px; }
 
 /* --- Display Segment Resistors (8x 120R) --- */
-#disc-r-seg1 { left: 29.3px; top: 377.2px; }
-#disc-r-seg2 { left: 28.8px; top: 384.5px; }
-#disc-r-seg3 { left: 29.3px; top: 392.9px; }
-#disc-r-seg4 { left: 29.3px; top: 400.8px; }
-#disc-r-seg5 { left: 28.8px; top: 408px; }
-#disc-r-seg6 { left: 29.8px; top: 416.5px; }
-#disc-r-seg7 { left: 29.8px; top: 423.8px; }
-#disc-r-seg8 { left: 29.3px; top: 431.3px; }
+#disc-r-seg1 { left: 29.3px; top: 377.2px; width: 22px; height: 4px; }
+#disc-r-seg2 { left: 28.8px; top: 384.5px; width: 22px; height: 4px; }
+#disc-r-seg3 { left: 29.3px; top: 392.9px; width: 22px; height: 4px; }
+#disc-r-seg4 { left: 29.3px; top: 400.8px; width: 22px; height: 4px; }
+#disc-r-seg5 { left: 28.8px; top: 408px; width: 22px; height: 4px; }
+#disc-r-seg6 { left: 29.8px; top: 416.5px; width: 22px; height: 4px; }
+#disc-r-seg7 { left: 29.8px; top: 423.8px; width: 22px; height: 4px; }
+#disc-r-seg8 { left: 29.3px; top: 431.3px; width: 22px; height: 4px; }
 
 /* --- Capacitors --- */
-#disc-cap-c2 { left: 17.6px; top: 5.2px; }
-#disc-cap-c1 { left: 349px; top: 38px; }
-#disc-tantalum-cp { left: 355.4px; top: 128.3px; }
-#disc-cap-vcc1 { left: 375.3px; top: 95.3px; }
-#disc-cap-vcc2 { left: 352px; top: 75.3px; }
-#disc-cap-vcc3 { left: 409.3px; top: 78px; }
+#disc-cap-c2 { left: 15.7px; top: 4.6px; width: 22px; height: 26px; }
+#disc-cap-c1 { left: 408.8px; top: 13.3px; width: 18px; height: 24px; }
+#disc-tantalum-cp { left: 355.4px; top: 128.3px; width: 18px; height: 24px; }
+#disc-cap-vcc1 { left: 401.2px; top: 136.6px; width: 8px; height: 8px; }
+#disc-cap-vcc2 { left: 390.8px; top: 132px; width: 8px; height: 8px; }
+#disc-cap-vcc3 { left: 396.9px; top: 121.8px; width: 8px; height: 8px; }
 
 /* --- Power, Jacks & Hardware --- */
-#disc-lm7805 { left: 388px; top: 4px; }
-#disc-jack-dc { left: 350px; top: 8px; }
-#disc-jack-ear { left: 288px; top: 8px; }
-#disc-jack-mic { left: 320px; top: 8px; }
-#disc-hw-rst { left: 247px; top: 6px; }
-#disc-int-header { left: 34.2px; top: 36.4px; }
-#disc-conto-socket { left: 30px; top: 359px; }
-#disc-clock-section { left: 260.7px; top: 53.3px; }
+#disc-lm7805 { left: 372.3px; top: 43.9px; width: 49px; height: 47px; }
+#disc-jack-dc { left: 367.1px; top: 12.9px; width: 29px; height: 31.9px; }
+#disc-jack-ear { left: 291.8px; top: 23px; width: 36px; height: 39.8px; }
+#disc-jack-mic { left: 327px; top: 22.4px; width: 37px; height: 40.9px; }
+#disc-hw-rst { left: 257.1px; top: 19.4px; width: 32px; height: 35.2px; }
+#disc-int-header { left: 33.6px; top: 33.3px; width: 14px; height: 16px; }
+#disc-clock-section { left: 370.7px; top: 139.4px; width: 60px; height: 22px; }
 
 /* --- 7-Segment LED Displays (6x) --- */
 #disc-disp-a3 { left: 60.3px; top: 379.1px; width: 38px !important; height: 56px !important; }
@@ -1393,6 +1694,11 @@ body {
 
 /* --- Audio / Speaker --- */
 #disc-piezo-disk { left: 339.2px; top: 376px; }
+#disc-r-sp33 { left: 414.1px; top: 385.2px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-sp330a { left: 295.2px; top: 381px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-r-sp330b { left: 314.1px; top: 377.1px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
+#disc-led-audio-grn { left: 307.5px; top: 370.5px; width: 12px; height: 12px; }
+#disc-led-audio-red { left: 308.5px; top: 395px; width: 12px; height: 12px; }
 
 /* --- Dual 3x4 Keypad Modules --- */
 #disc-keypad-left { left: 86px; top: 451px; width: 160px !important; height: 206px !important; }
@@ -2221,8 +2527,9 @@ body {
 }
 
 .phone-jack-35mm {
-    width: 15px;
-    height: 17px;
+    width: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
     background: #111417;
     border: 1.2px solid #23272e;
     border-radius: 1.5px;
@@ -2237,8 +2544,10 @@ body {
     content: '';
     position: absolute;
     top: 1.5px;
-    width: 3.5px;
-    height: 4px;
+    width: 25%;
+    max-width: 8px;
+    height: 25%;
+    max-height: 8px;
     background: linear-gradient(180deg, #f1f5f9 0%, #94a3b8 100%);
     border-radius: 1px 1px 0 0;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
@@ -2246,8 +2555,8 @@ body {
 }
 
 .jack-bushing {
-    width: 9px;
-    height: 11px;
+    width: 60%;
+    height: 65%;
     background: #080a0c;
     border: 0.8px solid #1c221e;
     border-radius: 1px;
@@ -2260,8 +2569,10 @@ body {
 .jack-bushing::after {
     content: '';
     position: absolute;
-    width: 5px;
-    height: 5px;
+    width: 55%;
+    height: 55%;
+    max-width: 12px;
+    max-height: 12px;
     border-radius: 50%;
     background: radial-gradient(circle at 40% 40%, #1e242b 0%, #080a0c 70%, #000 100%);
     box-shadow: inset 0 1px 2px #000;
@@ -2309,6 +2620,73 @@ body {
 
 .led-green {
     background: radial-gradient(circle at 35% 35%, #4ade80 0%, #16a34a 60%, #14532d 100%);
+}
+
+.discrete-led-pkg .led-red {
+    background: radial-gradient(circle at 35% 35%, #5c1414 0%, #3d0a0a 60%, #1f0303 100%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+    opacity: 0.65;
+    transition: background 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+}
+
+.discrete-led-pkg .led-green {
+    background: radial-gradient(circle at 35% 35%, #14451e 0%, #0d2e14 60%, #051408 100%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+    opacity: 0.65;
+    transition: background 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+}
+
+.discrete-led-pkg.active .led-red {
+    background: radial-gradient(circle at 35% 35%, #ffffff 0%, #ff3b30 40%, #cc0000 100%) !important;
+    box-shadow: 0 0 8px 3px rgba(255, 59, 48, 0.85), 0 0 16px rgba(255, 0, 0, 0.6) !important;
+    opacity: 1 !important;
+}
+
+.discrete-led-pkg.active .led-green {
+    background: radial-gradient(circle at 35% 35%, #ffffff 0%, #34c759 40%, #008a00 100%) !important;
+    box-shadow: 0 0 8px 3px rgba(52, 199, 89, 0.85), 0 0 16px rgba(0, 255, 0, 0.6) !important;
+    opacity: 1 !important;
+}
+
+#disc-hw-rst:active .tactile-red-plunger,
+#disc-hw-rst .hw-reset-tactile-btn:active .tactile-red-plunger,
+#disc-hw-rst .hw-reset-tactile-btn.key-pressed .tactile-red-plunger {
+    transform: scale(0.85);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.discrete-led-pkg {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    cursor: default;
+    pointer-events: auto;
+}
+
+.discrete-led-pkg .discrete-led-3mm {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 50%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.discrete-led-pkg .led-pads-pair {
+    display: flex;
+    gap: 3px;
+    margin-top: 1px;
+}
+
+.discrete-led-pkg .led-pads-pair span {
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: #1e2c1c;
+    border: 0.5px solid #6b7a6a;
+    box-sizing: border-box;
 }
 
 .halt-led-cluster {
@@ -2645,11 +3023,6 @@ body {
     box-sizing: border-box;
 }
 
-.silk-conto {
-    font-size: 7.5px !important;
-    font-weight: 700;
-    margin: 0.5px 0;
-}
 
 .silk-fecu {
     font-size: 6px !important;
@@ -2743,20 +3116,6 @@ body {
 .b-blk { width: 0.8px; height: 100%; background: #0f172a; }
 .b-gld { width: 0.8px; height: 100%; background: #eab308; }
 
-.conto-silk-header {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
-    padding-right: 6px;
-    margin-bottom: 2px;
-}
-
-.silk-conto {
-    font-size: 8px !important;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-    letter-spacing: 0.5px;
-}
 
 .fecu-silk-frame {
     display: flex;
@@ -4875,6 +5234,60 @@ body {
     font-weight: 700;
 }
 
+.hud-control-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a4b3ac;
+    width: 72px;
+}
+
+.hud-btn-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.hud-ctrl-btn {
+    flex: 1;
+    background: #1c2420;
+    border: 1px solid #2e3a33;
+    border-radius: 4px;
+    color: #d1ded8;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.hud-ctrl-btn:hover {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: #00e5ff;
+    color: #00e5ff;
+}
+
+.hud-ctrl-btn:active {
+    transform: scale(0.96);
+}
+
+.hud-rot-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffd700;
+    background: #171f1b;
+    border: 1px solid #36443c;
+    border-radius: 3px;
+    padding: 3px 6px;
+    min-width: 36px;
+    text-align: center;
+}
+
 .hud-actions {
     display: flex;
     gap: 8px;
@@ -4920,6 +5333,112 @@ body {
     line-height: 1.35;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 6px;
+}
+
+/* Power & Cassette Header Subsystem Component Styles */
+#disc-cap-ear-203 .ceramic-disc-body,
+#disc-cap-mic-203 .ceramic-disc-body,
+#disc-cap-dc-203 .ceramic-disc-body,
+#disc-cap-7805-203 .ceramic-disc-body {
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 35% 35%, #fed7aa 0%, #f97316 60%, #9a3412 100%);
+    border-radius: 50%;
+    border: 0.6px solid #c2410c;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#disc-cap-ear-203 .cap-disc-text,
+#disc-cap-mic-203 .cap-disc-text,
+#disc-cap-dc-203 .cap-disc-text,
+#disc-cap-7805-203 .cap-disc-text,
+#disc-cap-50p .cap-disc-text,
+#disc-cap-101a .cap-disc-text,
+#disc-cap-101b .cap-disc-text {
+    font-family: var(--font-mono);
+    font-size: 4px;
+    font-weight: 800;
+    color: #431407;
+    line-height: 1;
+}
+
+#disc-cap-dc-100u {
+    position: absolute;
+    width: 18px;
+    height: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+#disc-cap-dc-100u .elec-can-body {
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, #1e40af 0%, #3b82f6 40%, #1d4ed8 75%, #172554 100%);
+    border-radius: 3px 3px 4px 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.85);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#disc-cap-dc-100u .elec-can-aluminum-top {
+    width: 100%;
+    height: 32%;
+    background: radial-gradient(ellipse at 45% 45%, #ffffff 0%, #e2e8f0 45%, #94a3b8 80%, #64748b 100%);
+    border-radius: 50%;
+    border-bottom: 1px solid #1e3a8a;
+    box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.4);
+}
+
+#disc-cap-dc-100u .elec-can-stripe {
+    position: absolute;
+    top: 32%;
+    left: 1px;
+    width: 3.5px;
+    height: 65%;
+    background: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#disc-cap-dc-100u .elec-can-stripe-neg .stripe-mark {
+    font-family: var(--font-mono);
+    font-size: 5px;
+    font-weight: 900;
+    color: #1e3a8a;
+    line-height: 1;
+}
+
+#disc-cap-dc-100u .elec-can-val {
+    position: absolute;
+    bottom: 2px;
+    right: 1px;
+    font-family: var(--font-mono);
+    font-size: 3.2px;
+    font-weight: 700;
+    color: #ffffff;
+    opacity: 0.9;
+}
+
+/* Keypad Function Key Label Inner Boundary Fitting */
+button[data-key="ADRS"] .key-label,
+button[data-key="DATA"] .key-label {
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.2px;
+}
+
+button[data-key="RST"] .key-label {
+    font-size: 11px !important;
+    font-weight: 700 !important;
 }
 
 

@@ -55,7 +55,18 @@ def main():
         assert board_box["x"] <= 50, f"Board chassis should be anchored to the left ({board_box['x']} <= 50)"
         print("[test] ✓ Board chassis is anchored to the left of the viewport.")
 
-        # 3. Test Zoom In Button
+        # 3. Verify Canvas View Controls are hidden by default in production
+        canvas_controls = page.locator("#canvas-view-controls")
+        assert not canvas_controls.is_visible(), "Expected #canvas-view-controls to be hidden by default in production!"
+        print("[test] ✓ Floating viewport controls hidden by default in production.")
+
+        # Unhide dev tools via Shift+Alt+C hotkey
+        page.keyboard.press("Shift+Alt+KeyC")
+        page.wait_for_timeout(300)
+        assert canvas_controls.is_visible(), "Expected #canvas-view-controls to be visible after Shift+Alt+C!"
+        print("[test] ✓ Shift+Alt+C successfully toggled viewport controls visibility.")
+
+        # 4. Test Zoom In Button
         btn_zoom_in = page.locator("#btn-zoom-in")
         btn_zoom_in.click()
         page.wait_for_timeout(200)
