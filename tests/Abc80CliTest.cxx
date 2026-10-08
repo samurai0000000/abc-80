@@ -69,6 +69,17 @@ TEST(Abc80Cli, DisplayFormattingRendersSevenSegmentGlyphs)
     STRCMP_EQUAL("[ 30 BD BD BD   BA 8F ]", hexStr.c_str());
 }
 
+// The PPI latches Port B as the ROM drives it: active-low. The CLI must show what the display shows.
+TEST(Abc80Cli, DisplayCommandShowsTheRealMonitorStartScreen)
+{
+    Abc80Board monitor;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK), static_cast<int>(monitor.powerOnRom(RomId::Monitor, ".")));
+    CHECK(monitor.bootTurbo(RomId::Monitor, 60000000));
+    monitor.stepTStates(20000);  // a few digit scans
+    Abc80Cli monitorCli(monitor);
+    STRCMP_EQUAL("[ A B C -   8 0 ]", monitorCli.formatDisplayString().c_str());
+}
+
 TEST(Abc80Cli, DisassemblerDecodesStandardOpcodeMnemonics)
 {
     // Write instructions to test address 0x2000

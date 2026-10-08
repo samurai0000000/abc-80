@@ -75,6 +75,15 @@ public:
 
     // Register accessors (Primary bank)
     uint16_t getPC() const noexcept { return Z80_GET_ADDR(_pins); }
+
+    // Raw program counter register of the Z80 core. It runs ahead of or behind the executing
+    // instruction by an amount that depends on the instruction (the core overlaps opcode fetches),
+    // so it is NOT the address of the next opcode. For a displayed PC use
+    // Abc80Board::lastFetchAddress(), which is exact. Unlike getPC(), it is not the address bus.
+    uint16_t getRegPC() const noexcept { return _cpu.pc; }
+
+    // Pointer to the T-state counter, for components that timestamp events (the PPI).
+    const uint64_t* cyclesPtr() const noexcept { return &_totalCycles; }
     void setPC(uint16_t pc) noexcept;
 
     uint16_t getSP() const noexcept { return _cpu.sp; }

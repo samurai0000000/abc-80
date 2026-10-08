@@ -67,6 +67,7 @@ void Abc80Ppi::reset()
     _matrixKeys.fill(false);
     _hostLinkPortBIn = 0x00;
     _hostLinkPortCOut = 0x00;
+    beginFrame();
 }
 
 uint8_t Abc80Ppi::computeKeypadRowInputs() const
@@ -97,14 +98,87 @@ uint8_t Abc80Ppi::computeKeypadRowInputs() const
 
 void Abc80Ppi::updateDigitSegments(uint8_t digitStrobe, uint8_t segmentMask)
 {
+    const bool oldLevel = (_digitStrobe & 0x80) != 0;
     _digitStrobe = digitStrobe;
-    _speakerBit = ((digitStrobe & 0x80) != 0) || ((digitStrobe & 0x20) != 0);
+    // Port C bit 7 is the speaker. Record every toggle with its T-state offset in the frame.
+    const bool newLevel = (digitStrobe & 0x80) != 0;
+    if (_clock != nullptr && newLevel != oldLevel) {
+        if (_audio.edgeCount < FrameAudio::kMaxEdges) {
+            _audio.offsets[_audio.edgeCount++] = static_cast<uint32_t>(*_clock - _frameStart);
+        } else {
+            _audio.overflow = true;
+        }
+    }
+    _speakerBit = newLevel;
 
     for (uint8_t digit = 0; digit < 6; ++digit) {
         if ((digitStrobe & (1 << digit)) == 0) {
             _digitSegments[digit] = segmentMask;
         }
     }
+}
+
+namespace {
+
+// Port B hardware bit (segtab wiring: bit 7=d, 6=dp, 5=c, 4=b, 3=a, 2=f, 1=g, 0=e) to
+// canonical segment index (0=a .. 6=g, 7=dp).
+constexpr uint8_t kHwBitToCanonical[8] = { 4, 6, 5, 0, 1, 2, 7, 3 };
+
+} // namespace
+
+void Abc80Ppi::accumulate() noexcept
+{
+    if (_clock == nullptr) {
+        return;
+    }
+    const uint64_t now = *_clock;
+    if (now > _lastEvent) {
+        const uint32_t elapsed = static_cast<uint32_t>(now - _lastEvent);
+        for (uint8_t digit = 0; digit < 6; ++digit) {
+            if ((_digitStrobe & (1 << digit)) != 0) {
+                continue;  // this digit is not selected (strobes are active-low)
+            }
+            for (uint8_t bit = 0; bit < 8; ++bit) {
+                if ((_segmentOutput & (1 << bit)) == 0) {  // Port B low = segment lit
+                    _segOn[digit][kHwBitToCanonical[bit]] += elapsed;
+                }
+            }
+        }
+        if ((_digitStrobe & 0x80) == 0) {
+            _audio.lowTStates += elapsed;
+        }
+    }
+    _lastEvent = now;
+}
+
+void Abc80Ppi::beginFrame() noexcept
+{
+    const uint64_t now = (_clock != nullptr) ? *_clock : 0;
+    _frameStart = now;
+    _lastEvent = now;
+    _frameElapsed = 0;
+    for (auto &row : _segOn) {
+        row.fill(0);
+    }
+    _audio.startLevel = (_digitStrobe & 0x80) != 0;
+    _audio.edgeCount = 0;
+    _audio.overflow = false;
+    _audio.lowTStates = 0;
+}
+
+void Abc80Ppi::endFrame() noexcept
+{
+    accumulate();
+    _frameElapsed = (_clock != nullptr && *_clock > _frameStart)
+        ? static_cast<uint32_t>(*_clock - _frameStart) : 0;
+}
+
+uint32_t Abc80Ppi::digitSegmentOnTStates(uint8_t digit, uint8_t canonicalSegment) const noexcept
+{
+    if (digit >= 6 || canonicalSegment >= 8) {
+        return 0;
+    }
+    return _segOn[digit][canonicalSegment];
 }
 
 uint8_t Abc80Ppi::readPort(uint8_t port)
@@ -159,9 +233,11 @@ void Abc80Ppi::writePort(uint8_t port, uint8_t val)
         i8255_tick(&_ppiPrimary, pins);
 
         if (reg == 1) { // Port B (Segments)
+            accumulate();
             _segmentOutput = val;
             updateDigitSegments(_digitStrobe, _segmentOutput);
         } else if (reg == 2) { // Port C (Digit strobes & speaker)
+            accumulate();
             updateDigitSegments(val, _segmentOutput);
         }
     } else if ((port & 0xFC) == 0x40) { // Aux PPI: 0x40 - 0x43

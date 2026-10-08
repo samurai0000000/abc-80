@@ -9,6 +9,7 @@
 
 #include <abc80/Abc80Types.hxx>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include <chips/i8255.h>
@@ -44,6 +45,31 @@ public:
     bool getTapeInput() const noexcept { return _tapeInputLevel; }
     bool getSpeakerBit() const noexcept { return _speakerBit; }
 
+    // ---- Per-frame observation (display persistence and speaker edges), in T-states ----
+    // Everything below is timestamped with the clock source (the CPU's T-state counter).
+    // Without a clock source the accumulators stay empty.
+    struct FrameAudio {
+        static constexpr size_t kMaxEdges = 1024;
+        bool startLevel{false};                       // Port C bit 7 at beginFrame()
+        uint16_t edgeCount{0};                        // toggles of Port C bit 7 in the frame (<= kMaxEdges)
+        bool overflow{false};                         // more toggles than kMaxEdges happened; extras are dropped
+        std::array<uint32_t, kMaxEdges> offsets{};    // T-states since beginFrame() of each logged toggle
+        uint32_t lowTStates{0};                       // time Port C bit 7 spent low
+    };
+
+    void setClockSource(const uint64_t *tstates) noexcept { _clock = tstates; }
+    void beginFrame() noexcept;   // zero the accumulators and mark the frame start
+    void endFrame() noexcept;     // account the time up to now; freezes frameElapsedTStates()
+    const FrameAudio &frameAudio() const noexcept { return _audio; }
+    uint32_t frameElapsedTStates() const noexcept { return _frameElapsed; }
+
+    // T-states in the frame that digit (0 = rightmost .. 5 = leftmost) was strobed while canonical
+    // segment (0=a .. 6=g, 7=dp) was driven lit. Port B is active-low, so a low bit is a lit segment.
+    uint32_t digitSegmentOnTStates(uint8_t digit, uint8_t canonicalSegment) const noexcept;
+
+    // Latched Port C output of the auxiliary (EPROM programmer) 8255.
+    uint8_t auxPortCOutput() const noexcept { return _ppiAux.pc.outp; }
+
     // Host PC-5523 parallel link interface (ports 0xC0 - 0xC3)
     void hostWriteLinkPortB(uint8_t data);
     uint8_t hostReadLinkPortA() const;
@@ -57,6 +83,7 @@ public:
 private:
     uint8_t computeKeypadRowInputs() const;
     void updateDigitSegments(uint8_t digitStrobe, uint8_t segmentMask);
+    void accumulate() noexcept;  // account time since the last event to the current port state
 
     // Three 8255 PPI instances:
     // 1. Primary: Keypad, 7-Segment display, Cassette I/O, Speaker (0x80 - 0x83)
@@ -72,6 +99,13 @@ private:
     std::array<uint8_t, 6> _digitSegments;
 
     // Audio & Keypad state
+    const uint64_t *_clock{nullptr};
+    uint64_t _frameStart{0};
+    uint64_t _lastEvent{0};
+    uint32_t _frameElapsed{0};
+    std::array<std::array<uint32_t, 8>, 6> _segOn{};
+    FrameAudio _audio;
+
     bool _tapeInputLevel;
     bool _speakerBit;
     std::array<bool, 36> _matrixKeys; // 6 columns x 6 rows matrix positions

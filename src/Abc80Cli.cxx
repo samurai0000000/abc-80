@@ -148,14 +148,18 @@ char Abc80Cli::decodeSegmentGlyph(uint8_t mask) noexcept
 
 std::string Abc80Cli::formatDisplayString() const
 {
-    // Check if PPI latched segments are non-zero; otherwise fallback to RAM dispbf at 0x17C6..0x17CB
+    // The PPI latches Port B as the ROM drives it: active-low (the ROM complements its glyph bytes
+    // before output), so a latched value is inverted back to the glyph byte. A latch of 0x00 means the
+    // digit was never strobed (a digit with every segment lit is not distinguishable) and reads as blank.
+    // Without any latched data, fall back to the RAM display buffer at 0x17C6..0x17CB, which holds glyph bytes.
     uint8_t segs[6];
     bool hasPpiData = false;
     for (int i = 0; i < 6; ++i) {
-        segs[i] = _board.getPpi().getDigitSegment(static_cast<uint8_t>(i));
-        if (segs[i] != 0x00) {
+        const uint8_t raw = _board.getPpi().getDigitSegment(static_cast<uint8_t>(i));
+        if (raw != 0x00) {
             hasPpiData = true;
         }
+        segs[i] = (raw == 0x00) ? 0x00 : static_cast<uint8_t>(~raw);
     }
 
     if (!hasPpiData) {

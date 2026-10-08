@@ -1341,7 +1341,7 @@ disp:           ; [07bf]
             db      02h             ; [07c1] '-'
             db      8dh             ; [07c2] 'c'
             db      0a7h            ; [07c3] 'b'
-            db      0efh            ; [07c4] 'a'
+            db      3fh            ; [07c4] 'a'
 
 ; Special Message Bitmask Patterns (Page 204)
             db      00h             ; [07c5] ' '
@@ -1414,12 +1414,12 @@ segtab:         ; [07f0]
             db      38h             ; [07f7] '7' : a,b,c
             db      0bfh            ; [07f8] '8' : a,b,c,d,e,f,g
             db      0beh            ; [07f9] '9' : a,b,c,d,f,g
-            db      0efh            ; [07fa] 'a' : a,b,c,e,f,g
+            db      3fh             ; [07fa] 'a' : a,b,c,e,f,g
             db      0a7h            ; [07fb] 'b' : c,d,e,f,g
             db      8dh             ; [07fc] 'c' : a,d,e,f
             db      0b3h            ; [07fd] 'd' : b,c,d,e,g
             db      8fh             ; [07fe] 'e' : a,d,e,f,g
-            db      87h             ; [07ff] 'f' : a,e,f,g
+            db      0fh             ; [07ff] 'f' : a,e,f,g
 
 ; ==============================================================================
 ; End of ABC-80 Monitor ROM (07ffh / 2048 bytes)

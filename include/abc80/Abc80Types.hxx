@@ -23,8 +23,12 @@ enum class Abc80Status {
 };
 
 // Master hardware clock & timing
-constexpr uint64_t ABC80_CPU_CLOCK_HZ = 2500000ULL; // 2.500 MHz Z80 clock
-constexpr uint32_t ABC80_CPU_CLOCK_PERIOD_NS = 400; // 400 ns per T-state
+constexpr uint64_t ABC80_CPU_CLOCK_HZ = 1790000ULL; // 1.79 MHz Z80 clock (book p.80; 2.5 MHz is only the CPU limit)
+constexpr uint32_t ABC80_CPU_CLOCK_PERIOD_NS = 559; // 1e9 / 1.79e6 = 558.66 ns per T-state, rounded
+
+// Display / front-panel frame: 60 Hz of emulated time
+constexpr uint32_t ABC80_FRAME_HZ = 60;
+constexpr uint32_t ABC80_FRAME_TSTATES = 29833; // 1,790,000 / 60 = 29,833.3 T-states per frame
 
 // Memory Architecture (Unified Hybrid Architecture: Dual EEPROM + Contiguous 60KB RAM)
 constexpr uint16_t ABC80_ROM0_BASE = 0x0000;

@@ -15,8 +15,11 @@ TEST_GROUP(MainRunner)
 TEST(MainRunner, FrameworkBootAndSanity)
 {
     CHECK_EQUAL(0, static_cast<int>(abc80::Abc80Status::OK));
-    CHECK_EQUAL(2500000ULL, abc80::ABC80_CPU_CLOCK_HZ);
-    CHECK_EQUAL(400, abc80::ABC80_CPU_CLOCK_PERIOD_NS);
+    // Book p.80: the ABC-80 runs its Z80 at 1.79 MHz (2.5 MHz is only the CPU's limit).
+    CHECK_EQUAL(1790000ULL, abc80::ABC80_CPU_CLOCK_HZ);
+    CHECK_EQUAL(559, abc80::ABC80_CPU_CLOCK_PERIOD_NS); // 1e9 / 1.79e6 = 558.66, rounded
+    CHECK_EQUAL(60, abc80::ABC80_FRAME_HZ);
+    CHECK_EQUAL(29833, abc80::ABC80_FRAME_TSTATES);     // 1,790,000 / 60 = 29,833.3
     CHECK_EQUAL(0x0000, abc80::ABC80_ROM0_BASE);
     CHECK_EQUAL(0x0800, abc80::ABC80_ROM1_BASE);
     CHECK_EQUAL(0x1000, abc80::ABC80_RAM_BASE);
