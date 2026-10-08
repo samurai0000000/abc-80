@@ -140,17 +140,23 @@
         <!-- Top App Bar -->
         <header id="main-header">
             <div class="header-left">
-                <span class="brand-badge">Z80A @ 2.5MHz</span>
+                <span class="brand-badge">Z80A @ 1.79MHz</span>
                 <h1 class="brand-title">ABC-80 <span class="brand-subtitle">Educational Microcomputer</span></h1>
             </div>
             <div class="header-center">
                 <div class="backend-status-pill">
                     <span class="status-dot dot-connected" id="host-ws-dot"></span>
-                    <span class="status-text" id="host-ws-text">x86_64 HOST: ONLINE</span>
+                    <span class="status-text" id="host-ws-text">HOST: CONNECTING</span>
                 </div>
+                <label class="rom-picker" title="Which ROM the board boots. Changing it power-cycles the board.">ROM
+                    <select id="rom-select">
+                        <option value="monitor">Book monitor</option>
+                        <option value="1993">1993 ROM</option>
+                    </select>
+                </label>
                 <div class="clock-display">
                     <span class="clock-label">CLK:</span>
-                    <span class="clock-val" id="cpu-freq">2.500 MHz</span>
+                    <span class="clock-val" id="cpu-freq">1.79 MHz</span>
                     <span class="clock-divider">|</span>
                     <span class="clock-label">CYCLES:</span>
                     <span class="clock-val" id="cycle-counter">0</span>
@@ -423,11 +429,11 @@
                                             <span class="silk-txt xxs silk-cp-label">CP</span>
                                         </div>
 
-                                        <!-- Clock Oscillator: HC-49 2.500 MHz Crystal (Hidden per operator directive) -->
-                                        <div class="discrete-component disc-clock-section calibratable-component" id="disc-clock-section" data-label="Clock Crystal" title="Clock Circuit: HC-49 2.500MHz Crystal & Loading Passives" style="display: none;">
-                                            <div class="hc49-crystal-can" title="2.500 MHz HC-49 Quartz Crystal">
+                                        <!-- Clock Oscillator: HC-49 1.79 MHz Crystal (Hidden per operator directive) -->
+                                        <div class="discrete-component disc-clock-section calibratable-component" id="disc-clock-section" data-label="Clock Crystal" title="Clock Circuit: HC-49 1.79MHz Crystal & Loading Passives" style="display: none;">
+                                            <div class="hc49-crystal-can" title="1.79 MHz HC-49 Quartz Crystal">
                                                 <div class="crystal-metal-rim"></div>
-                                                <span class="crystal-engraving">2.500MHz</span>
+                                                <span class="crystal-engraving">1.79MHz</span>
                                             </div>
                                             <!-- Clock loading capacitors (100pF x 2) -->
                                             <div class="ceramic-disc-cap c-disc-clock-1" title="100pF Ceramic Loading Cap">
@@ -674,7 +680,7 @@
                                             <!-- 3mm Green Audio Output LED -->
                                             <div class="discrete-led-pkg calibratable-component" id="disc-led-audio-grn" data-label="LED Green" title="LED(SP-G): 3mm Green Audio/Output Indicator LED"><div class="discrete-led-3mm led-green"></div><div class="led-pads-pair"><span></span><span></span></div></div>
                                             <!-- 3mm Red Audio Output LED -->
-                                            <div class="discrete-led-pkg calibratable-component" id="disc-led-audio-red" data-label="LED Red" title="LED(SP-R): 3mm Red Audio/Output Indicator LED"><div class="discrete-led-3mm led-red"></div><div class="led-pads-pair"><span></span><span></span></div></div>
+                                            <div class="discrete-led-pkg calibratable-component" id="disc-led-halt" data-label="LED Red" title="HALT: 3mm Red HALT Indicator LED (lit by a HALT instruction until reset)"><div class="discrete-led-3mm led-red"></div><div class="led-pads-pair"><span></span><span></span></div></div>
                                         </div>
 
                                         <!-- Dual 3x4 Keypad Modules (Page 98 Footprint Anchored) -->
@@ -693,7 +699,7 @@
                                                 </button>
 
                                                 <!-- Row 1 -->
-                                                <button class="key-btn key-fn" data-key="TO TAPE" data-code="0x17" title="Write to Tape [W]">
+                                                <button class="key-btn key-fn" data-key="TO TAPE" data-code="0x15" title="Write to Tape [W]">
                                                     <div class="key-dish"><span class="key-label multiline">TO<br>TAPE</span></div>
                                                 </button>
                                                 <button class="key-btn key-hex" data-key="8" data-code="0x08" title="Hex 8 [8]">
@@ -715,7 +721,7 @@
                                                 </button>
 
                                                 <!-- Row 3 -->
-                                                <button class="key-btn key-fn key-go" data-key="GO EXEC" data-code="0x11" title="Execute Program (GO) [Enter/G]">
+                                                <button class="key-btn key-fn key-go" data-key="GO EXEC" data-code="0x12" title="Execute Program (GO) [Enter/G]">
                                                     <div class="key-dish"><span class="key-label multiline">GO<br>EXEC</span></div>
                                                 </button>
                                                 <button class="key-btn key-hex" data-key="0" data-code="0x00" title="Hex 0 [0]">
@@ -737,7 +743,7 @@
                                                 <button class="key-btn key-hex" data-key="F" data-code="0x0F" title="Hex F [F]">
                                                     <div class="key-dish"><span class="key-label">F</span></div>
                                                 </button>
-                                                <button class="key-btn key-fn" data-key="ADRS" data-code="0x14" title="Set/Examine Address [A/M]">
+                                                <button class="key-btn key-fn" data-key="ADRS" data-code="0x14" title="Set/Examine Address [M]">
                                                     <div class="key-dish"><span class="key-label">ADRS</span></div>
                                                 </button>
 
@@ -748,7 +754,7 @@
                                                 <button class="key-btn key-hex" data-key="B" data-code="0x0B" title="Hex B [B]">
                                                     <div class="key-dish"><span class="key-label">B</span></div>
                                                 </button>
-                                                <button class="key-btn key-fn" data-key="DATA" data-code="0x12" title="Set/Examine Data [D]">
+                                                <button class="key-btn key-fn" data-key="DATA" data-code="0x13" title="Set/Examine Data [N]">
                                                     <div class="key-dish"><span class="key-label">DATA</span></div>
                                                 </button>
 
@@ -759,7 +765,7 @@
                                                 <button class="key-btn key-hex" data-key="7" data-code="0x07" title="Hex 7 [7]">
                                                     <div class="key-dish"><span class="key-label">7</span></div>
                                                 </button>
-                                                <button class="key-btn key-fn key-step" data-key="+" data-code="0x13" title="Increment Address / Next (+) [+/→]">
+                                                <button class="key-btn key-fn key-step" data-key="+" data-code="0x10" title="Increment Address / Next (+) [+/→]">
                                                     <div class="key-dish"><span class="key-label">+</span></div>
                                                 </button>
 
@@ -770,7 +776,7 @@
                                                 <button class="key-btn key-hex" data-key="3" data-code="0x03" title="Hex 3 [3]">
                                                     <div class="key-dish"><span class="key-label">3</span></div>
                                                 </button>
-                                                <button class="key-btn key-fn" data-key="-" data-code="0x10" title="Single-Step / Decrement (-) [-/Space]">
+                                                <button class="key-btn key-fn" data-key="-" data-code="0x11" title="Single-Step / Decrement (-) [-/Space]">
                                                     <div class="key-dish"><span class="key-label">-</span></div>
                                                 </button>
                                             </div>
@@ -780,7 +786,7 @@
                                     <!-- Phase 2: 11 Mounted DIP ICs (U1 - U11) anchored to Page 98 pad footprints -->
                                     <div class="pcb-ics-layer" id="pcb-ics-layer">
                                         <!-- U1: Zilog Z80A CPU (40-Pin DIP in 40p socket) -->
-                                        <div class="ic-socket-package" id="ic-u1" data-designator="U1" data-label="U1: Z80A CPU" data-part="Z-80 CPU" title="U1: Zilog Z80A CPU (40-Pin DIP in 40p socket, 2.500MHz)">
+                                        <div class="ic-socket-package" id="ic-u1" data-designator="U1" data-label="U1: Z80A CPU" data-part="Z-80 CPU" title="U1: Zilog Z80A CPU (40-Pin DIP in 40p socket, 1.79MHz)">
                                             <div class="ic-socket-underlay"></div>
                                             <div class="ic-silkscreen-box"></div>
                                             <div class="dip-ic dip-40 chip-z80-cpu">
@@ -1176,14 +1182,10 @@
                                             </div>
 
                                             <div class="col-left-chips">
-                                                <div class="halt-led-cluster" title="LED1: 3mm Red HALT Indicator LED">
-                                                    <div class="discrete-led-3mm led-red"></div>
-                                                    <span class="silk-txt xxs">HALT</span>
-                                                </div>
                                                 <span class="silk-txt xxs silk-db">DB</span>
                                                 <!-- Historical Zilog Z80 CPU 40-Pin DIP Package in Dual-Wipe Socket -->
                                                 <div class="dip-socket-rim">
-                                                    <div class="dip-ic dip-40 chip-z80-cpu" id="chip-z80" title="Zilog Z80 CPU (40-Pin DIP, 2.500MHz)">
+                                                    <div class="dip-ic dip-40 chip-z80-cpu" id="chip-z80" title="Zilog Z80 CPU (40-Pin DIP, 1.79MHz)">
                                                         <div class="dip-pins left-pins"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
                                                         <div class="dip-body">
                                                             <div class="dip-notch"></div>
@@ -1264,9 +1266,9 @@
 
                                         <!-- Column 2 (Center) -->
                                         <div class="col-stack col-center">
-                                            <!-- Quartz Crystal Oscillator (XTAL 2.500 MHz) -->
-                                            <div class="crystal-oscillator-hc49" title="2.500 MHz Quartz Crystal Oscillator (XTAL)">
-                                                <span class="xtal-freq">2.500</span>
+                                            <!-- Quartz Crystal Oscillator (XTAL 1.79 MHz) -->
+                                            <div class="crystal-oscillator-hc49" title="1.79 MHz Quartz Crystal Oscillator (XTAL)">
+                                                <span class="xtal-freq">1.79</span>
                                             </div>
                                             <!-- Clock Inverter 74LS04 (14-Pin DIP) with ROD silk box -->
                                             <div class="col2-top-chip-box">
@@ -1488,13 +1490,13 @@
                                 <div class="reg-cell"><span class="reg-k">BC:</span><span class="reg-v" id="reg-bc">0x0006</span></div>
                                 <div class="reg-cell"><span class="reg-k">DE:</span><span class="reg-v" id="reg-de">0x1000</span></div>
                                 <div class="reg-cell"><span class="reg-k">HL:</span><span class="reg-v" id="reg-hl">0x2000</span></div>
-                                <div class="reg-cell"><span class="reg-k">IX:</span><span class="reg-v" id="reg-ix">0x0000</span></div>
-                                <div class="reg-cell"><span class="reg-k">IY:</span><span class="reg-v" id="reg-iy">0x0000</span></div>
+                                <div class="reg-cell"><span class="reg-k">IX:</span><span class="reg-v" id="reg-ix">----</span></div>
+                                <div class="reg-cell"><span class="reg-k">IY:</span><span class="reg-v" id="reg-iy">----</span></div>
                             </div>
                             <div class="flags-bar">
                                 <span class="flags-title">FLAGS:</span>
                                 <span class="flag-bit" id="flag-s">S</span>
-                                <span class="flag-bit active" id="flag-z">Z</span>
+                                <span class="flag-bit" id="flag-z">Z</span>
                                 <span class="flag-bit" id="flag-h">H</span>
                                 <span class="flag-bit" id="flag-pv">P/V</span>
                                 <span class="flag-bit" id="flag-n">N</span>
@@ -1725,7 +1727,7 @@
                         <option value="disc-r-sp330a">R(SP-G): 330Ω Green LED Resistor</option>
                         <option value="disc-r-sp330b">R(SP-R): 330Ω Red LED Resistor</option>
                         <option value="disc-led-audio-grn">LED(SP-G): 3mm Green Audio LED</option>
-                        <option value="disc-led-audio-red">LED(SP-R): 3mm Red Audio LED</option>
+                        <option value="disc-led-halt">LED(HALT): 3mm Red HALT LED</option>
                     </optgroup>
                     <optgroup label="── Dual 3×4 Keypads ──">
                         <option value="disc-keypad-left">KEYPAD-L: Left 3x4 Module (RST, C, D...)</option>

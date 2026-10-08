@@ -7,28 +7,6 @@
 (function () {
     'use strict';
 
-    // 7-Segment SVG Segment Bitmask Map (PB0..PB7: a,b,c,d,e,f,g,dp)
-    const SEG_MAP = {
-        '0': 0b00111111,
-        '1': 0b00000110,
-        '2': 0b01011011,
-        '3': 0b01001111,
-        '4': 0b01100110,
-        '5': 0b01101101,
-        '6': 0b01111101,
-        '7': 0b00000111,
-        '8': 0b01111111,
-        '9': 0b01101111,
-        'A': 0b01110111,
-        'B': 0b01111100,
-        'C': 0b00111001,
-        'D': 0b01011110,
-        'E': 0b01111001,
-        'F': 0b01110001,
-        '-': 0b01000000,
-        ' ': 0b00000000
-    };
-
     const SVG_7SEG = `
         <svg class="seg-svg" viewBox="0 0 32 52">
             <polygon class="seg-path seg-a" points="8.15,3.50 20.35,3.50 23.95,7.10 4.55,7.10" />
@@ -42,117 +20,99 @@
         </svg>
     `;
 
-    // Local & Host-Synced State
+    // Page state. Everything shown comes from the server's board; nothing is simulated here.
     const state = {
         soundEnabled: true,
         wsConnected: false,
-        inputMode: 'ADRS',
-        address: 0x1000,
-        data: 0x3E,
-        displayDigits: ['1', '0', '0', '0', '3', 'E'],
+        lastTelemetry: null,
         registers: {
-            pc: 0x0000,
-            sp: 0x17FE,
-            af: 0x0040,
-            bc: 0x0006,
-            de: 0x1000,
-            hl: 0x2000,
-            ix: 0x0000,
-            iy: 0x0000,
-            flags: { s: 0, z: 1, h: 0, pv: 0, n: 0, c: 0 }
+            pc: 0, sp: 0, af: 0, bc: 0, de: 0, hl: 0, ix: 0, iy: 0,
+            flags: { s: 0, z: 0, h: 0, pv: 0, n: 0, c: 0 }
         },
-        cycles: 1200,
+        cycles: 0,
         tapeState: 'STOPPED'
     };
 
     let isCalibrating = false;
 
-    // WebSocket Host Gateway Connection
+    // ==========================================================================
+    // Host connection (one WebSocket session = one emulated board; plan Section 2.4)
+    // ==========================================================================
+
+    const CPU_HZ = 1790000;                      // the board's Z80 clock
+    const FRAME_TSTATES = 29833;                 // T-states per 60 Hz telemetry frame
+    const DIGIT_IDS = ['digit-a3', 'digit-a2', 'digit-a1', 'digit-a0', 'digit-d1', 'digit-d0'];
+
     let ws = null;
-    function connectHostWebSocket() {
-        const wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + (window.location.host || 'localhost:8080') + '/ws';
-        const wsDot = document.getElementById('host-ws-dot');
-        const wsText = document.getElementById('host-ws-text');
+    let reconnectDelayMs = 1000;
 
-        try {
-            ws = new WebSocket(wsUrl);
-            ws.onopen = function () {
-                state.wsConnected = true;
-                if (wsDot) { wsDot.className = 'status-dot dot-connected'; }
-                if (wsText) { wsText.textContent = 'HOST: ONLINE'; }
-                console.log('[ABC-80 Web] Connected to x86_64 emulator backend.');
-            };
+    function storage() {
+        try { return window.sessionStorage; } catch (e) { return null; }
+    }
 
-            ws.onmessage = function (event) {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'telemetry') {
-                        // 6 7-segment displays: raw bitmasks (A-G + DP) or character array
-                        if (msg.displayMasks && Array.isArray(msg.displayMasks)) {
-                            const digitIds = ['digit-a3', 'digit-a2', 'digit-a1', 'digit-a0', 'digit-d1', 'digit-d0'];
-                            digitIds.forEach((id, idx) => {
-                                const el = document.getElementById(id);
-                                if (el && msg.displayMasks[idx] !== undefined) {
-                                    setSegmentMask(el, msg.displayMasks[idx]);
-                                }
-                            });
-                        } else if (msg.displayDigits) {
-                            state.displayDigits = msg.displayDigits;
-                            updateDisplayDigits();
-                        }
-
-                        // 3 Discrete LEDs: Audio Green, Audio Red, EP Red
-                        if (msg.leds) {
-                            const ledGrn = document.getElementById('disc-led-audio-grn');
-                            const ledRed = document.getElementById('disc-led-audio-red');
-                            const ledEp = document.getElementById('disc-led-ep');
-                            if (ledGrn) {
-                                if (msg.leds.audioGreen || msg.leds.audioGrn) ledGrn.classList.add('active');
-                                else ledGrn.classList.remove('active');
-                            }
-                            if (ledRed) {
-                                if (msg.leds.audioRed) ledRed.classList.add('active');
-                                else ledRed.classList.remove('active');
-                            }
-                            if (ledEp) {
-                                if (msg.leds.ep || msg.leds.eprom) ledEp.classList.add('active');
-                                else ledEp.classList.remove('active');
-                            }
-                        }
-
-                        // Speaker Audio Stream
-                        if (msg.speaker !== undefined || msg.speakerFreq !== undefined) {
-                            handleSpeakerAudio(msg.speaker, msg.speakerFreq);
-                        }
-
-                        if (msg.registers) {
-                            state.registers = msg.registers;
-                            updateInspector();
-                        }
-                        if (msg.cycles !== undefined) {
-                            state.cycles = msg.cycles;
-                            const cycleEl = document.getElementById('cycle-counter');
-                            if (cycleEl) cycleEl.textContent = state.cycles.toLocaleString();
-                        }
-                    }
-                } catch (e) {}
-            };
-
-            ws.onclose = function () {
-                state.wsConnected = false;
-                if (wsDot) { wsDot.className = 'status-dot dot-offline'; }
-                if (wsText) { wsText.textContent = 'HOST: OFFLINE (SIM)'; }
-                setTimeout(connectHostWebSocket, 3000);
-            };
-
-            ws.onerror = function () {
-                ws.close();
-            };
-        } catch (e) {
-            if (wsDot) { wsDot.className = 'status-dot dot-offline'; }
-            if (wsText) { wsText.textContent = 'HOST: OFFLINE (SIM)'; }
-            setTimeout(connectHostWebSocket, 3000);
+    // A random token kept in sessionStorage: a reload of this tab reattaches to the same board,
+    // another tab gets its own.
+    function sessionToken() {
+        const store = storage();
+        let token = store ? store.getItem('abc80_token') : null;
+        if (!token) {
+            const bytes = new Uint8Array(18);
+            window.crypto.getRandomValues(bytes);
+            token = Array.from(bytes, b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+            if (store) store.setItem('abc80_token', token);
         }
+        return token;
+    }
+
+    function selectedRom() {
+        const select = document.getElementById('rom-select');
+        const store = storage();
+        const saved = store ? store.getItem('abc80_rom') : null;
+        if (select && select.value) return select.value;
+        return saved === '1993' ? '1993' : 'monitor';
+    }
+
+    function setHostStatus(online, text) {
+        const dot = document.getElementById('host-ws-dot');
+        const label = document.getElementById('host-ws-text');
+        if (dot) dot.className = 'status-dot ' + (online ? 'dot-connected' : 'dot-offline');
+        if (label) label.textContent = text;
+    }
+
+    function scheduleReconnect() {
+        setTimeout(connectHostWebSocket, reconnectDelayMs);
+        reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000);
+    }
+
+    function connectHostWebSocket() {
+        const url = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws';
+        try {
+            ws = new WebSocket(url);
+        } catch (e) {
+            setHostStatus(false, 'HOST: OFFLINE');
+            scheduleReconnect();
+            return;
+        }
+        ws.onopen = function () {
+            state.wsConnected = true;
+            reconnectDelayMs = 1000;
+            setHostStatus(true, 'HOST: ONLINE');
+            ws.send(JSON.stringify({ type: 'hello', token: sessionToken(), rom: selectedRom() }));
+        };
+        ws.onmessage = function (event) {
+            let msg;
+            try { msg = JSON.parse(event.data); } catch (e) { return; }
+            if (msg.type === 'telemetry') applyTelemetry(msg);
+            else if (msg.type === 'error') console.warn('[ABC-80 host] ' + msg.reason);
+        };
+        ws.onclose = function () {
+            state.wsConnected = false;
+            setHostStatus(false, 'HOST: OFFLINE');
+            scheduleReconnect();
+        };
+        ws.onerror = function () {
+            try { ws.close(); } catch (e) {}
+        };
     }
 
     function sendHostCommand(cmd) {
@@ -161,225 +121,164 @@
         }
     }
 
-    // Web Audio Synthesizer
+    // ---- Telemetry: display, LEDs, registers, speaker ----
+
+    function setSegmentMask(digitElement, mask) {
+        if (!digitElement) return;
+        const segClasses = ['seg-a', 'seg-b', 'seg-c', 'seg-d', 'seg-e', 'seg-f', 'seg-g', 'seg-dp'];
+        segClasses.forEach((cls, idx) => {
+            const path = digitElement.querySelector('.' + cls);
+            if (path) path.classList.toggle('active', (mask & (1 << idx)) !== 0);
+        });
+    }
+
+    // Brightness 0-1, exposed as data-level and the --led-level CSS variable.
+    function setLedLevel(el, level) {
+        if (!el) return;
+        const v = Math.max(0, Math.min(1, Number(level) || 0));
+        el.dataset.level = v.toFixed(3);
+        el.style.setProperty('--led-level', String(v));
+    }
+
+    function setLedOn(el, on) {
+        if (el) el.classList.toggle('active', !!on);
+    }
+
+    function applyTelemetry(msg) {
+        state.lastTelemetry = msg;
+        if (Array.isArray(msg.displayMasks)) {
+            DIGIT_IDS.forEach((id, idx) => {
+                if (msg.displayMasks[idx] !== undefined) setSegmentMask(document.getElementById(id), msg.displayMasks[idx]);
+            });
+        }
+        if (msg.leds) {
+            setLedOn(document.getElementById('disc-led-ep'), msg.leds.ep);
+            setLedOn(document.getElementById('disc-led-halt'), msg.leds.halt);
+            setLedLevel(document.getElementById('disc-led-audio-grn'), msg.leds.speaker);
+        }
+        if (msg.registers) {
+            Object.assign(state.registers, msg.registers);
+        }
+        if (msg.cycles !== undefined) state.cycles = msg.cycles;
+        updateInspector();
+        const select = document.getElementById('rom-select');
+        if (select && msg.rom && select.value !== msg.rom) {
+            select.value = msg.rom;
+            const store = storage();
+            if (store) store.setItem('abc80_rom', msg.rom);
+        }
+        scheduleSpeaker(msg.speakerLevel, msg.speakerEdges);
+    }
+
+    // ---- Speaker: replay the board's Port C bit 7 edges as a square wave ----
+
     let audioCtx = null;
+    let speakerNextStart = 0;
+
     function initAudio() {
         if (!audioCtx) {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             if (AudioContextClass) audioCtx = new AudioContextClass();
         }
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(function () {});
+        }
     }
 
-    function playKeyClickSound() {
-        if (!state.soundEnabled || !audioCtx) return;
-        try {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(650, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.02);
-            gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.02);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.025);
-        } catch (e) {}
+    // Each telemetry frame is exactly FRAME_TSTATES of emulated time. The edge offsets (in T-states)
+    // become sample positions in a one-frame buffer, played back to back on a continuous timeline.
+    function scheduleSpeaker(endLevel, edges) {
+        if (!audioCtx || !state.soundEnabled || audioCtx.state !== 'running') {
+            speakerNextStart = 0;
+            return;
+        }
+        const frameSeconds = FRAME_TSTATES / CPU_HZ;
+        const now = audioCtx.currentTime;
+        if (speakerNextStart < now + 0.02) speakerNextStart = now + 0.05;  // (re)start with a small buffer
+        const start = speakerNextStart;
+        speakerNextStart += frameSeconds;
+        if (!edges || edges.length === 0) return;  // a steady level makes no sound
+
+        const sr = audioCtx.sampleRate;
+        const length = Math.ceil(frameSeconds * sr) + 1;
+        const buffer = audioCtx.createBuffer(1, length, sr);
+        const data = buffer.getChannelData(0);
+        let level = !!endLevel;
+        if (edges.length % 2 === 1) level = !level;  // the level at the start of the frame
+        let index = 0;
+        for (let i = 0; i < edges.length; ++i) {
+            const stop = Math.min(length, Math.round(edges[i] / CPU_HZ * sr));
+            data.fill(level ? 1 : -1, index, stop);
+            index = Math.max(index, stop);
+            level = !level;
+        }
+        data.fill(level ? 1 : -1, index, length);
+
+        const source = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.06;
+        source.buffer = buffer;
+        source.connect(gain);
+        gain.connect(audioCtx.destination);
+        source.start(start);
     }
 
-    function playBeepSound(freq, duration) {
-        if (!state.soundEnabled || !audioCtx) return;
-        try {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
-        } catch (e) {}
-    }
+    // ---- Keys and reset ----
 
-    let speakerOsc = null;
-    let speakerGain = null;
-    function handleSpeakerAudio(speakerBit, freq) {
-        initAudio();
-        if (!state.soundEnabled || !audioCtx) return;
-        try {
-            if (freq && freq > 20) {
-                if (!speakerOsc) {
-                    speakerOsc = audioCtx.createOscillator();
-                    speakerGain = audioCtx.createGain();
-                    speakerOsc.type = 'square';
-                    speakerGain.gain.setValueAtTime(0.06, audioCtx.currentTime);
-                    speakerOsc.connect(speakerGain);
-                    speakerGain.connect(audioCtx.destination);
-                    speakerOsc.start();
-                }
-                speakerOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            } else if (speakerBit) {
-                playBeepSound(1200, 0.008);
-            } else {
-                if (speakerOsc) {
-                    try { speakerOsc.stop(); speakerOsc.disconnect(); } catch (e) {}
-                    speakerOsc = null;
-                    speakerGain = null;
-                }
-            }
-        } catch (e) {}
-    }
+    const KEY_NAME_FOR_BUTTON = { 'GO EXEC': 'GO' };
 
     function initDisplayDigits() {
-        const digitIds = ['digit-a3', 'digit-a2', 'digit-a1', 'digit-a0', 'digit-d1', 'digit-d0'];
-        digitIds.forEach(id => {
+        DIGIT_IDS.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = SVG_7SEG;
         });
-        updateDisplayDigits();
     }
 
-    function setSegmentMask(digitElement, mask) {
-        if (!digitElement) return;
-        const segClasses = ['seg-a', 'seg-b', 'seg-c', 'seg-d', 'seg-e', 'seg-f', 'seg-g'];
-        segClasses.forEach((cls, idx) => {
-            const path = digitElement.querySelector(`.${cls}`);
-            if (path) {
-                if ((mask & (1 << idx)) !== 0) path.classList.add('active');
-                else path.classList.remove('active');
-            }
-        });
-
-        const dpPath = digitElement.querySelector('.seg-dp');
-        if (dpPath) {
-            if ((mask & (1 << 7)) !== 0) dpPath.classList.add('active');
-            else dpPath.classList.remove('active');
-        }
-    }
-
-    function setSegmentGlyph(digitElement, char, showDp = false) {
-        if (!digitElement) return;
-        const mask = SEG_MAP[char.toUpperCase()] || 0;
-        const segClasses = ['seg-a', 'seg-b', 'seg-c', 'seg-d', 'seg-e', 'seg-f', 'seg-g'];
-        segClasses.forEach((cls, idx) => {
-            const path = digitElement.querySelector(`.${cls}`);
-            if (path) {
-                if ((mask & (1 << idx)) !== 0) path.classList.add('active');
-                else path.classList.remove('active');
-            }
-        });
-
-        const dpPath = digitElement.querySelector('.seg-dp');
-        if (dpPath) {
-            if (showDp) dpPath.classList.add('active');
-            else dpPath.classList.remove('active');
-        }
-    }
-
-    function updateDisplayDigits() {
-        const digitIds = ['digit-a3', 'digit-a2', 'digit-a1', 'digit-a0', 'digit-d1', 'digit-d0'];
-        digitIds.forEach((id, idx) => {
-            const el = document.getElementById(id);
-            const val = state.displayDigits[idx] || ' ';
-            setSegmentGlyph(el, val, false);
-        });
-    }
-
-    function setDisplayAddressData(addr, data) {
-        state.address = addr & 0xFFFF;
-        state.data = data & 0xFF;
-        const hexAddr = state.address.toString(16).toUpperCase().padStart(4, '0');
-        const hexData = state.data.toString(16).toUpperCase().padStart(2, '0');
-        state.displayDigits = [hexAddr[0], hexAddr[1], hexAddr[2], hexAddr[3], hexData[0], hexData[1]];
-        updateDisplayDigits();
-    }
-
-    function handleKeypadPress(key, code) {
+    function handleKeypadPress(key) {
         initAudio();
-        playKeyClickSound();
-
-        const btn = document.querySelector(`.tactile-switch[data-key="${key}"], .overlay-key[data-key="${key}"], .key-btn[data-key="${key}"]`);
+        if (key === 'RST') {
+            handleHardwareReset();
+            return;
+        }
+        const btn = document.querySelector('.tactile-switch[data-key="' + key + '"], .overlay-key[data-key="' + key + '"], .key-btn[data-key="' + key + '"]');
         if (btn) {
             btn.classList.add('key-pressed');
             setTimeout(() => btn.classList.remove('key-pressed'), 120);
         }
-
-        // Send to host backend
-        sendHostCommand({ type: 'key_event', action: 'press', key: key, code: code });
-        sendHostCommand({ type: 'keypress', key: key, code: code });
-
-        // Standalone simulation fallback
-        if (!state.wsConnected) {
-            if (/^[0-9A-F]$/i.test(key)) {
-                const hexDigit = parseInt(key, 16);
-                if (state.inputMode === 'ADRS') {
-                    state.address = ((state.address << 4) | hexDigit) & 0xFFFF;
-                } else {
-                    state.data = ((state.data << 4) | hexDigit) & 0xFF;
-                }
-                setDisplayAddressData(state.address, state.data);
-                updateInspector();
-            } else if (key === 'ADRS') {
-                state.inputMode = 'ADRS';
-                playBeepSound(1000, 0.04);
-            } else if (key === 'DATA') {
-                state.inputMode = 'DATA';
-                playBeepSound(1200, 0.04);
-            } else if (key === '+') {
-                state.address = (state.address + 1) & 0xFFFF;
-                state.data = (state.address * 3 + 7) & 0xFF;
-                setDisplayAddressData(state.address, state.data);
-                updateInspector();
-            } else if (key === '-') {
-                state.cycles += 4;
-                state.registers.pc = (state.registers.pc + 1) & 0xFFFF;
-                state.address = state.registers.pc;
-                state.data = 0x3E;
-                setDisplayAddressData(state.address, state.data);
-                playBeepSound(1400, 0.05);
-                updateInspector();
-            } else if (key === 'RST') {
-                handleHardwareReset();
-            } else if (key === 'GO EXEC') {
-                playBeepSound(2000, 0.1);
-            }
-        }
+        sendHostCommand({ type: 'key', key: KEY_NAME_FOR_BUTTON[key] || key, action: 'down' });
     }
 
-    function handleKeypadRelease(key, code) {
-        sendHostCommand({ type: 'key_event', action: 'release', key: key, code: code });
+    function handleKeypadRelease(key) {
+        if (key === 'RST') return;
+        sendHostCommand({ type: 'key', key: KEY_NAME_FOR_BUTTON[key] || key, action: 'up' });
     }
 
+    // The reset switch is not part of the key matrix: it resets the CPU and the PPI.
     function handleHardwareReset() {
         initAudio();
-        playBeepSound(440, 0.12);
-        sendHostCommand({ type: 'hw_reset', action: 'reset' });
-
+        sendHostCommand({ type: 'reset' });
         const btn = document.getElementById('btn-hw-rst');
         if (btn) {
             btn.classList.add('key-pressed');
             setTimeout(() => btn.classList.remove('key-pressed'), 150);
         }
-
-        if (!state.wsConnected) {
-            state.address = 0x0000;
-            state.data = 0x31;
-            state.registers.pc = 0x0000;
-            state.registers.sp = 0x17FE;
-            setDisplayAddressData(0x1000, 0x3E);
-            updateInspector();
-        }
     }
 
-    function sendTapeMicInput(signal, level = 1.0) {
-        sendHostCommand({
-            type: 'mic_in',
-            signal: !!signal,
-            level: typeof level === 'number' ? level : (signal ? 1.0 : 0.0)
-        });
+    function changeRom(name) {
+        const store = storage();
+        if (store) store.setItem('abc80_rom', name);
+        sendHostCommand({ type: 'setRom', rom: name });
     }
+
+    // For tests and the console.
+    window.__abc80 = {
+        initAudio: initAudio,
+        get audioCtx() { return audioCtx; },
+        get lastTelemetry() { return state.lastTelemetry; },
+        applyTelemetry: applyTelemetry,   // feed a telemetry frame to the renderer (test hook)
+        disconnect: function () { reconnectDelayMs = 3600000; if (ws) { ws.onmessage = null; ws.close(); } },  // stop live frames (test hook)
+        get token() { return sessionToken(); }
+    };
 
     let scopeCanvas, scopeCtx, scopePhase = 0;
     function initScope() {
@@ -432,54 +331,20 @@
             });
         });
 
-        const disasmList = [
-            { addr: '0000', bytes: '31 FE 17', mnem: 'LD', op: 'SP, 17FEH' },
-            { addr: '0003', bytes: '3E 98', mnem: 'LD', op: 'A, 98H' },
-            { addr: '0005', bytes: '32 03 20', mnem: 'LD', op: '(2003H), A' },
-            { addr: '0008', bytes: 'CD 20 02', mnem: 'CALL', op: '0220H' },
-            { addr: '000B', bytes: 'AF', mnem: 'XOR', op: 'A' },
-            { addr: '000C', bytes: '32 00 10', mnem: 'LD', op: '(1000H), A' }
-        ];
-
+        // The server does not send memory contents, so these panels say so instead of showing sample data.
         const disasmContainer = document.getElementById('disasm-container');
         if (disasmContainer) {
-            disasmContainer.innerHTML = disasmList.map((item, idx) => `
-                <div class="disasm-line ${idx === 0 ? 'current-pc' : ''}">
-                    <span class="disasm-addr">${item.addr}</span>
-                    <span class="disasm-bytes">${item.bytes}</span>
-                    <span class="disasm-mnemonic">${item.mnem}</span>
-                    <span class="disasm-operands">${item.op}</span>
-                </div>
-            `).join('');
+            disasmContainer.innerHTML = '<div class="disasm-line"><span class="disasm-operands">Live disassembly is not provided by this front panel.</span></div>';
         }
 
-        populateHexEditor(0x0000);
+        populateHexEditor();
         updateInspector();
     }
 
-    function populateHexEditor(baseAddr) {
+    function populateHexEditor() {
         const hexContainer = document.getElementById('hex-editor-table');
         if (!hexContainer) return;
-        const rows = [];
-        const sampleRomBytes = [
-            0x31, 0xFE, 0x17, 0x3E, 0x98, 0x32, 0x03, 0x20, 0xCD, 0x20, 0x02, 0xAF, 0x32, 0x00, 0x10, 0xCD,
-            0x50, 0x01, 0xC3, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        ];
-
-        for (let r = 0; r < 2; r++) {
-            const addr = (baseAddr + r * 16).toString(16).toUpperCase().padStart(4, '0');
-            const bytesSlice = sampleRomBytes.slice(r * 16, r * 16 + 16);
-            const hexSpans = bytesSlice.map(b => `<span class="hex-byte">${b.toString(16).toUpperCase().padStart(2, '0')}</span>`).join(' ');
-            const asciiChars = bytesSlice.map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('');
-            rows.push(`
-                <div class="hex-row">
-                    <span class="hex-addr">${addr}:</span>
-                    <span class="hex-bytes">${hexSpans}</span>
-                    <span class="hex-ascii">${asciiChars}</span>
-                </div>
-            `);
-        }
-        hexContainer.innerHTML = rows.join('');
+        hexContainer.innerHTML = '<div class="hex-row"><span class="hex-ascii">The memory view is not provided by this front panel.</span></div>';
     }
 
     function updateInspector() {
@@ -490,60 +355,63 @@
         document.getElementById('reg-bc').textContent = '0x' + state.registers.bc.toString(16).toUpperCase().padStart(4, '0');
         document.getElementById('reg-de').textContent = '0x' + state.registers.de.toString(16).toUpperCase().padStart(4, '0');
         document.getElementById('reg-hl').textContent = '0x' + state.registers.hl.toString(16).toUpperCase().padStart(4, '0');
+        // Flags come from the low byte of AF: S Z - H - P/V N C.
+        const flags = state.registers.af & 0xFF;
+        [['flag-s', 0x80], ['flag-z', 0x40], ['flag-h', 0x10], ['flag-pv', 0x04], ['flag-n', 0x02], ['flag-c', 0x01]].forEach(([id, mask]) => {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('active', (flags & mask) !== 0);
+        });
+    }
+
+    function keyNameForEvent(e) {
+        if (/^[0-9a-fA-F]$/.test(e.key)) return e.key.toUpperCase();
+        if (e.key === '+' || e.key === 'ArrowRight') return '+';
+        if (e.key === '-' || e.key === ' ' || e.key === 'F10') return '-';
+        if (e.key === 'Enter') return 'GO EXEC';
+        const k = e.key.toLowerCase();
+        if (k === 'g') return 'GO EXEC';
+        if (k === 'm') return 'ADRS';   // A and D are hex digits, so ADRS and DATA use M and N
+        if (k === 'n') return 'DATA';
+        if (k === 'w') return 'TO TAPE';
+        if (k === 'l') return 'FROM TAPE';
+        return null;
     }
 
     function setupKeyboardListeners() {
+        const heldByCode = {};  // physical key -> board key, so a release always matches its press
+
         window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT') return;
-            const key = e.key.toUpperCase();
-            if (/^[0-9A-F]$/.test(key)) {
-                handleKeypadPress(key, parseInt(key, 16));
-            } else if (e.key === 'ArrowRight' || e.key === '+') {
-                handleKeypadPress('+', 0x13);
-            } else if (e.key === ' ' || e.key === '-' || e.key === 'F10') {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.key === 'Escape' || e.key === 'F5') {
                 e.preventDefault();
-                handleKeypadPress('-', 0x10);
-            } else if (e.key === 'Enter' || key === 'G') {
-                e.preventDefault();
-                handleKeypadPress('GO EXEC', 0x11);
-            } else if (e.key === 'Escape' || e.key === 'F5') {
-                handleKeypadPress('RST', 0x18);
-            } else if (key === 'A' || key === 'M') {
-                handleKeypadPress('ADRS', 0x14);
-            } else if (key === 'D') {
-                handleKeypadPress('DATA', 0x12);
-            } else if (key === 'W') {
-                handleKeypadPress('TO TAPE', 0x17);
-            } else if (key === 'L') {
-                handleKeypadPress('FROM TAPE', 0x16);
-            } else if (e.key === 'F12') {
+                if (!e.repeat) handleHardwareReset();
+                return;
+            }
+            if (e.key === 'F12') {
                 e.preventDefault();
                 document.getElementById('btn-toggle-inspector').click();
+                return;
             }
+            const name = keyNameForEvent(e);
+            if (name === null) return;
+            e.preventDefault();
+            if (e.repeat || heldByCode[e.code]) return;  // auto-repeat is not a new press
+            heldByCode[e.code] = name;
+            handleKeypadPress(name);
         });
 
         window.addEventListener('keyup', (e) => {
-            if (e.target.tagName === 'INPUT') return;
-            const key = e.key.toUpperCase();
-            if (/^[0-9A-F]$/.test(key)) {
-                handleKeypadRelease(key, parseInt(key, 16));
-            } else if (e.key === 'ArrowRight' || e.key === '+') {
-                handleKeypadRelease('+', 0x13);
-            } else if (e.key === ' ' || e.key === '-' || e.key === 'F10') {
-                handleKeypadRelease('-', 0x10);
-            } else if (e.key === 'Enter' || key === 'G') {
-                handleKeypadRelease('GO EXEC', 0x11);
-            } else if (e.key === 'Escape' || e.key === 'F5') {
-                handleKeypadRelease('RST', 0x18);
-            } else if (key === 'A' || key === 'M') {
-                handleKeypadRelease('ADRS', 0x14);
-            } else if (key === 'D') {
-                handleKeypadRelease('DATA', 0x12);
-            } else if (key === 'W') {
-                handleKeypadRelease('TO TAPE', 0x17);
-            } else if (key === 'L') {
-                handleKeypadRelease('FROM TAPE', 0x16);
-            }
+            const name = heldByCode[e.code];
+            if (!name) return;
+            delete heldByCode[e.code];
+            handleKeypadRelease(name);
+        });
+
+        window.addEventListener('blur', () => {
+            Object.keys(heldByCode).forEach(code => {
+                handleKeypadRelease(heldByCode[code]);
+                delete heldByCode[code];
+            });
         });
     }
 
@@ -858,7 +726,7 @@
         'disc-r-sp330a': { refdes: 'R-SP330A', name: '330Ω Carbon Film Resistor', pkg: 'Axial 1/4W', specs: '330Ω ±5% (Orange-Orange-Brown-Gold)', role: 'Audio Monitor Green LED Current Limiter' },
         'disc-r-sp330b': { refdes: 'R-SP330B', name: '330Ω Carbon Film Resistor', pkg: 'Axial 1/4W', specs: '330Ω ±5% (Orange-Orange-Brown-Gold)', role: 'Audio Monitor Red LED Current Limiter' },
         'disc-led-audio-grn': { refdes: 'LED-AUD-GRN', name: '3mm Green LED', pkg: 'T-1 3mm', specs: 'Vf=2.2V, If=20mA (Emerald Green)', role: 'Audio Output Positive Phase Monitor LED' },
-        'disc-led-audio-red': { refdes: 'LED-AUD-RED', name: '3mm Red LED', pkg: 'T-1 3mm', specs: 'Vf=2.0V, If=20mA (Ruby Red)', role: 'Audio Output Negative Phase Monitor LED' },
+        'disc-led-halt': { refdes: 'LED-HALT', name: '3mm Red LED', pkg: 'T-1 3mm', specs: 'Vf=2.0V, If=20mA (Ruby Red)', role: 'Audio Output Negative Phase Monitor LED' },
 
         // --- Dual 3x4 Keypad Modules ---
         'disc-keypad-left': { refdes: 'KEY-L', name: 'Hexadecimal Keypad Module (Left 3x4)', pkg: 'Molded Ivory Bezel', specs: '12 Tactile Hex Keys (0-9, A, B)', role: 'Hexadecimal Address/Data Matrix Entry (Left 3x4 Array)' },
@@ -899,27 +767,24 @@
         let activeTarget = null;
 
         function showTooltipForElement(target, e) {
-            const keyBtn = target.closest('[data-key]');
-            const keyVal = keyBtn ? keyBtn.getAttribute('data-key') : null;
-            let meta = null;
-
-            if (keyVal && KEYPAD_METADATA[keyVal]) {
-                meta = KEYPAD_METADATA[keyVal];
-            } else {
-                const compEl = target.closest('.calibratable-component, .ic-socket-package, #silk-abc80-eprom');
-                if (!compEl) {
-                    hideTooltip();
-                    return;
-                }
-                const id = compEl.id;
-                meta = COMPONENT_METADATA[id] || {
-                    refdes: compEl.getAttribute('data-label') || id,
-                    name: compEl.getAttribute('title') || compEl.getAttribute('data-label') || id,
-                    pkg: 'Discrete Component',
-                    specs: 'Standard PCB Footprint',
-                    role: 'ABC-80 Hardware Element'
-                };
+            // Keypad keys show no hover text (it got in the way of using them). Everything else keeps its tooltip.
+            if (target.closest('.key-btn, .tactile-switch, .overlay-key, .keypad-bezel-module')) {
+                hideTooltip();
+                return;
             }
+            const compEl = target.closest('.calibratable-component, .ic-socket-package, #silk-abc80-eprom');
+            if (!compEl) {
+                hideTooltip();
+                return;
+            }
+            const id = compEl.id;
+            const meta = COMPONENT_METADATA[id] || {
+                refdes: compEl.getAttribute('data-label') || id,
+                name: compEl.getAttribute('title') || compEl.getAttribute('data-label') || id,
+                pkg: 'Discrete Component',
+                specs: 'Standard PCB Footprint',
+                role: 'ABC-80 Hardware Element'
+            };
 
             tooltip.innerHTML = `
                 <div class="tooltip-header">
@@ -991,23 +856,47 @@
         setupKeyboardListeners();
         connectHostWebSocket();
 
-        document.querySelectorAll('.tactile-switch, .overlay-key, .key-btn, .hw-reset-tactile-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const key = btn.getAttribute('data-key');
-                const code = parseInt(btn.getAttribute('data-code'), 16);
-                if (key) handleKeypadPress(key, code);
-            });
-            btn.addEventListener('mouseup', () => {
-                const key = btn.getAttribute('data-key');
-                const code = parseInt(btn.getAttribute('data-code'), 16);
-                if (key) handleKeypadRelease(key, code);
-            });
-            btn.addEventListener('mouseleave', () => {
-                const key = btn.getAttribute('data-key');
-                const code = parseInt(btn.getAttribute('data-code'), 16);
-                if (key) handleKeypadRelease(key, code);
-            });
+        // Matrix keys press on mousedown/touchstart and release on mouseup/mouseleave/touchend/touchcancel.
+        // The reset keys are not matrix keys: they only reset.
+        // The keypad bezels (the frames around the keys) show no native hover text either.
+        document.querySelectorAll('.keypad-bezel-module').forEach(module => {
+            const label = module.getAttribute('title');
+            if (label) {
+                module.setAttribute('aria-label', label);
+                module.removeAttribute('title');
+            }
         });
+
+        document.querySelectorAll('.tactile-switch, .overlay-key, .key-btn').forEach(btn => {
+            const key = btn.getAttribute('data-key');
+            if (!key) return;
+            // No native hover text on keypad keys; keep it as the accessible name.
+            const label = btn.getAttribute('title');
+            if (label) {
+                btn.setAttribute('aria-label', label);
+                btn.removeAttribute('title');
+            }
+            if (key === 'RST') {
+                btn.addEventListener('click', () => { if (!isCalibrating) handleHardwareReset(); });
+                return;
+            }
+            const down = (e) => { if (isCalibrating) return; if (e.cancelable) e.preventDefault(); handleKeypadPress(key); };
+            const up = () => handleKeypadRelease(key);
+            btn.addEventListener('mousedown', down);
+            btn.addEventListener('touchstart', down, { passive: false });
+            btn.addEventListener('mouseup', up);
+            btn.addEventListener('mouseleave', up);
+            btn.addEventListener('touchend', up);
+            btn.addEventListener('touchcancel', up);
+        });
+
+        const romSelect = document.getElementById('rom-select');
+        if (romSelect) {
+            const store = storage();
+            const saved = store ? store.getItem('abc80_rom') : null;
+            if (saved === '1993' || saved === 'monitor') romSelect.value = saved;
+            romSelect.addEventListener('change', () => changeRom(romSelect.value));
+        }
 
         // Tactile Reset Button (#disc-hw-rst and #btn-hw-rst)
         const hwRstBtn = document.getElementById('btn-hw-rst');
@@ -1023,19 +912,6 @@
             hwRstComp.addEventListener('click', (e) => {
                 if (isCalibrating) return;
                 handleHardwareReset();
-            });
-        }
-
-        // MIC Cassette Input Jack click (inject test signal)
-        const jackMic = document.getElementById('disc-jack-mic');
-        if (jackMic) {
-            jackMic.addEventListener('click', () => {
-                if (isCalibrating) return;
-                initAudio();
-                playBeepSound(2400, 0.04);
-                sendTapeMicInput(true, 1.0);
-                setTimeout(() => sendTapeMicInput(false, 0.0), 60);
-                console.log('[ABC-80 MIC] Cassette tape MIC input signal injected.');
             });
         }
 
@@ -1061,15 +937,14 @@
             });
         }
 
-        const btnPlay = document.getElementById('btn-tape-play');
-        const btnRec = document.getElementById('btn-tape-rec');
-        const btnStop = document.getElementById('btn-tape-stop');
-        const btnRew = document.getElementById('btn-tape-rew');
-
-        if (btnPlay) btnPlay.addEventListener('click', () => { initAudio(); state.tapeState = 'PLAYING'; sendHostCommand({ type: 'tape', action: 'play' }); });
-        if (btnRec) btnRec.addEventListener('click', () => { initAudio(); state.tapeState = 'RECORDING'; sendHostCommand({ type: 'tape', action: 'record' }); });
-        if (btnStop) btnStop.addEventListener('click', () => { initAudio(); state.tapeState = 'STOPPED'; sendHostCommand({ type: 'tape', action: 'stop' }); });
-        if (btnRew) btnRew.addEventListener('click', () => { initAudio(); state.tapeState = 'STOPPED'; playKeyClickSound(); sendHostCommand({ type: 'tape', action: 'rewind' }); });
+        // Cassette tape is not supported by this front panel.
+        ['btn-tape-play', 'btn-tape-rec', 'btn-tape-stop', 'btn-tape-rew'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.disabled = true;
+                btn.title = 'Cassette tape is not supported';
+            }
+        });
 
         const helpBtn = document.getElementById('btn-help');
         const helpModal = document.getElementById('help-modal');
@@ -1225,7 +1100,7 @@
         'disc-r-sp330a': { left: 295.2, top: 381.0, width: 20.0, height: 4.0, rotation: 90 },
         'disc-r-sp330b': { left: 314.1, top: 377.1, width: 20.0, height: 4.0, rotation: 90 },
         'disc-led-audio-grn': { left: 307.5, top: 370.5, width: 12.0, height: 12.0, rotation: 0 },
-        'disc-led-audio-red': { left: 308.5, top: 395.0, width: 12.0, height: 12.0, rotation: 0 },
+        'disc-led-halt': { left: 308.5, top: 395.0, width: 12.0, height: 12.0, rotation: 0 },
 
         // --- Dual 3x4 Keypad Modules ---
         'disc-keypad-left': { left: 86.0, top: 451.0, width: 160.0, height: 206.0 },
@@ -1742,7 +1617,7 @@
                     },
                     {
                         title: 'Audio / Speaker',
-                        ids: ['disc-piezo-disk', 'disc-r-sp33', 'disc-r-sp330a', 'disc-r-sp330b', 'disc-led-audio-grn', 'disc-led-audio-red'],
+                        ids: ['disc-piezo-disk', 'disc-r-sp33', 'disc-r-sp330a', 'disc-r-sp330b', 'disc-led-audio-grn', 'disc-led-halt'],
                         format: (id, c) => {
                             let r = `#${id} { left: ${c.left}px; top: ${c.top}px;`;
                             if (id !== 'disc-piezo-disk' && c.width !== undefined && c.height !== undefined) {

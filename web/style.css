@@ -1698,7 +1698,7 @@ body.dev-tools-visible .canvas-view-controls {
 #disc-r-sp330a { left: 295.2px; top: 381px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
 #disc-r-sp330b { left: 314.1px; top: 377.1px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
 #disc-led-audio-grn { left: 307.5px; top: 370.5px; width: 12px; height: 12px; }
-#disc-led-audio-red { left: 308.5px; top: 395px; width: 12px; height: 12px; }
+#disc-led-halt { left: 308.5px; top: 395px; width: 12px; height: 12px; }
 
 /* --- Dual 3x4 Keypad Modules --- */
 #disc-keypad-left { left: 86px; top: 451px; width: 160px !important; height: 206px !important; }
@@ -5443,3 +5443,26 @@ button[data-key="RST"] .key-label {
 
 
 
+
+/* Green speaker LED: brightness follows the share of the frame the speaker line was low. */
+#disc-led-audio-grn[data-level] .led-green {
+    opacity: calc(0.65 + 0.35 * var(--led-level, 0));
+    box-shadow: 0 0 calc(8px * var(--led-level, 0)) calc(3px * var(--led-level, 0)) rgba(52, 199, 89, 0.85);
+}
+
+.rom-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 12px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.rom-picker select {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
