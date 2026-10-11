@@ -49,8 +49,14 @@ Abc80Ppi::Abc80Ppi()
 {
     _digitSegments.fill(0x00);
     _matrixKeys.fill(false);
+    _eprom.fill(0xFF);  // a blank EPROM; reset() never touches it
 
     reset();
+}
+
+uint16_t Abc80Ppi::auxEpromAddress() const noexcept
+{
+    return static_cast<uint16_t>(((_ppiAux.pc.outp & 0x07) << 8) | _ppiAux.pa.outp);
 }
 
 void Abc80Ppi::reset()
@@ -202,6 +208,10 @@ uint8_t Abc80Ppi::readPort(uint8_t port)
         if (reg & 1) pins |= I8255_A0;
         if (reg & 2) pins |= I8255_A1;
 
+        if (reg == 1 && (_ppiAux.control & I8255_CTRL_B) == I8255_CTRL_B_INPUT) {
+            // Port B reads the EPROM data pins; the chip drives them only while Port C bit 7 (chip enable) is high.
+            I8255_SET_PB(pins, (_ppiAux.pc.outp & 0x80) ? _eprom[auxEpromAddress()] : 0xFF);
+        }
         pins = i8255_tick(&_ppiAux, pins);
         return I8255_GET_DATA(pins);
     } else if ((port & 0xFC) == 0xC0) { // Parallel Link PPI: 0xC0 - 0xC3
@@ -247,7 +257,13 @@ void Abc80Ppi::writePort(uint8_t port, uint8_t val)
         if (reg & 2) pins |= I8255_A1;
         I8255_SET_DATA(pins, val);
 
+        const bool programmingBefore = (_ppiAux.pc.outp & 0x60) == 0x60;
         i8255_tick(&_ppiAux, pins);
+        const bool programmingNow = (_ppiAux.pc.outp & 0x60) == 0x60;
+        if (!programmingBefore && programmingNow && (_ppiAux.control & I8255_CTRL_B) == I8255_CTRL_B_OUTPUT) {
+            // Port C bits 5 and 6 rising together is the programming pulse: an EPROM bit can only go from 1 to 0.
+            _eprom[auxEpromAddress()] &= _ppiAux.pb.outp;
+        }
     } else if ((port & 0xFC) == 0xC0) { // Parallel Link PPI: 0xC0 - 0xC3
         uint8_t reg = port & 0x03;
         uint64_t pins = I8255_CS | I8255_WR;

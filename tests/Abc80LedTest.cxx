@@ -62,8 +62,8 @@ TEST(Abc80Led, EpLedFollowsTheBurnRoutine)
     CHECK(wasLit);
     CHECK(board.getCpu().isHalted());
     CHECK(!board.epLed());  // released again
-    // The pulse covers 5 display scan passes (b = 5 in burn) of 2,871 T each, plus a little overhead.
-    CHECK(litT > 5 * 2871 && litT < 6 * 2871 + 2000);
+    // The pulse covers 5 display scan passes (b = 5 in burn) of 17,847 T each, plus a little overhead.
+    CHECK(litT > 5 * 17847 && litT < 6 * 17847 + 2000);
 }
 
 TEST(Abc80Led, BothLedsAreDarkAtTheMonitorStart)

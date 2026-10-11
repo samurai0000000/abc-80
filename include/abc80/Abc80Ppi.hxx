@@ -70,6 +70,10 @@ public:
     // Latched Port C output of the auxiliary (EPROM programmer) 8255.
     uint8_t auxPortCOutput() const noexcept { return _ppiAux.pc.outp; }
 
+    // The EPROM in the programmer socket (U7). Eleven address bits (A0-A10), blank = 0xFF, kept across reset().
+    uint8_t targetEprom(uint16_t address) const noexcept { return _eprom[address & 0x07FF]; }
+    void setTargetEprom(uint16_t address, uint8_t value) noexcept { _eprom[address & 0x07FF] = value; }
+
     // Host PC-5523 parallel link interface (ports 0xC0 - 0xC3)
     void hostWriteLinkPortB(uint8_t data);
     uint8_t hostReadLinkPortA() const;
@@ -82,6 +86,7 @@ public:
 
 private:
     uint8_t computeKeypadRowInputs() const;
+    uint16_t auxEpromAddress() const noexcept;  // PC bits 0-2 are A8-A10, PA is A0-A7
     void updateDigitSegments(uint8_t digitStrobe, uint8_t segmentMask);
     void accumulate() noexcept;  // account time since the last event to the current port state
 
@@ -91,6 +96,7 @@ private:
     // 3. Parallel Link: PC-Link server communication (0xC0 - 0xC3)
     i8255_t _ppiPrimary;
     i8255_t _ppiAux;
+    std::array<uint8_t, 2048> _eprom;
     i8255_t _ppiLink;
 
     // Display latch state: 6 digits (0 = rightmost/data, 5 = leftmost/address)

@@ -133,21 +133,21 @@ def main():
         assert float(input_y.input_value()) == 4.6
         print(f"[test] Clicked disc-cap-c2 on board: X={input_x.input_value()}, Y={input_y.input_value()}")
 
-        # 7. Click on piezo speaker disk
-        piezo = page.locator("#disc-piezo-disk")
-        piezo.click()
+        # 7. Click on the speaker
+        speaker = page.locator("#disc-speaker")
+        speaker.click()
         page.wait_for_timeout(200)
-        assert select.input_value() == "disc-piezo-disk", f"Expected select to be disc-piezo-disk, got {select.input_value()}"
-        print(f"[test] Clicked disc-piezo-disk on board: X={input_x.input_value()}, Y={input_y.input_value()}")
+        assert select.input_value() == "disc-speaker", f"Expected select to be disc-speaker, got {select.input_value()}"
+        print(f"[test] Clicked disc-speaker on board: X={input_x.input_value()}, Y={input_y.input_value()}")
 
-        # 8. Drag piezo speaker disk by 10px right, 5px down
-        box = piezo.bounding_box()
+        # 8. Drag the speaker by 10px right, 5px down
+        box = speaker.bounding_box()
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.mouse.down()
         page.mouse.move(box["x"] + box["width"] / 2 + 10, box["y"] + box["height"] / 2 + 5)
         page.mouse.up()
         page.wait_for_timeout(200)
-        print(f"[test] Dragged disc-piezo-disk: X={input_x.input_value()}, Y={input_y.input_value()}")
+        print(f"[test] Dragged disc-speaker: X={input_x.input_value()}, Y={input_y.input_value()}")
 
         # 9. Test newly individualized resistors: disc-r-pu1, disc-r-pu18, disc-r-prog1, disc-r-clock
         select.select_option("disc-r-pu1")

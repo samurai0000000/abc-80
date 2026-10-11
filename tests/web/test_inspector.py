@@ -35,5 +35,3 @@ def test_panels_without_server_data_do_not_show_sample_data(panel):
     assert "not provided" in page.inner_text("#disasm-container")
     assert "LD" not in page.inner_text("#disasm-container")
     assert "not provided" in page.inner_text("#hex-editor-table")
-    assert page.inner_text("#reg-ix") == "----"
-    assert page.inner_text("#reg-iy") == "----"

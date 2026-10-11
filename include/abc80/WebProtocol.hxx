@@ -57,7 +57,7 @@ struct TelemetryFrame {
     bool speakerLevel{false};
     std::vector<uint32_t> speakerEdges;
     bool speakerOverflow{false};
-    uint16_t pc{0}, sp{0}, af{0}, bc{0}, de{0}, hl{0};
+    uint16_t pc{0}, sp{0}, af{0}, bc{0}, de{0}, hl{0}, ix{0}, iy{0};
 };
 
 std::string buildTelemetryJson(const TelemetryFrame &frame);

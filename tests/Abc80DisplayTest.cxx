@@ -185,7 +185,7 @@ TEST(Abc80Display, AddressEntryShowsTheTypedDigitsOnTheLeft)
     keys.type(KEY_2);
     keys.type(KEY_3);
     keys.type(KEY_4);
-    keys.frames(20);
+    keys.frames(60);  // the corrected scan is slower: the last digit settles about 40 frames after the key is typed
     const std::array<char, 6> d = board.displayDigits(kLit);
     CHECK_EQUAL('1', d[0]);
     CHECK_EQUAL('2', d[1]);

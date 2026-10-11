@@ -189,7 +189,8 @@ std::string buildTelemetryJson(const TelemetryFrame &f)
     j["speakerEdges"] = f.speakerEdges;
     j["speakerOverflow"] = f.speakerOverflow;
     j["registers"] = { { "pc", f.pc }, { "sp", f.sp }, { "af", f.af },
-                       { "bc", f.bc }, { "de", f.de }, { "hl", f.hl } };
+                       { "bc", f.bc }, { "de", f.de }, { "hl", f.hl },
+                       { "ix", f.ix }, { "iy", f.iy } };
     return j.dump();
 }
 

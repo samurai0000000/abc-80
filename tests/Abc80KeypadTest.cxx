@@ -29,7 +29,7 @@ TEST(Abc80Keypad, A2_AddressEntryOnTheMonitor)
     keys.type(KEY_2);
     keys.type(KEY_3);
     keys.type(KEY_4);
-    keys.frames(30);
+    keys.frames(60);  // the corrected scan is slower: the last digit settles about 40 frames after the key is typed
     LONGS_EQUAL(0x1234, adsave(board));
 }
 

@@ -365,7 +365,8 @@ endtap:         ; [01bc]
             org     01c3h
 error:          ; [01c3]
             ld      ix,errtab       ; [01c3] [dd 21 d9 07] point ix to "-error" display pattern
-            jp      setst0          ; [01c7] [c3 94 00] restore state = 0
+            call    ms1k17          ; [01c7] [cd 50 04] error beep (the book's listing skips these 3 bytes; from the 1993 ROM)
+            jp      setst0          ; [01ca] [c3 94 00] restore state = 0
 
 ; Tape Load Routine (FROM TAPE / ERT, Pages 174 - 176)
             org     01ceh
@@ -911,7 +912,7 @@ ms2k:           ; [0475]
 
             org     047ah
 ms3k:           ; [047a]
-            ld      c,0ch           ; [047a] [0e 0c] 3 khz half-period constant
+            ld      c,0eh           ; [047a] [0e 0e] 3 khz half-period constant (book p.192 prints bytes 0e 0e, mnemonic 0ch)
 sound:          ; [047c]
             add     hl,hl           ; [047c] [29] convert full periods to half periods
             ld      de,0001h        ; [047d] [11 01 00]
@@ -996,7 +997,7 @@ kcol:           ; [04d4]
             out     (segment),a     ; [04d8] [d3 81] output to port b (segment bus)
             ld      a,e             ; [04da] [7b] load digit select bitmask
             out     (digit),a       ; [04db] [d3 82] output to port c (digit select)
-            ld      b,09h           ; [04dd] [06 09] digit dwell delay loop (9 iterations)
+            ld      b,0c9h          ; [04dd] [06 c9] digit dwell delay loop (book p.195 prints bytes 06 c9, mnemonic 009h)
             djnz    $               ; [04df] [10 fe]
             ld      b,06h           ; [04e1] [06 06] 6 key rows to scan
             in      a,(keypad)      ; [04e3] [db 80] read row inputs from port a
@@ -1263,7 +1264,7 @@ etab:           ; [0745]
 frqtab:         ; [074c]
             dw      18e1h           ; [074c] note 1
             dw      1ad4h           ; [074e] note 2
-            dw      1b08h           ; [0750] note 3
+            dw      1bc8h           ; [0750] note 3 (book p.202: c8 1b)
             dw      1dbdh           ; [0752] note 4
             dw      1eb2h           ; [0754] note 5
             dw      20a8h           ; [0756] note 6
@@ -1279,7 +1280,7 @@ frqtab:         ; [074c]
             dw      3a5eh           ; [076a] note 16
             dw      3d59h           ; [076c] note 17
             dw      4154h           ; [076e] note 18
-            dw      454eh           ; [0770] note 19
+            dw      454fh           ; [0770] note 19 (book p.202: 4f 45)
             dw      494ah           ; [0772] note 20
             dw      4d46h           ; [0774] note 21
             dw      5242h           ; [0776] note 22
@@ -1391,6 +1392,19 @@ blank:          ; [07e0]
             db      00h             ; [07e5] ' '
             db      00h             ; [07e6] ' '
             db      00h             ; [07e7] ' '
+
+; Tape Parameter Label Table (07e8h - 07efh). The book's listing ends at 07e7h (page 204); these 8 bytes are
+; filled from the 1993 ROM: 'F', 'S', 'E' for the TO TAPE parameters and 'F' for the FROM TAPE parameter.
+            org     07e8h
+tapnam:         ; [07e8]
+            db      0fh             ; [07e8] 'F'
+            db      0aeh            ; [07e9] 'S'
+            db      8fh             ; [07ea] 'E'
+            db      00h             ; [07eb]
+            db      0fh             ; [07ec] 'F'
+            db      00h             ; [07ed]
+            db      00h             ; [07ee]
+            db      00h             ; [07ef]
 
 ; Hexadecimal 7-Segment Font Table (07f0h - 07ffh, 16 bytes for digits 0..F)
 ; Hardware Port B (Active High in Table, Inverted in Driver):

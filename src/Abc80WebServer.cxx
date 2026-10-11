@@ -292,6 +292,8 @@ struct Abc80WebServer::Impl {
         f.bc = s.board.getCpu().getBC();
         f.de = s.board.getCpu().getDE();
         f.hl = s.board.getCpu().getHL();
+        f.ix = s.board.getCpu().getIX();
+        f.iy = s.board.getCpu().getIY();
         return buildTelemetryJson(f);
     }
 

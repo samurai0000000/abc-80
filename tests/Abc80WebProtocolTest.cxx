@@ -224,6 +224,30 @@ TEST(Abc80WebProtocol, PropertyTruncationsAndCorruptionsAreHandled)
     CHECK(ok);
 }
 
+TEST(Abc80WebProtocol, TelemetryJsonCarriesIxAndIyAndKeepsTheOldRegisters)
+{
+    TelemetryFrame f;
+    f.pc = 0x04CD;
+    f.sp = 0x17BF;
+    f.af = 0x1234;
+    f.bc = 0x5678;
+    f.de = 0x9ABC;
+    f.hl = 0xDEF0;
+    f.ix = 0x2468;
+    f.iy = 0x1357;
+    const json j = json::parse(buildTelemetryJson(f));
+    const json &r = j.at("registers");
+    LONGS_EQUAL(0x04CD, r.at("pc").get<int>());
+    LONGS_EQUAL(0x17BF, r.at("sp").get<int>());
+    LONGS_EQUAL(0x1234, r.at("af").get<int>());
+    LONGS_EQUAL(0x5678, r.at("bc").get<int>());
+    LONGS_EQUAL(0x9ABC, r.at("de").get<int>());
+    LONGS_EQUAL(0xDEF0, r.at("hl").get<int>());
+    LONGS_EQUAL(0x2468, r.at("ix").get<int>());
+    LONGS_EQUAL(0x1357, r.at("iy").get<int>());
+    LONGS_EQUAL(8, static_cast<long>(r.size()));
+}
+
 // ---- FrameOutbox: latest frame wins; a slow consumer never blocks the producer ----
 
 TEST_GROUP(Abc80FrameOutbox)

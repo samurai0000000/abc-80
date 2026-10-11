@@ -42,6 +42,8 @@
     --led-red-ghost: #2b0505;
     --led-filter-acrylic: #140202;
     --led-bezel-rim: #3b0606;
+    --led-disc-red-on: #ff1a1a;
+    --led-disc-green-on: #00e038;
 
     /* Keypad Frame & Dual-Tone Keycaps */
     --key-frame-bg: #ece5d7;
@@ -1431,7 +1433,7 @@ body.dev-tools-visible .canvas-view-controls {
 #disc-disp-d1 { left: 219.5px; top: 380px; width: 38px; height: 56px; }
 #disc-disp-d0 { left: 259.1px; top: 379.1px; width: 38px; height: 56px; }
 
-/* Piezoelectric Speaker SP */
+/* Ferro-magnetic dynamic speaker SP (book pp.97, 106) */
 #disc-speaker-section {
     position: absolute;
     left: 0;
@@ -1441,44 +1443,54 @@ body.dev-tools-visible .canvas-view-controls {
     pointer-events: none;
 }
 
-#disc-piezo-disk,
-.piezo-transducer-disk {
+#disc-speaker,
+.speaker-assembly {
     position: absolute;
     left: 340px;
     top: 368px;
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    background: radial-gradient(circle at 45% 45%, #f8fafc 0%, #e2e8f0 40%, #cbd5e1 75%, #94a3b8 100%);
-    border: 0.8px solid #94a3b8;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+    background: radial-gradient(circle at 45% 45%, #4b5563 0%, #1f2937 70%, #0b1220 100%);
+    border: 1px solid #0b1220;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.25);
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
 }
 
-.piezo-brass-base {
-    width: 46px;
-    height: 46px;
+.speaker-frame {
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: radial-gradient(circle at 45% 45%, #f1f5f9 0%, #e2e8f0 60%, #cbd5e1 100%);
-    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.15);
+    background: radial-gradient(circle at 50% 50%, #111827 0%, #1f2937 100%);
+    box-shadow: inset 0 0 0 2px #6b7280;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.piezo-ceramic-center {
-    width: 14px;
-    height: 14px;
+.speaker-cone {
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 40%, #1e293b 0%, #0f172a 70%, #020617 100%);
-    box-shadow: inset 0 1px 2px #000;
-    position: relative;
+    background: radial-gradient(circle at 50% 50%, #374151 0%, #1f2937 55%, #0f172a 100%);
+    box-shadow: inset 0 0 0 1px #4b5563, inset 0 2px 4px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.piezo-solder-joint {
+.speaker-dustcap {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, #9ca3af 0%, #4b5563 70%, #111827 100%);
+    box-shadow: inset 0 1px 2px #000;
+}
+
+.speaker-terminal {
     display: none;
 }
 
@@ -1693,7 +1705,7 @@ body.dev-tools-visible .canvas-view-controls {
 #disc-disp-d0 { left: 259.1px; top: 379.1px; width: 38px !important; height: 56px !important; }
 
 /* --- Audio / Speaker --- */
-#disc-piezo-disk { left: 339.2px; top: 376px; }
+#disc-speaker { left: 339.2px; top: 376px; }
 #disc-r-sp33 { left: 414.1px; top: 385.2px; width: 22px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
 #disc-r-sp330a { left: 295.2px; top: 381px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
 #disc-r-sp330b { left: 314.1px; top: 377.1px; width: 20px; height: 4px; transform: rotate(90deg); transform-origin: center center; }
@@ -2637,14 +2649,16 @@ body.dev-tools-visible .canvas-view-controls {
 }
 
 .discrete-led-pkg.active .led-red {
-    background: radial-gradient(circle at 35% 35%, #ffffff 0%, #ff3b30 40%, #cc0000 100%) !important;
-    box-shadow: 0 0 8px 3px rgba(255, 59, 48, 0.85), 0 0 16px rgba(255, 0, 0, 0.6) !important;
+    background: var(--led-disc-red-on) !important;
+    border-color: #ff4d4d !important;
+    box-shadow: 0 0 6px 1.5px rgba(255, 26, 26, 0.9), inset 0 0 1px 0.5px rgba(255, 255, 255, 0.4) !important;
     opacity: 1 !important;
 }
 
 .discrete-led-pkg.active .led-green {
-    background: radial-gradient(circle at 35% 35%, #ffffff 0%, #34c759 40%, #008a00 100%) !important;
-    box-shadow: 0 0 8px 3px rgba(52, 199, 89, 0.85), 0 0 16px rgba(0, 255, 0, 0.6) !important;
+    background: var(--led-disc-green-on) !important;
+    border-color: #4ade80 !important;
+    box-shadow: 0 0 6px 1.5px rgba(0, 224, 56, 0.9), inset 0 0 1px 0.5px rgba(255, 255, 255, 0.4) !important;
     opacity: 1 !important;
 }
 
@@ -4389,7 +4403,7 @@ body.dev-tools-visible .canvas-view-controls {
     color: #cbd5e1;
 }
 
-.piezo-label {
+.speaker-label {
     display: none;
 }
 
@@ -5446,8 +5460,9 @@ button[data-key="RST"] .key-label {
 
 /* Green speaker LED: brightness follows the share of the frame the speaker line was low. */
 #disc-led-audio-grn[data-level] .led-green {
+    background: color-mix(in srgb, var(--led-disc-green-on) calc(var(--led-level, 0) * 100%), #0d2e14);
     opacity: calc(0.65 + 0.35 * var(--led-level, 0));
-    box-shadow: 0 0 calc(8px * var(--led-level, 0)) calc(3px * var(--led-level, 0)) rgba(52, 199, 89, 0.85);
+    box-shadow: 0 0 calc(6px * var(--led-level, 0)) calc(1.5px * var(--led-level, 0)) rgba(0, 224, 56, 0.9);
 }
 
 .rom-picker {

@@ -504,9 +504,9 @@ def render_8255_peripherals_diagram():
 
     # Audio Jacks & Buzzer
     draw_rounded_box(ax, 0.61, 0.08, 0.35, 0.18,
-                     title="Audio Jacks & Onboard Buzzer", subtitle="Cassette Storage & Acoustic Feedback",
+                     title="Audio Jacks & Onboard Speaker", subtitle="Cassette Storage & Acoustic Feedback",
                      lines=[
-                         ("Piezo Speaker:", "Onboard tone generator for beep / alarms"),
+                         ("Speaker:", "Ferro-magnetic dynamic speaker, driven by the monitor SOUND routine"),
                          ("MIC Jack (Audio Out):", "Tape recording audio output to cassette recorder"),
                          ("EAR Jack (Audio In):", "Tape playback audio input from cassette player"),
                          ("Protocol:", "FSK (1.0 kHz = '0', 2.0 kHz = '1')")

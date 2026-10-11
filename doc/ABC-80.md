@@ -176,7 +176,7 @@ The ABC-80 is organized around a shared 16-bit address bus and 8-bit bidirection
 
 * **Tape Output (Record)**:
   * 8255 `PC6` (Pin 11) $\rightarrow$ Voltage divider / filter $\rightarrow$ `MIC` Jack (J1).
-  * Also connected to a Piezo Buzzer / Speaker via an NPN buffer transistor for key-click and error beeps.
+  * The speaker output is separate: the monitor SOUND routine toggles `PC7` for key-click and error tones (monitor listing, p.192). The speaker is a ferro-magnetic dynamic speaker (p.106).
 * **Tape Input (Playback)**:
   * `EAR` Jack (J2) $\rightarrow$ AC coupling capacitor $\rightarrow$ LM324 / LM311 Comparator with reference threshold $\rightarrow$ 8255 `PA` input / `PC7` (Pin 10) or interrupt detection.
 * **Single-Step Debugging**:
@@ -295,7 +295,7 @@ The keypad consists of 24 momentary push buttons configured as a $4 \times 6$ ma
 ## 5. Audio Cassette Tape Interface (FSK Standard)
 
 The ABC-80 features an onboard audio cassette interface using Kansas City / Frequency Shift Keying (FSK) modulation to store and load machine code on ordinary audio cassette recorders:
-* **Audio Out (`PC6`)**: `PC6` output drives a CS9013 NPN transistor connected in parallel to the onboard piezo buzzer and the `MIC / TAPE OUT` 3.5mm jack.
+* **Audio Out (`PC7`)**: the monitor `SOUND` routine toggles `PC7` to drive the speaker (monitor listing, p.192). The book's parts list has one NPN transistor (9013); it controls the EPROM programmer's 25 V supply (p.103), not the speaker.
 * **Audio In (`PC7`)**: `EAR / TAPE IN` 3.5mm jack feeds through an LM324 / LM311 comparator / Schmitt trigger bandpass filter into `PC7` (and optional interrupt line).
 
 ### Modulation Parameters:
