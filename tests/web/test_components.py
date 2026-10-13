@@ -12,7 +12,10 @@ from pathlib import Path
 
 from conftest import ROOT, wait_for
 
-REPLACEMENT = json.loads((ROOT / "plan" / "plan_abc80_improvements.artifacts" / "component_metadata_replacement.json").read_text())
+_cand = ROOT / "plan" / "plan_abc80_improvements.artifacts" / "component_metadata_replacement.json"
+if not _cand.exists():
+    _cand = ROOT / "plan" / "done" / "plan_abc80_improvements.artifacts" / "component_metadata_replacement.json"
+REPLACEMENT = json.loads(_cand.read_text())
 
 
 def test_components_have_no_native_title_attribute(panel):

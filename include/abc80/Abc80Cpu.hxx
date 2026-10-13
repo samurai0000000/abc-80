@@ -52,6 +52,7 @@ public:
     // Pin inspection and manipulation
     uint64_t getPins() const noexcept { return _pins; }
     bool isHalted() const noexcept { return (_pins & Z80_HALT) != 0; }
+    bool isOpDone() const noexcept { return z80_opdone(const_cast<z80_t*>(&_cpu)); }
     uint64_t getCycles() const noexcept { return _totalCycles; }
 
     // Interrupt line controls

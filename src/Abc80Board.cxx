@@ -6,7 +6,44 @@
 
 #include <abc80/Abc80Board.hxx>
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+#define CHIPS_UTIL_IMPL
+#include <util/z80dasm.h>
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 namespace abc80 {
+
+namespace {
+
+struct DasmContext {
+    const Abc80Bus &bus;
+    uint16_t currentAddr{0};
+    std::vector<uint8_t> collectedBytes;
+    std::string mnemonic;
+};
+
+uint8_t dasmInput(void *userData)
+{
+    auto *ctx = static_cast<DasmContext*>(userData);
+    const uint8_t b = ctx->bus.readByte(ctx->currentAddr);
+    ctx->collectedBytes.push_back(b);
+    ctx->currentAddr = static_cast<uint16_t>(ctx->currentAddr + 1);
+    return b;
+}
+
+void dasmOutput(char c, void *userData)
+{
+    auto *ctx = static_cast<DasmContext*>(userData);
+    ctx->mnemonic.push_back(c);
+}
+
+} // namespace
 
 Abc80Board::Abc80Board()
     : _bus()
@@ -168,7 +205,25 @@ uint64_t Abc80Board::stepTStates(uint64_t tstates)
 
 uint32_t Abc80Board::stepInstruction()
 {
-    return _cpu.stepInstruction();
+    uint32_t tstates = 0;
+    do {
+        tickTracked();
+        tstates++;
+        if (_cpu.isHalted() && tstates >= 4) {
+            return tstates;
+        }
+    } while (!_cpu.isOpDone());
+    return tstates;
+}
+
+uint32_t Abc80Board::finishInstruction()
+{
+    uint32_t tstates = 0;
+    while (!_cpu.isOpDone() && !_cpu.isHalted()) {
+        tickTracked();
+        tstates++;
+    }
+    return tstates;
 }
 
 bool Abc80Board::stepUntil(const std::function<bool(const Abc80Board&)>& predicate,
@@ -179,10 +234,40 @@ bool Abc80Board::stepUntil(const std::function<bool(const Abc80Board&)>& predica
         if (predicate(*this)) {
             return true;
         }
-        uint32_t step = _cpu.stepInstruction();
+        uint32_t step = stepInstruction();
         executed += step;
     }
     return predicate(*this);
+}
+
+std::vector<DisasmLine> Abc80Board::disassemble(uint16_t startAddr, size_t count) const
+{
+    std::vector<DisasmLine> lines;
+    lines.reserve(count);
+    uint16_t addr = startAddr;
+    while (lines.size() < count) {
+        DasmContext ctx{_bus, addr, {}, ""};
+        const uint16_t nextAddr = z80dasm_op(addr, dasmInput, dasmOutput, &ctx);
+        DisasmLine line;
+        line.addr = addr;
+        line.bytes = std::move(ctx.collectedBytes);
+        line.mnemonic = std::move(ctx.mnemonic);
+        lines.push_back(std::move(line));
+        addr = nextAddr;
+    }
+    return lines;
+}
+
+std::vector<uint8_t> Abc80Board::readMemoryBlock(uint16_t startAddr, size_t count) const
+{
+    std::vector<uint8_t> block;
+    block.reserve(count);
+    uint16_t addr = startAddr;
+    for (size_t i = 0; i < count; ++i) {
+        block.push_back(_bus.readByte(addr));
+        addr = static_cast<uint16_t>(addr + 1);
+    }
+    return block;
 }
 
 } // namespace abc80

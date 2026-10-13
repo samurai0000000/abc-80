@@ -114,6 +114,21 @@ ClientMessage parseClientMessage(const std::string &text)
         return m;
     }
 
+    if (type == "run") {
+        m.type = ClientMessage::Type::Run;
+        return m;
+    }
+
+    if (type == "pause") {
+        m.type = ClientMessage::Type::Pause;
+        return m;
+    }
+
+    if (type == "step") {
+        m.type = ClientMessage::Type::Step;
+        return m;
+    }
+
     if (type == "hello" || type == "setRom") {
         const auto romIt = j.find("rom");
         if (romIt != j.end()) {
@@ -166,6 +181,26 @@ ClientMessage parseClientMessage(const std::string &text)
         return m;
     }
 
+    if (type == "readMem" || type == "readDisasm") {
+        const auto addrIt = j.find("addr");
+        if (addrIt == j.end() || !addrIt->is_number_unsigned() || addrIt->get<uint64_t>() > 0xFFFF) {
+            return invalid(type + " needs integer 'addr' in range 0..65535");
+        }
+        const auto countIt = j.find("count");
+        if (countIt == j.end() || !countIt->is_number_unsigned() || countIt->get<uint64_t>() == 0) {
+            return invalid(type + " needs positive integer 'count'");
+        }
+        m.type = (type == "readMem") ? ClientMessage::Type::ReadMem : ClientMessage::Type::ReadDisasm;
+        m.memAddr = static_cast<uint16_t>(addrIt->get<uint64_t>());
+        const uint64_t requestedCount = countIt->get<uint64_t>();
+        if (type == "readMem") {
+            m.memCount = static_cast<uint16_t>(std::min<uint64_t>(requestedCount, 256));
+        } else {
+            m.memCount = static_cast<uint16_t>(std::min<uint64_t>(requestedCount, 64));
+        }
+        return m;
+    }
+
     return invalid("unknown message type");
 }
 
@@ -176,6 +211,7 @@ std::string buildTelemetryJson(const TelemetryFrame &f)
     j["seq"] = f.seq;
     j["rom"] = f.rom;
     j["cycles"] = f.cycles;
+    j["paused"] = f.paused;
     j["displayMasks"] = json::array();
     for (uint8_t m : f.displayMasks) {
         j["displayMasks"].push_back(m);
@@ -191,6 +227,8 @@ std::string buildTelemetryJson(const TelemetryFrame &f)
     j["registers"] = { { "pc", f.pc }, { "sp", f.sp }, { "af", f.af },
                        { "bc", f.bc }, { "de", f.de }, { "hl", f.hl },
                        { "ix", f.ix }, { "iy", f.iy } };
+    j["stackBaseAddr"] = f.stackBaseAddr;
+    j["stackBytes"] = f.stackBytes;
     return j.dump();
 }
 
@@ -200,6 +238,31 @@ std::string buildErrorJson(const std::string &reason)
     j["type"] = "error";
     j["reason"] = reason;
     return j.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+std::string buildMemDataJson(uint16_t addr, const std::vector<uint8_t> &data)
+{
+    json j;
+    j["type"] = "memData";
+    j["addr"] = addr;
+    j["data"] = data;
+    return j.dump();
+}
+
+std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines)
+{
+    json j;
+    j["type"] = "disasm";
+    j["addr"] = addr;
+    j["lines"] = json::array();
+    for (const auto &line : lines) {
+        json item;
+        item["addr"] = line.addr;
+        item["bytes"] = line.bytes;
+        item["mnemonic"] = line.mnemonic;
+        j["lines"].push_back(std::move(item));
+    }
+    return j.dump();
 }
 
 } // namespace abc80

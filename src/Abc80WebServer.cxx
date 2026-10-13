@@ -55,6 +55,7 @@ struct Abc80WebServer::Impl {
         std::string token;
         RomId rom{RomId::Monitor};
         bool ready{false};                    // booted; set under mtx
+        bool paused{false};                   // execution paused; set under mtx
         Abc80Board board;
         std::unique_ptr<KeyQueue> keys;
         uint64_t frames{0};
@@ -107,6 +108,7 @@ struct Abc80WebServer::Impl {
         }
         s.keys = std::make_unique<KeyQueue>(profile.keys);
         s.ready = true;
+        s.paused = false;
         s.frames = 0;
         s.cycles = 0;
         if (config.bootTurbo) {
@@ -256,6 +258,7 @@ struct Abc80WebServer::Impl {
             std::lock_guard<std::mutex> lock(s.mtx);
             s.board.reset();
             s.keys->clear();
+            s.paused = false;
             break;
         }
         case ClientMessage::Type::SetRom: {
@@ -265,29 +268,108 @@ struct Abc80WebServer::Impl {
             }
             break;
         }
+        case ClientMessage::Type::Run: {
+            std::string frame;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.paused) {
+                    s.paused = false;
+                    frame = telemetryFor(s, false);
+                }
+            }
+            if (!frame.empty()) {
+                outbox.post(frame);
+            }
+            break;
+        }
+        case ClientMessage::Type::Pause: {
+            std::string frame;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.paused) {
+                    const uint32_t remaining = s.board.finishInstruction();
+                    s.cycles += remaining;
+                    s.paused = true;
+                }
+                frame = telemetryFor(s, false);
+            }
+            outbox.post(frame);
+            break;
+        }
+        case ClientMessage::Type::Step: {
+            std::string frame;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.paused) {
+                    const uint32_t stepT = s.board.stepInstruction();
+                    s.cycles += stepT;
+                    frame = telemetryFor(s, false);
+                }
+            }
+            if (!frame.empty()) {
+                outbox.post(frame);
+            }
+            break;
+        }
+        case ClientMessage::Type::ReadMem: {
+            std::string reply;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                std::vector<uint8_t> data = s.board.readMemoryBlock(m.memAddr, m.memCount);
+                reply = buildMemDataJson(m.memAddr, data);
+            }
+            outbox.post(reply);
+            break;
+        }
+        case ClientMessage::Type::ReadDisasm: {
+            std::string reply;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                std::vector<DisasmLine> lines = s.board.disassemble(m.memAddr, m.memCount);
+                reply = buildDisasmJson(m.memAddr, lines);
+            }
+            outbox.post(reply);
+            break;
+        }
         }
     }
 
     // ---- the 60 Hz worker ----
 
-    std::string telemetryFor(Session &s)
+    std::string telemetryFor(Session &s, bool isFrame = true)
     {
         TelemetryFrame f;
         f.seq = ++s.frames;
         f.rom = romProfile(s.rom).name;
-        s.cycles += ABC80_FRAME_TSTATES;
+        if (isFrame) {
+            s.cycles += ABC80_FRAME_TSTATES;
+        }
         f.cycles = s.cycles;
+        f.paused = s.paused;
         f.displayMasks = s.board.displayMasks(config.litDutyMin);
         f.displayDigits = s.board.displayDigits(config.litDutyMin);
         f.ep = s.board.epLed();
         f.halt = s.board.haltLed();
         f.speakerLed = s.board.speakerLedFraction();
-        const Abc80Ppi::FrameAudio &audio = s.board.frameAudio();
-        f.speakerLevel = (s.board.getPpi().getDigitStrobe() & 0x80) != 0;
-        f.speakerEdges.assign(audio.offsets.begin(), audio.offsets.begin() + audio.edgeCount);
-        f.speakerOverflow = audio.overflow;
+        if (isFrame) {
+            const Abc80Ppi::FrameAudio &audio = s.board.frameAudio();
+            f.speakerLevel = (s.board.getPpi().getDigitStrobe() & 0x80) != 0;
+            f.speakerEdges.assign(audio.offsets.begin(), audio.offsets.begin() + audio.edgeCount);
+            f.speakerOverflow = audio.overflow;
+        } else {
+            f.speakerLevel = (s.board.getPpi().getDigitStrobe() & 0x80) != 0;
+            f.speakerEdges.clear();
+            f.speakerOverflow = false;
+        }
         f.pc = s.board.lastFetchAddress();
         f.sp = s.board.getCpu().getSP();
+        if (s.paused) {
+            f.stackBaseAddr = f.sp;
+            f.stackBytes = s.board.readMemoryBlock(f.sp, 32);
+        } else {
+            f.stackBaseAddr = 0;
+            f.stackBytes.clear();
+        }
         f.af = s.board.getCpu().getAF();
         f.bc = s.board.getCpu().getBC();
         f.de = s.board.getCpu().getDE();
@@ -348,6 +430,9 @@ struct Abc80WebServer::Impl {
                 std::unique_lock<std::mutex> lock(s.mtx, std::try_to_lock);
                 if (!lock || !s.outbox) {
                     continue;  // busy (booting or handling a message) or detached: it simply misses this frame
+                }
+                if (s.paused) {
+                    continue;
                 }
                 KeyQueue::Action actions[4];
                 const size_t n = s.keys->tick(actions, 4);

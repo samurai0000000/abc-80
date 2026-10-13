@@ -80,6 +80,13 @@ public:
         key(name, "up");
     }
 
+    void run() { send({ { "type", "run" } }); }
+    void pause() { send({ { "type", "pause" } }); }
+    void step() { send({ { "type", "step" } }); }
+    void reset() { send({ { "type", "reset" } }); }
+    void readMem(uint16_t addr, uint16_t count) { send({ { "type", "readMem" }, { "addr", addr }, { "count", count } }); }
+    void readDisasm(uint16_t addr, uint16_t count) { send({ { "type", "readDisasm" }, { "addr", addr }, { "count", count } }); }
+
     // Reads frames until `pred` accepts one (of type `type`) or the time runs out.
     bool waitFor(const char *type, const std::function<bool(const json &)> &pred, int timeoutMs, json *out = nullptr)
     {
@@ -451,6 +458,117 @@ TEST(Abc80WebServer, StopReturnsPromptlyWithTabsStillAttached)
     CHECK(Clock::now() - t0 < std::chrono::seconds(5));
     CHECK(!server->isRunning());
     server.reset();  // destructor after stop is fine
+}
+
+TEST(Abc80WebServer, ExecutionControlRunPauseStepAndReset)
+{
+    Abc80WebServer server(testConfig());
+    CHECK(server.start());
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("exec-ctrl-001");
+
+    json t;
+    // 1. Initial connection: running (paused: false)
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", false);
+    }, 8000, &t));
+    CHECK(!t.value("paused", true));
+
+    // 2. Pause
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000, &t));
+    CHECK(t.value("paused", false));
+    const uint64_t pausedCycles = t.value("cycles", 0ULL);
+
+    // Multiple pauses don't corrupt state
+    tab.pause();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // Verify cycles held static while paused
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [pausedCycles](const json &j) {
+        return j.value("paused", false) && j.value("cycles", 0ULL) == pausedCycles;
+    }, 2000, &t));
+
+    // 3. Step single instruction
+    tab.step();
+    CHECK(tab.waitFor("telemetry", [pausedCycles](const json &j) {
+        return j.value("paused", false) && j.value("cycles", 0ULL) > pausedCycles;
+    }, 4000, &t));
+    const uint64_t stepCycles = t.value("cycles", 0ULL);
+    // Cycle advance should be less than 100 T-states (single instruction, not a full frame)
+    CHECK(stepCycles > pausedCycles);
+    CHECK(stepCycles - pausedCycles < 100);
+
+    // 4. Resume running
+    tab.run();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", false);
+    }, 4000, &t));
+    CHECK(!t.value("paused", true));
+
+    // Step while running is ignored (session stays running)
+    tab.step();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", false);
+    }, 2000, &t));
+    CHECK(!t.value("paused", true));
+
+    // 5. Pause then Reset: reset restores running
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000, &t));
+    tab.reset();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", false);
+    }, 4000, &t));
+    CHECK(!t.value("paused", true));
+}
+
+TEST(Abc80WebServer, ReadMemReadDisasmAndStackTelemetry)
+{
+    Abc80WebServer server(testConfig());
+    CHECK(server.start());
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("mem-disasm-001");
+
+    json t;
+    // 1. Initial running state: stackBytes is empty
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", false);
+    }, 8000, &t));
+    CHECK(!t.value("paused", true));
+    CHECK(t.at("stackBytes").empty());
+
+    // 2. Query readMem: read 16 bytes at 0x0000 (Monitor ROM)
+    tab.readMem(0x0000, 16);
+    json memReply;
+    CHECK(tab.waitFor("memData", [](const json &j) {
+        return j.value("addr", 0) == 0;
+    }, 4000, &memReply));
+    LONGS_EQUAL(16, static_cast<long>(memReply.at("data").size()));
+    BYTES_EQUAL(0x06, memReply.at("data")[0].get<int>());
+
+    // 3. Query readDisasm: read 4 instructions at 0x0000
+    tab.readDisasm(0x0000, 4);
+    json disasmReply;
+    CHECK(tab.waitFor("disasm", [](const json &j) {
+        return j.value("addr", 0) == 0;
+    }, 4000, &disasmReply));
+    LONGS_EQUAL(4, static_cast<long>(disasmReply.at("lines").size()));
+    LONGS_EQUAL(0, disasmReply.at("lines")[0].at("addr").get<long>());
+
+    // 4. Pause: verify stackBytes is populated (32 bytes)
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false) && j.at("stackBytes").size() == 32;
+    }, 4000, &t));
+    LONGS_EQUAL(32, static_cast<long>(t.at("stackBytes").size()));
+    CHECK(t.at("stackBaseAddr").get<uint16_t>() == t.at("registers").at("sp").get<uint16_t>());
 }
 
 /*

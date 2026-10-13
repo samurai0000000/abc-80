@@ -223,6 +223,121 @@ TEST(Abc80Board, KeypadInjectionSwitchesStateToAddressMode)
     board.releaseKey(KEY_ADRS);
 }
 
+TEST(Abc80Board, StepInstructionUpdatesLastFetchAddress)
+{
+    board.powerOn();
+    // Step first instruction (0x0000: LD B, 0). Next opcode fetch is at 0x0002.
+    board.stepInstruction();
+    LONGS_EQUAL(0x0002, board.lastFetchAddress());
+}
+
+TEST(Abc80Board, FinishInstructionBehavior)
+{
+    board.powerOn();
+    CHECK_TRUE(board.getCpu().isOpDone());
+    // At boundary: finishInstruction returns 0
+    LONGS_EQUAL(0, board.finishInstruction());
+    CHECK_TRUE(board.getCpu().isOpDone());
+
+    // Single clock tick steps into the instruction (LD B, 0 is 7 T-states)
+    board.getCpu().tick();
+    CHECK_FALSE(board.getCpu().isOpDone());
+
+    // finishInstruction completes the remaining 6 T-states
+    uint32_t finished = board.finishInstruction();
+    LONGS_EQUAL(6, finished);
+    CHECK_TRUE(board.getCpu().isOpDone());
+}
+
+TEST(Abc80Board, StepInstructionHaltsCleanly)
+{
+    board.powerOn();
+    // Inject HALT (0x76) in RAM at 0x1000
+    board.getBus().writeByte(0x1000, 0x76);
+    board.getCpu().prefetch(0x1000);
+
+    // Step the HALT instruction
+    uint32_t t = board.stepInstruction();
+    CHECK_TRUE(t >= 4);
+    CHECK_TRUE(board.getCpu().isHalted());
+
+    // Stepping while halted returns without infinite loop
+    uint32_t t2 = board.stepInstruction();
+    CHECK_TRUE(t2 >= 4);
+    CHECK_TRUE(board.getCpu().isHalted());
+}
+
+TEST(Abc80Board, DisassembleAndReadMemoryBlock)
+{
+    board.powerOn();
+
+    // Read initial 4 bytes of Monitor ROM (0000h: LD B, 0; 0002h: DJNZ $)
+    std::vector<uint8_t> mem = board.readMemoryBlock(0x0000, 4);
+    LONGS_EQUAL(4, static_cast<long>(mem.size()));
+    BYTES_EQUAL(0x06, mem[0]);
+    BYTES_EQUAL(0x00, mem[1]);
+    BYTES_EQUAL(0x10, mem[2]);
+    BYTES_EQUAL(0xFE, mem[3]);
+
+    // Disassemble starting at 0x0000 for 2 instructions
+    std::vector<DisasmLine> lines = board.disassemble(0x0000, 2);
+    LONGS_EQUAL(2, static_cast<long>(lines.size()));
+    LONGS_EQUAL(0x0000, lines[0].addr);
+    LONGS_EQUAL(2, static_cast<long>(lines[0].bytes.size()));
+    BYTES_EQUAL(0x06, lines[0].bytes[0]);
+    BYTES_EQUAL(0x00, lines[0].bytes[1]);
+
+    LONGS_EQUAL(0x0002, lines[1].addr);
+    LONGS_EQUAL(2, static_cast<long>(lines[1].bytes.size()));
+    BYTES_EQUAL(0x10, lines[1].bytes[0]);
+    BYTES_EQUAL(0xFE, lines[1].bytes[1]);
+}
+
+TEST(Abc80Board, DisassemblePrefixesAndAddressWrap)
+{
+    board.powerOn();
+
+    // Inject in RAM at 0x1100:
+    // 3E 90       LD A, 90H
+    // D3 83       OUT (83H), A
+    // DD 21 00 10 LD IX, 1000H
+    // FD 21 00 20 LD IY, 2000H
+    // ED 4B 00 10 LD BC, (1000H)
+    // CB C0       SET 0, B
+    const std::vector<uint8_t> code = {
+        0x3E, 0x90,
+        0xD3, 0x83,
+        0xDD, 0x21, 0x00, 0x10,
+        0xFD, 0x21, 0x00, 0x20,
+        0xED, 0x4B, 0x00, 0x10,
+        0xCB, 0xC0
+    };
+    for (size_t i = 0; i < code.size(); ++i) {
+        board.getBus().writeByte(static_cast<uint16_t>(0x1100 + i), code[i]);
+    }
+
+    std::vector<DisasmLine> lines = board.disassemble(0x1100, 6);
+    LONGS_EQUAL(6, static_cast<long>(lines.size()));
+    STRCMP_EQUAL("LD A,90h", lines[0].mnemonic.c_str());
+    STRCMP_EQUAL("OUT (83h),A", lines[1].mnemonic.c_str());
+    STRCMP_EQUAL("LD IX,1000h", lines[2].mnemonic.c_str());
+    STRCMP_EQUAL("LD IY,2000h", lines[3].mnemonic.c_str());
+    STRCMP_EQUAL("LD BC,(1000h)", lines[4].mnemonic.c_str());
+    STRCMP_EQUAL("SET 0,B", lines[5].mnemonic.c_str());
+
+    // Test address wrap at 0xFFFF
+    board.getBus().writeByte(0xFFFF, 0x00); // NOP at 0xFFFF
+    std::vector<DisasmLine> wrapLines = board.disassemble(0xFFFF, 2);
+    LONGS_EQUAL(2, static_cast<long>(wrapLines.size()));
+    LONGS_EQUAL(0xFFFF, wrapLines[0].addr);
+    STRCMP_EQUAL("NOP", wrapLines[0].mnemonic.c_str());
+    LONGS_EQUAL(0x0000, wrapLines[1].addr);
+
+    // Test readMemoryBlock wrapping across 0xFFFF
+    std::vector<uint8_t> wrapMem = board.readMemoryBlock(0xFFFE, 4);
+    LONGS_EQUAL(4, static_cast<long>(wrapMem.size()));
+}
+
 /*
  * Local variables:
  * mode: C++

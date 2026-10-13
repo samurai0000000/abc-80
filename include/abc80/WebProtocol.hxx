@@ -10,6 +10,7 @@
 #ifndef ABC80_WEB_PROTOCOL_HXX
 #define ABC80_WEB_PROTOCOL_HXX
 
+#include <abc80/Abc80Board.hxx>
 #include <abc80/Abc80Rom.hxx>
 #include <array>
 #include <cstddef>
@@ -22,7 +23,7 @@ namespace abc80 {
 constexpr size_t kMaxClientMessageBytes = 4096;
 
 struct ClientMessage {
-    enum class Type { Invalid, Hello, SetRom, Key, Reset };
+    enum class Type { Invalid, Hello, SetRom, Key, Reset, Run, Pause, Step, ReadMem, ReadDisasm };
 
     Type type{Type::Invalid};
     std::string token;      // Hello
@@ -31,6 +32,8 @@ struct ClientMessage {
     uint8_t keyCode{0};     // Key
     bool down{false};       // Key
     uint64_t seq{0};        // Key (optional)
+    uint16_t memAddr{0};    // ReadMem, ReadDisasm
+    uint16_t memCount{0};   // ReadMem, ReadDisasm
     std::string error;      // Invalid: why
 };
 
@@ -49,6 +52,9 @@ struct TelemetryFrame {
     uint64_t seq{0};
     std::string rom;
     uint64_t cycles{0};
+    bool paused{false};
+    std::vector<uint8_t> stackBytes;     // 32 bytes starting at SP (paused/stepping only)
+    uint16_t stackBaseAddr{0};           // start address of stackBytes (== sp)
     std::array<uint8_t, 6> displayMasks{};
     std::array<char, 6> displayDigits{};
     bool ep{false};
@@ -62,6 +68,8 @@ struct TelemetryFrame {
 
 std::string buildTelemetryJson(const TelemetryFrame &frame);
 std::string buildErrorJson(const std::string &reason);
+std::string buildMemDataJson(uint16_t addr, const std::vector<uint8_t> &data);
+std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines);
 
 } // namespace abc80
 

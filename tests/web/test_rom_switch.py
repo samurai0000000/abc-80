@@ -34,3 +34,13 @@ def test_the_rom_choice_survives_a_reload(panel):
     panel.page.reload(wait_until="domcontentloaded")
     panel.wait_telemetry(lambda t: t["rom"] == "1993", timeout=20, what="the same ROM after the reload")
     assert panel.page.evaluate("document.getElementById('rom-select').value") == "1993"
+ 
+ 
+def test_rom_select_labels(panel):
+    panel.open()
+    page = panel.page
+    mon_text = page.locator("#rom-select option[value='monitor']").inner_text().strip()
+    c1993_text = page.locator("#rom-select option[value='1993']").inner_text().strip()
+    assert mon_text == "Monitor from the Book"
+    assert c1993_text == "Charles Chiou's ROM"
+

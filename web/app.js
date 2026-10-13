@@ -25,6 +25,29 @@
         soundEnabled: true,
         wsConnected: false,
         lastTelemetry: null,
+        paused: false,
+        disasm: {
+            lines: [],
+            minAddr: null,
+            maxAddr: null,
+            pendingAddr: null,
+            lastPc: 0,
+            lastRelocateTime: 0
+        },
+        mem: {
+            baseAddr: 0x0000,
+            count: 128,
+            bytes: [],
+            pendingAddr: null,
+            lastFetchTime: 0
+        },
+        stack: {
+            anchorSp: 0x17BF,
+            lastSp: 0x17BF,
+            stackBytes: [],
+            baseAddr: 0x17BF,
+            pendingAddr: null
+        },
         registers: {
             pc: 0, sp: 0, af: 0, bc: 0, de: 0, hl: 0, ix: null, iy: null,
             flags: { s: 0, z: 0, h: 0, pv: 0, n: 0, c: 0 }
@@ -97,17 +120,22 @@
             state.wsConnected = true;
             reconnectDelayMs = 1000;
             setHostStatus(true, 'HOST: ONLINE');
+            updateExecutionControls();
             ws.send(JSON.stringify({ type: 'hello', token: sessionToken(), rom: selectedRom() }));
+            fetchMemory(state.mem.baseAddr);
         };
         ws.onmessage = function (event) {
             let msg;
             try { msg = JSON.parse(event.data); } catch (e) { return; }
             if (msg.type === 'telemetry') applyTelemetry(msg);
+            else if (msg.type === 'disasm') handleDisasmResponse(msg);
+            else if (msg.type === 'memData') handleMemDataResponse(msg);
             else if (msg.type === 'error') console.warn('[ABC-80 host] ' + msg.reason);
         };
         ws.onclose = function () {
             state.wsConnected = false;
             setHostStatus(false, 'HOST: OFFLINE');
+            updateExecutionControls();
             scheduleReconnect();
         };
         ws.onerror = function () {
@@ -119,6 +147,18 @@
         if (state.wsConnected && ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify(cmd));
         }
+    }
+
+    function sendRun() {
+        sendHostCommand({ type: 'run' });
+    }
+
+    function sendPause() {
+        sendHostCommand({ type: 'pause' });
+    }
+
+    function sendStep() {
+        sendHostCommand({ type: 'step' });
     }
 
     // ---- Telemetry: display, LEDs, registers, speaker ----
@@ -146,6 +186,9 @@
 
     function applyTelemetry(msg) {
         state.lastTelemetry = msg;
+        if (msg.paused !== undefined) {
+            state.paused = !!msg.paused;
+        }
         if (Array.isArray(msg.displayMasks)) {
             DIGIT_IDS.forEach((id, idx) => {
                 if (msg.displayMasks[idx] !== undefined) setSegmentMask(document.getElementById(id), msg.displayMasks[idx]);
@@ -161,6 +204,23 @@
         }
         if (msg.cycles !== undefined) state.cycles = msg.cycles;
         updateInspector();
+        updateExecutionControls();
+        updateDisassembly(state.registers.pc, state.paused);
+        updateStackView(state.registers.sp, msg.stackBytes, msg.stackBaseAddr, state.paused);
+
+        if (state.mem.bytes.length === 0 && state.mem.pendingAddr === null) {
+            fetchMemory(state.mem.baseAddr);
+        }
+
+        const memTab = document.getElementById('tab-memory');
+        if (memTab && memTab.classList.contains('active') && state.paused) {
+            const now = Date.now();
+            if ((now - (state.mem.lastFetchTime || 0) > 500) && state.mem.pendingAddr === null) {
+                state.mem.lastFetchTime = now;
+                fetchMemory(state.mem.baseAddr);
+            }
+        }
+
         const select = document.getElementById('rom-select');
         if (select && msg.rom && select.value !== msg.rom) {
             select.value = msg.rom;
@@ -275,7 +335,20 @@
         initAudio: initAudio,
         get audioCtx() { return audioCtx; },
         get lastTelemetry() { return state.lastTelemetry; },
+        get isPaused() { return state.paused; },
+        get disasmState() { return state.disasm; },
+        get ws() { return ws; },
+        sendHostCommand: sendHostCommand,
         applyTelemetry: applyTelemetry,   // feed a telemetry frame to the renderer (test hook)
+        updateDisassembly: updateDisassembly,
+        get memState() { return state.mem; },
+        get stackState() { return state.stack; },
+        fetchMemory: fetchMemory,
+        fetchStack: fetchStack,
+        updateStackView: updateStackView,
+        sendRun: sendRun,
+        sendPause: sendPause,
+        sendStep: sendStep,
         disconnect: function () { reconnectDelayMs = 3600000; if (ws) { ws.onmessage = null; ws.close(); } },  // stop live frames (test hook)
         get token() { return sessionToken(); }
     };
@@ -326,19 +399,413 @@
                 tabBtns.forEach(b => b.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
                 btn.classList.add('active');
-                const pane = document.getElementById(btn.getAttribute('data-tab'));
+                const targetId = btn.getAttribute('data-tab');
+                const pane = document.getElementById(targetId);
                 if (pane) pane.classList.add('active');
+                if (targetId === 'tab-cpu') {
+                    updateDisassembly(state.registers.pc, state.paused);
+                } else if (targetId === 'tab-memory') {
+                    fetchMemory(state.mem.baseAddr);
+                    if (state.registers.sp !== 0) {
+                        fetchStack(state.registers.sp);
+                    }
+                    updateStackView(state.registers.sp, state.stack.stackBytes, state.stack.baseAddr, state.paused);
+                }
             });
         });
 
-        // The server does not send memory contents, so these panels say so instead of showing sample data.
-        const disasmContainer = document.getElementById('disasm-container');
-        if (disasmContainer) {
-            disasmContainer.innerHTML = '<div class="disasm-line"><span class="disasm-operands">Live disassembly is not provided by this front panel.</span></div>';
+        const btnRun = document.getElementById('btn-cpu-run');
+        if (btnRun) btnRun.addEventListener('click', sendRun);
+        const btnPause = document.getElementById('btn-cpu-pause');
+        if (btnPause) btnPause.addEventListener('click', sendPause);
+        const btnStep = document.getElementById('btn-cpu-step');
+        if (btnStep) btnStep.addEventListener('click', sendStep);
+
+        // Memory Viewer controls
+        document.querySelectorAll('.mem-jump-bar .chip-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const addr = parseHexInput(btn.getAttribute('data-addr'));
+                if (!isNaN(addr)) fetchMemory(addr);
+            });
+        });
+
+        const btnJump = document.getElementById('btn-mem-jump');
+        const memOffsetInput = document.getElementById('mem-offset-input');
+        function doJump() {
+            if (memOffsetInput) {
+                const addr = parseHexInput(memOffsetInput.value);
+                if (!isNaN(addr)) fetchMemory(addr);
+            }
+        }
+        if (btnJump) btnJump.addEventListener('click', doJump);
+        if (memOffsetInput) {
+            memOffsetInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doJump();
+                }
+            });
         }
 
-        populateHexEditor();
+        const MEM_PAGE_SIZE = 128;
+        const btnPrev = document.getElementById('btn-mem-prev');
+        if (btnPrev) btnPrev.addEventListener('click', () => {
+            fetchMemory((state.mem.baseAddr - MEM_PAGE_SIZE) & 0xFFFF);
+        });
+        const btnNext = document.getElementById('btn-mem-next');
+        if (btnNext) btnNext.addEventListener('click', () => {
+            fetchMemory((state.mem.baseAddr + MEM_PAGE_SIZE) & 0xFFFF);
+        });
+
+        // Stack Anchor controls
+        const btnAnchor = document.getElementById('btn-stack-anchor');
+        const anchorInput = document.getElementById('stack-anchor-input');
+        function doAnchor() {
+            if (anchorInput) {
+                const a = parseHexInput(anchorInput.value);
+                if (!isNaN(a)) {
+                    state.stack.anchorSp = a;
+                } else {
+                    state.stack.anchorSp = state.registers.sp;
+                    anchorInput.value = state.stack.anchorSp.toString(16).toUpperCase().padStart(4, '0');
+                }
+                updateStackView(state.registers.sp, state.stack.stackBytes, state.stack.baseAddr, state.paused);
+            }
+        }
+        if (btnAnchor) btnAnchor.addEventListener('click', doAnchor);
+        if (anchorInput) {
+            anchorInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doAnchor();
+                }
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            const activeTab = document.querySelector('.tab-btn.active');
+            if (!activeTab) return;
+            const targetId = activeTab.getAttribute('data-tab');
+            if (targetId === 'tab-cpu') {
+                if (state.paused) {
+                    sendHostCommand({ type: 'readDisasm', addr: state.disasm.lastPc || state.registers.pc, count: getDisasmLineCount() });
+                } else {
+                    renderDisassembly();
+                }
+            } else if (targetId === 'tab-memory') {
+                updateStackView(state.registers.sp, state.stack.stackBytes, state.stack.baseAddr, state.paused);
+            }
+        });
+
+        const disasmContainer = document.getElementById('disasm-container');
+        if (disasmContainer) {
+            disasmContainer.innerHTML = '<div class="disasm-placeholder">Loading disassembly stream...</div>';
+        }
+
+        fetchMemory(state.mem.baseAddr);
+        updateStackView(state.registers.sp, [], state.registers.sp, false);
         updateInspector();
+        updateExecutionControls();
+    }
+
+    function updateExecutionControls() {
+        const btnRun = document.getElementById('btn-cpu-run');
+        const btnPause = document.getElementById('btn-cpu-pause');
+        const btnStep = document.getElementById('btn-cpu-step');
+        const badge = document.getElementById('cpu-status-badge');
+
+        if (!state.wsConnected) {
+            if (btnRun) btnRun.disabled = true;
+            if (btnPause) btnPause.disabled = true;
+            if (btnStep) btnStep.disabled = true;
+            if (badge) {
+                badge.textContent = 'OFFLINE';
+                badge.className = 'cpu-status-badge offline';
+            }
+        } else if (state.paused) {
+            if (btnRun) btnRun.disabled = false;
+            if (btnPause) btnPause.disabled = true;
+            if (btnStep) btnStep.disabled = false;
+            if (badge) {
+                badge.textContent = 'PAUSED';
+                badge.className = 'cpu-status-badge paused';
+            }
+        } else {
+            if (btnRun) btnRun.disabled = true;
+            if (btnPause) btnPause.disabled = false;
+            if (btnStep) btnStep.disabled = true;
+            if (badge) {
+                badge.textContent = 'RUNNING';
+                badge.className = 'cpu-status-badge running';
+            }
+        }
+    }
+
+    function handleDisasmResponse(msg) {
+        if (!msg || typeof msg.addr !== 'number') return;
+        if (msg.addr !== state.disasm.pendingAddr) {
+            return;
+        }
+        state.disasm.pendingAddr = null;
+        state.disasm.lines = Array.isArray(msg.lines) ? msg.lines : [];
+        if (state.disasm.lines.length > 0) {
+            state.disasm.minAddr = state.disasm.lines[0].addr;
+            state.disasm.maxAddr = state.disasm.lines[state.disasm.lines.length - 1].addr;
+        } else {
+            state.disasm.minAddr = null;
+            state.disasm.maxAddr = null;
+        }
+        renderDisassembly();
+    }
+
+    function parseHexInput(str) {
+        if (typeof str !== 'string') return NaN;
+        let s = str.trim();
+        if (s.startsWith('$')) s = s.substring(1);
+        else if (s.startsWith('0x') || s.startsWith('0X')) s = s.substring(2);
+        if (s.endsWith('h') || s.endsWith('H')) s = s.substring(0, s.length - 1);
+        if (!/^[0-9a-fA-F]+$/.test(s)) return NaN;
+        return parseInt(s, 16);
+    }
+
+    function fetchMemory(addr, count = 128) {
+        addr = ((addr % 0x10000) + 0x10000) % 0x10000;
+        state.mem.pendingAddr = addr;
+        sendHostCommand({ type: 'readMem', addr: addr, count: count });
+    }
+
+    function fetchStack(sp) {
+        if (state.stack.pendingAddr !== null) return;
+        sp = ((sp % 0x10000) + 0x10000) % 0x10000;
+        state.stack.pendingAddr = sp;
+        sendHostCommand({ type: 'readMem', addr: sp, count: 32 });
+    }
+
+    function handleMemDataResponse(msg) {
+        if (!msg || typeof msg.addr !== 'number' || !Array.isArray(msg.data)) return;
+        let handled = false;
+        if (state.mem.pendingAddr !== null && msg.addr === state.mem.pendingAddr) {
+            state.mem.pendingAddr = null;
+            state.mem.baseAddr = msg.addr;
+            state.mem.bytes = msg.data;
+            renderMemoryTable();
+            handled = true;
+        }
+        if (state.stack.pendingAddr !== null && msg.addr === state.stack.pendingAddr) {
+            state.stack.pendingAddr = null;
+            state.stack.baseAddr = msg.addr;
+            state.stack.stackBytes = msg.data;
+            updateStackView(state.registers.sp, msg.data, msg.addr, state.paused);
+            handled = true;
+        }
+        if (!handled) {
+            if (msg.addr === state.mem.baseAddr) {
+                state.mem.bytes = msg.data;
+                renderMemoryTable();
+            } else if (msg.addr === state.registers.sp && msg.data.length === 32) {
+                state.stack.baseAddr = msg.addr;
+                state.stack.stackBytes = msg.data;
+                updateStackView(state.registers.sp, msg.data, msg.addr, state.paused);
+            }
+        }
+    }
+
+    function renderMemoryTable() {
+        const table = document.getElementById('hex-editor-table');
+        if (!table) return;
+        if (state.mem.bytes.length === 0) {
+            table.innerHTML = '<div class="disasm-placeholder">No memory data available.</div>';
+            return;
+        }
+        let html = '';
+        for (let i = 0; i < state.mem.bytes.length; i += 16) {
+            const rowAddr = (state.mem.baseAddr + i) & 0xFFFF;
+            const addrStr = rowAddr.toString(16).toUpperCase().padStart(4, '0');
+            const slice = state.mem.bytes.slice(i, Math.min(i + 16, state.mem.bytes.length));
+            const bytesHtml = slice.map(b => `<span class="hex-byte">${b.toString(16).toUpperCase().padStart(2, '0')}</span>`).join(' ');
+            const asciiStr = slice.map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('');
+            html += `<div class="hex-row">` +
+                    `<span class="hex-addr">${addrStr}:</span>` +
+                    `<span class="hex-bytes">${bytesHtml}</span>` +
+                    `<span class="hex-ascii">${asciiStr}</span>` +
+                    `</div>`;
+        }
+        table.innerHTML = html;
+
+        const offsetInput = document.getElementById('mem-offset-input');
+        if (offsetInput && document.activeElement !== offsetInput) {
+            offsetInput.value = state.mem.baseAddr.toString(16).toUpperCase().padStart(4, '0');
+        }
+
+        document.querySelectorAll('.mem-jump-bar .chip-btn').forEach(btn => {
+            const chipAddr = parseHexInput(btn.getAttribute('data-addr'));
+            btn.classList.toggle('active', chipAddr === state.mem.baseAddr);
+        });
+    }
+
+    function updateStackView(currentSp, stackBytes, baseAddr, isPaused) {
+        if (isPaused) {
+            const delta = Math.abs(currentSp - state.stack.lastSp);
+            if (delta > 64 || currentSp > state.stack.anchorSp) {
+                state.stack.anchorSp = currentSp;
+                const anchorInput = document.getElementById('stack-anchor-input');
+                if (anchorInput && document.activeElement !== anchorInput) {
+                    anchorInput.value = currentSp.toString(16).toUpperCase().padStart(4, '0');
+                }
+            }
+        }
+        state.stack.lastSp = currentSp;
+        if (Array.isArray(stackBytes) && stackBytes.length > 0) {
+            state.stack.stackBytes = stackBytes;
+            state.stack.baseAddr = typeof baseAddr === 'number' ? baseAddr : currentSp;
+        }
+
+        const spVal = document.getElementById('stack-sp-val');
+        if (spVal) {
+            spVal.textContent = '0x' + currentSp.toString(16).toUpperCase().padStart(4, '0');
+        }
+
+        const depthWords = Math.max(0, Math.floor((state.stack.anchorSp - currentSp) / 2));
+        const depthVal = document.getElementById('stack-depth-val');
+        if (depthVal) {
+            depthVal.textContent = depthWords.toString();
+        }
+
+        const table = document.getElementById('stack-editor-table');
+        if (table) {
+            if (!isPaused) {
+                table.classList.add('dimmed');
+            } else {
+                table.classList.remove('dimmed');
+            }
+        }
+
+        renderStackTable(currentSp, state.stack.anchorSp, state.stack.stackBytes, depthWords);
+    }
+
+    function getStackLineCount() {
+        const table = document.getElementById('stack-editor-table');
+        if (table && table.clientHeight > 0) {
+            const fit = Math.floor(table.clientHeight / 20);
+            return Math.max(4, Math.min(32, fit));
+        }
+        return 8;
+    }
+
+    function renderStackTable(currentSp, anchorSp, stackBytes, depthWords) {
+        const table = document.getElementById('stack-editor-table');
+        if (!table) return;
+        if (!stackBytes || stackBytes.length === 0) {
+            table.innerHTML = '<div class="disasm-placeholder">Loading stack data...</div>';
+            return;
+        }
+        let html = '';
+        const maxWords = getStackLineCount();
+        const numWords = Math.min(maxWords, Math.floor(stackBytes.length / 2));
+        for (let w = 0; w < numWords; w++) {
+            const wordAddr = (currentSp + w * 2) & 0xFFFF;
+            const isTos = (w === 0);
+            const marker = isTos ? '▶ TOS' : '&nbsp;';
+            const offset = w * 2;
+            const relOffset = `(SP+${offset.toString(16).toUpperCase().padStart(2, '0')})`;
+            const bLow = stackBytes[w * 2];
+            const bHigh = stackBytes[w * 2 + 1];
+            const wordVal = (bHigh << 8) | bLow;
+            const addrStr = wordAddr.toString(16).toUpperCase().padStart(4, '0');
+            const wordStr = wordVal.toString(16).toUpperCase().padStart(4, '0');
+            const bytesStr = `${bLow.toString(16).toUpperCase().padStart(2, '0')} ${bHigh.toString(16).toUpperCase().padStart(2, '0')}`;
+            html += `<div class="stack-row${isTos ? ' tos' : ''}" data-addr="${wordAddr}">` +
+                    `<span class="stack-marker">${marker}</span>` +
+                    `<span class="stack-addr">${addrStr}:</span>` +
+                    `<span class="stack-rel">${relOffset}</span>` +
+                    `<span class="stack-word">[ ${wordStr} ]</span>` +
+                    `<span class="stack-bytes">${bytesStr}</span>` +
+                    `</div>`;
+        }
+        table.innerHTML = html;
+    }
+
+    function renderDisassembly() {
+        const container = document.getElementById('disasm-container');
+        if (!container) return;
+        if (state.disasm.lines.length === 0) {
+            container.innerHTML = '<div class="disasm-placeholder">No instructions decoded.</div>';
+            return;
+        }
+        const pc = state.disasm.lastPc;
+        const html = state.disasm.lines.map(line => {
+            const isCurrent = (line.addr === pc);
+            const addrStr = line.addr.toString(16).toUpperCase().padStart(4, '0');
+            const bytesStr = (line.bytes || []).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+            const m = line.mnemonic || '';
+            const spaceIdx = m.indexOf(' ');
+            const op = spaceIdx >= 0 ? m.substring(0, spaceIdx) : m;
+            const args = spaceIdx >= 0 ? m.substring(spaceIdx + 1) : '';
+            return `<div class="disasm-line${isCurrent ? ' current' : ''}" data-addr="${line.addr}">` +
+                   `<span class="dis-cursor">${isCurrent ? '▶' : '&nbsp;'}</span>` +
+                   `<span class="dis-addr">${addrStr}:</span>` +
+                   `<span class="dis-bytes">${bytesStr}</span>` +
+                   `<span class="dis-op">${op}</span>` +
+                   `<span class="dis-args">${args}</span>` +
+                   `</div>`;
+        }).join('');
+        container.innerHTML = html;
+    }
+
+    function getDisasmLineCount() {
+        const container = document.getElementById('disasm-container');
+        if (container && container.clientHeight > 0) {
+            const fit = Math.floor(container.clientHeight / 20);
+            return Math.max(8, Math.min(64, fit));
+        }
+        return 16;
+    }
+
+    function updateDisassembly(pc, isPaused) {
+        state.disasm.lastPc = pc;
+        const container = document.getElementById('disasm-container');
+        if (!container) return;
+
+        if (!isPaused) {
+            container.classList.add('dimmed');
+            // Running: no relocation traffic. The only request allowed is the single
+            // cold-start fetch while no window exists yet, so the panel is never blank.
+            if (state.disasm.minAddr === null || state.disasm.maxAddr === null) {
+                const now = Date.now();
+                if (state.disasm.pendingAddr !== null && now - (state.disasm.lastRelocateTime || 0) > 1000) {
+                    state.disasm.pendingAddr = null;
+                }
+                if (state.disasm.pendingAddr === null) {
+                    state.disasm.lastRelocateTime = now;
+                    state.disasm.pendingAddr = pc;
+                    sendHostCommand({ type: 'readDisasm', addr: pc, count: getDisasmLineCount() });
+                }
+            }
+            return;
+        }
+
+        container.classList.remove('dimmed');
+
+        let isOnRow = false;
+        if (state.disasm.lines.length > 0 && state.disasm.minAddr !== null && state.disasm.maxAddr !== null) {
+            if (pc >= state.disasm.minAddr && pc <= state.disasm.maxAddr) {
+                isOnRow = state.disasm.lines.some(l => l.addr === pc);
+            }
+        }
+
+        if (!isOnRow) {
+            const now = Date.now();
+            if (state.disasm.pendingAddr !== null && now - (state.disasm.lastRelocateTime || 0) > 1000) {
+                state.disasm.pendingAddr = null;
+            }
+            if (state.disasm.pendingAddr === null) {
+                state.disasm.lastRelocateTime = now;
+                state.disasm.pendingAddr = pc;
+                sendHostCommand({ type: 'readDisasm', addr: pc, count: getDisasmLineCount() });
+            }
+        } else {
+            renderDisassembly();
+        }
     }
 
     function populateHexEditor() {
@@ -368,7 +835,7 @@
     function keyNameForEvent(e) {
         if (/^[0-9a-fA-F]$/.test(e.key)) return e.key.toUpperCase();
         if (e.key === '+' || e.key === 'ArrowRight') return '+';
-        if (e.key === '-' || e.key === ' ' || e.key === 'F10') return '-';
+        if (e.key === '-' || e.key === 'F10') return '-';
         if (e.key === 'Enter') return 'GO EXEC';
         const k = e.key.toLowerCase();
         if (k === 'g') return 'GO EXEC';
@@ -383,10 +850,25 @@
         const heldByCode = {};  // physical key -> board key, so a release always matches its press
 
         window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-            if (e.key === 'Escape' || e.key === 'F5') {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'Escape') {
                 e.preventDefault();
                 if (!e.repeat) handleHardwareReset();
+                return;
+            }
+            if (e.key === 'F5') {
+                e.preventDefault();
+                if (!e.repeat) sendRun();
+                return;
+            }
+            if (e.key === 'F6') {
+                e.preventDefault();
+                if (!e.repeat) sendPause();
+                return;
+            }
+            if (e.key === 'F7' || e.key === ' ') {
+                e.preventDefault();
+                if (!e.repeat) sendStep();
                 return;
             }
             if (e.key === 'F12') {

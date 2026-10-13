@@ -15,8 +15,15 @@
 #include <array>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace abc80 {
+
+struct DisasmLine {
+    uint16_t addr{0};
+    std::vector<uint8_t> bytes;
+    std::string mnemonic;
+};
 
 class Abc80Board {
 public:
@@ -73,9 +80,18 @@ public:
     // Step a single instruction
     uint32_t stepInstruction();
 
+    // Finish in-flight instruction if mid-cycle (returns T-states ticked, 0 if already at boundary)
+    uint32_t finishInstruction();
+
     // Step until predicate returns true or maxTStates exceeded
     bool stepUntil(const std::function<bool(const Abc80Board&)>& predicate,
                    uint64_t maxTStates = 1000000);
+
+    // Disassemble up to count instructions starting at startAddr
+    std::vector<DisasmLine> disassemble(uint16_t startAddr, size_t count) const;
+
+    // Read a contiguous block of bytes from the memory bus (safe, side-effect free)
+    std::vector<uint8_t> readMemoryBlock(uint16_t startAddr, size_t count) const;
 
     // Accessors
     Abc80Cpu& getCpu() noexcept { return _cpu; }

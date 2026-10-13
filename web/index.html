@@ -150,8 +150,8 @@
                 </div>
                 <label class="rom-picker" title="Which ROM the board boots. Changing it power-cycles the board.">ROM
                     <select id="rom-select">
-                        <option value="monitor">Book monitor</option>
-                        <option value="1993">1993 ROM</option>
+                        <option value="monitor">Monitor from the Book</option>
+                        <option value="1993">Charles Chiou's ROM</option>
                     </select>
                 </label>
                 <div class="clock-display">
@@ -689,7 +689,7 @@
                                         <div class="discrete-component keypad-bezel-module left-module calibratable-component" id="disc-keypad-left" data-label="Keypad Left (3x4)">
                                             <div class="keypad-grid-3x4">
                                                 <!-- Row 0 -->
-                                                <button class="key-btn key-fn key-rst" data-key="RST" data-code="0x18" title="Reset CPU (0000H) [Esc/F5]">
+                                                <button class="key-btn key-fn key-rst" data-key="RST" data-code="0x18" title="Reset CPU (0000H) [Esc]">
                                                     <div class="key-dish"><span class="key-label">RST</span></div>
                                                 </button>
                                                 <button class="key-btn key-hex" data-key="C" data-code="0x0C" title="Hex C [C]">
@@ -777,7 +777,7 @@
                                                 <button class="key-btn key-hex" data-key="3" data-code="0x03" title="Hex 3 [3]">
                                                     <div class="key-dish"><span class="key-label">3</span></div>
                                                 </button>
-                                                <button class="key-btn key-fn" data-key="-" data-code="0x11" title="Single-Step / Decrement (-) [-/Space]">
+                                                <button class="key-btn key-fn" data-key="-" data-code="0x11" title="Single-Step / Decrement (-) [-]">
                                                     <div class="key-dish"><span class="key-label">-</span></div>
                                                 </button>
                                             </div>
@@ -1482,7 +1482,35 @@
 
                     <!-- Tab 1: CPU Registers & Live Disassembly -->
                     <div class="tab-pane active" id="tab-cpu">
-                        <div class="inspector-box">
+                        <div class="inspector-box exec-control-box">
+                            <div class="box-title-bar">
+                                <span class="box-title">EXECUTION CONTROL</span>
+                                <span class="cpu-status-badge running" id="cpu-status-badge">RUNNING</span>
+                            </div>
+                            <div class="exec-btn-row">
+                                <button class="exec-btn" id="btn-cpu-run" title="Run (F5)" disabled>
+                                    <svg class="exec-icon" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="6 4 20 12 6 20 6 4"/>
+                                    </svg>
+                                    <span>Run</span>
+                                </button>
+                                <button class="exec-btn" id="btn-cpu-pause" title="Pause (F6)">
+                                    <svg class="exec-icon" viewBox="0 0 24 24" fill="currentColor">
+                                        <rect x="6" y="4" width="4" height="16" rx="1"/>
+                                        <rect x="14" y="4" width="4" height="16" rx="1"/>
+                                    </svg>
+                                    <span>Pause</span>
+                                </button>
+                                <button class="exec-btn" id="btn-cpu-step" title="Step (F7 / Space)" disabled>
+                                    <svg class="exec-icon" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="6 4 16 12 6 20 6 4"/>
+                                        <line x1="18" y1="4" x2="18" y2="20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span>Step</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="inspector-box cpu-reg-box">
                             <div class="box-title">Z80 CPU REGISTERS</div>
                             <div class="reg-grid">
                                 <div class="reg-cell"><span class="reg-k">PC:</span><span class="reg-v" id="reg-pc">0x0000</span></div>
@@ -1508,24 +1536,57 @@
                         <div class="inspector-box disasm-box">
                             <div class="box-title-bar">
                                 <span class="box-title">DISASSEMBLY STREAM</span>
-                                <button class="mini-btn" id="btn-disasm-step">Single Step (Space)</button>
                             </div>
                             <div class="disasm-list" id="disasm-container"></div>
                         </div>
                     </div>
 
-                    <!-- Tab 2: Memory Map -->
+                    <!-- Tab 2: Memory Map (Stacked Windows) -->
                     <div class="tab-pane" id="tab-memory">
+                        <!-- Top Window: General Memory Hex Viewer -->
                         <div class="inspector-box hex-box">
                             <div class="box-title-bar">
                                 <span class="box-title">MEMORY HEX VIEWER</span>
                                 <div class="mem-jump-bar">
                                     <button class="chip-btn active" data-addr="0x0000">ROM 0000H</button>
                                     <button class="chip-btn" data-addr="0x1000">RAM 1000H</button>
-                                    <button class="chip-btn" data-addr="0x2000">PPI 2000H</button>
+                                    <button class="chip-btn" data-addr="0x2000">RAM 2000H</button>
+                                </div>
+                            </div>
+                            <div class="mem-toolbar">
+                                <div class="mem-offset-group">
+                                    <span class="mem-label">OFFSET:</span>
+                                    <input type="text" id="mem-offset-input" class="mem-input" value="0000" maxlength="6" size="5" spellcheck="false" placeholder="0000">
+                                    <button class="mini-btn" id="btn-mem-jump">Jump</button>
+                                </div>
+                                <div class="mem-page-group">
+                                    <button class="mini-btn" id="btn-mem-prev" title="Previous 128 bytes">◀ Prev</button>
+                                    <button class="mini-btn" id="btn-mem-next" title="Next 128 bytes">Next ▶</button>
                                 </div>
                             </div>
                             <div class="hex-editor-table" id="hex-editor-table"></div>
+                        </div>
+
+                        <!-- Bottom Window: Stack Memory Window (SP) -->
+                        <div class="inspector-box stack-box">
+                            <div class="box-title-bar">
+                                <span class="box-title">STACK MEMORY (SP)</span>
+                                <div class="stack-info-bar">
+                                    <span class="stack-label">SP:</span>
+                                    <span class="stack-val" id="stack-sp-val">0x17FE</span>
+                                    <span class="stack-sep">|</span>
+                                    <span class="stack-label">Depth:</span>
+                                    <span class="stack-depth-badge" id="stack-depth-badge"><span id="stack-depth-val">0</span> words</span>
+                                </div>
+                            </div>
+                            <div class="stack-toolbar">
+                                <div class="stack-anchor-group">
+                                    <span class="stack-label">ANCHOR:</span>
+                                    <input type="text" id="stack-anchor-input" class="stack-input" value="17BF" maxlength="6" size="5" spellcheck="false" placeholder="17BF">
+                                    <button class="mini-btn" id="btn-stack-anchor" title="Set anchor point">⚓ Anchor</button>
+                                </div>
+                            </div>
+                            <div class="stack-editor-table" id="stack-editor-table"></div>
                         </div>
                     </div>
 
@@ -1579,11 +1640,21 @@
                         <tr><td><code>ADRS</code></td><td><kbd>A</kbd> / <kbd>M</kbd></td><td>Set / examine memory address (A3 A2 A1 A0)</td></tr>
                         <tr><td><code>DATA</code></td><td><kbd>D</kbd></td><td>Set / examine memory byte data (D1 D0)</td></tr>
                         <tr><td><code>+</code> (NEXT)</td><td><kbd>+</kbd> / <kbd>→</kbd></td><td>Increment address and display next byte</td></tr>
-                        <tr><td><code>-</code> (STEP)</td><td><kbd>-</kbd> / <kbd>Space</kbd></td><td>Single-step execute current instruction</td></tr>
+                        <tr><td><code>-</code> (STEP)</td><td><kbd>-</kbd> / <kbd>F10</kbd></td><td>Single-step decrement / execute instruction</td></tr>
                         <tr><td><code>GO EXEC</code></td><td><kbd>Enter</kbd> / <kbd>G</kbd></td><td>Execute program starting at current address</td></tr>
-                        <tr><td><code>RST</code></td><td><kbd>Escape</kbd> / <kbd>F5</kbd></td><td>Hardware CPU Reset vector jump (0000H)</td></tr>
+                        <tr><td><code>RST</code></td><td><kbd>Escape</kbd></td><td>Hardware CPU Reset vector jump (0000H)</td></tr>
                         <tr><td><code>TO TAPE</code></td><td><kbd>W</kbd></td><td>Write/save memory block to cassette audio tape</td></tr>
                         <tr><td><code>FROM TAPE</code></td><td><kbd>L</kbd></td><td>Read/load program from cassette audio tape</td></tr>
+                    </tbody>
+                </table>
+                <h3>Inspector Execution Controls</h3>
+                <table class="shortcuts-table" id="exec-shortcuts-table">
+                    <thead><tr><th>Control</th><th>PC Key</th><th>Function Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Run</code></td><td><kbd>F5</kbd></td><td>Resume continuous emulation</td></tr>
+                        <tr><td><code>Pause</code></td><td><kbd>F6</kbd></td><td>Freeze the CPU at the next instruction boundary</td></tr>
+                        <tr><td><code>Step</code></td><td><kbd>F7</kbd> / <kbd>Space</kbd></td><td>Execute exactly one instruction (while paused)</td></tr>
+                        <tr><td><code>Reset CPU</code></td><td><kbd>Escape</kbd></td><td>Reset the CPU to 0000H</td></tr>
                     </tbody>
                 </table>
             </div>

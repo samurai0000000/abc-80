@@ -101,6 +101,34 @@ TEST(Abc80WebProtocol, ParsesEachValidMessageType)
 
     m = parseClientMessage(R"({"type":"reset"})");
     CHECK(m.type == ClientMessage::Type::Reset);
+
+    m = parseClientMessage(R"({"type":"run"})");
+    CHECK(m.type == ClientMessage::Type::Run);
+
+    m = parseClientMessage(R"({"type":"pause"})");
+    CHECK(m.type == ClientMessage::Type::Pause);
+
+    m = parseClientMessage(R"({"type":"step"})");
+    CHECK(m.type == ClientMessage::Type::Step);
+
+    m = parseClientMessage(R"({"type":"readMem","addr":4096,"count":128})");
+    CHECK(m.type == ClientMessage::Type::ReadMem);
+    LONGS_EQUAL(4096, m.memAddr);
+    LONGS_EQUAL(128, m.memCount);
+
+    m = parseClientMessage(R"({"type":"readDisasm","addr":112,"count":16})");
+    CHECK(m.type == ClientMessage::Type::ReadDisasm);
+    LONGS_EQUAL(112, m.memAddr);
+    LONGS_EQUAL(16, m.memCount);
+
+    // Clamping
+    m = parseClientMessage(R"({"type":"readMem","addr":0,"count":1000})");
+    CHECK(m.type == ClientMessage::Type::ReadMem);
+    LONGS_EQUAL(256, m.memCount);
+
+    m = parseClientMessage(R"({"type":"readDisasm","addr":0,"count":1000})");
+    CHECK(m.type == ClientMessage::Type::ReadDisasm);
+    LONGS_EQUAL(64, m.memCount);
 }
 
 TEST(Abc80WebProtocol, RejectsEverythingElseWithAReason)
@@ -113,6 +141,9 @@ TEST(Abc80WebProtocol, RejectsEverythingElseWithAReason)
         R"({"type":"key","key":"RST","action":"down"})", R"({"type":"key","key":"1","action":"sideways"})",
         R"({"type":"key","action":"down"})", R"({"type":"key","key":"1"})", R"({"type":"key","key":1,"action":"down"})",
         R"({"type":"key","key":"1","action":"down","seq":-1})", R"({"type":"key","key":"1","action":"down","seq":"x"})",
+        R"({"type":"readMem"})", R"({"type":"readMem","addr":"bad","count":16})",
+        R"({"type":"readMem","addr":70000,"count":16})", R"({"type":"readMem","addr":0,"count":0})",
+        R"({"type":"readDisasm"})", R"({"type":"readDisasm","addr":0,"count":-1})",
     };
     for (const char *text : bad) {
         const ClientMessage m = parseClientMessage(text);
@@ -144,6 +175,7 @@ TEST(Abc80WebProtocol, TelemetryJsonCarriesEveryField)
     f.seq = 42;
     f.rom = "monitor";
     f.cycles = 123456789ULL;
+    f.paused = true;
     f.displayMasks = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0xFF };
     f.displayDigits = { '0', '1', '2', '3', '4', '?' };
     f.ep = true;
@@ -154,6 +186,8 @@ TEST(Abc80WebProtocol, TelemetryJsonCarriesEveryField)
     f.speakerOverflow = false;
     f.pc = 0x04CD;
     f.sp = 0x17BF;
+    f.stackBaseAddr = 0x17BD;
+    f.stackBytes = { 0x78, 0x00, 0x34, 0x12 };
     f.af = 0x1234;
     f.bc = 0x5678;
     f.de = 0x9ABC;
@@ -163,6 +197,7 @@ TEST(Abc80WebProtocol, TelemetryJsonCarriesEveryField)
     LONGS_EQUAL(42, j.at("seq").get<long>());
     STRCMP_EQUAL("monitor", j.at("rom").get<std::string>().c_str());
     CHECK(j.at("cycles").get<uint64_t>() == 123456789ULL);
+    CHECK(j.at("paused").get<bool>());
     LONGS_EQUAL(6, static_cast<long>(j.at("displayMasks").size()));
     LONGS_EQUAL(0x3F, j.at("displayMasks")[0].get<int>());
     LONGS_EQUAL(0xFF, j.at("displayMasks")[5].get<int>());
@@ -179,6 +214,35 @@ TEST(Abc80WebProtocol, TelemetryJsonCarriesEveryField)
     LONGS_EQUAL(0x04CD, j.at("registers").at("pc").get<int>());
     LONGS_EQUAL(0x17BF, j.at("registers").at("sp").get<int>());
     LONGS_EQUAL(0xDEF0, j.at("registers").at("hl").get<int>());
+    LONGS_EQUAL(0x17BD, j.at("stackBaseAddr").get<long>());
+    LONGS_EQUAL(4, static_cast<long>(j.at("stackBytes").size()));
+    BYTES_EQUAL(0x78, j.at("stackBytes")[0].get<int>());
+}
+
+TEST(Abc80WebProtocol, BuildMemDataAndDisasmJson)
+{
+    // memData
+    std::vector<uint8_t> data = { 0x06, 0x00, 0x10, 0xFE };
+    std::string memJson = buildMemDataJson(0x1000, data);
+    json jm = json::parse(memJson);
+    STRCMP_EQUAL("memData", jm.at("type").get<std::string>().c_str());
+    LONGS_EQUAL(0x1000, jm.at("addr").get<long>());
+    LONGS_EQUAL(4, static_cast<long>(jm.at("data").size()));
+    BYTES_EQUAL(0x06, jm.at("data")[0].get<int>());
+
+    // disasm
+    std::vector<DisasmLine> lines = {
+        { 0x0000, { 0x06, 0x00 }, "LD B,00H" },
+        { 0x0002, { 0x10, 0xFE }, "DJNZ 0002H" },
+    };
+    std::string disasmJson = buildDisasmJson(0x0000, lines);
+    json jd = json::parse(disasmJson);
+    STRCMP_EQUAL("disasm", jd.at("type").get<std::string>().c_str());
+    LONGS_EQUAL(0x0000, jd.at("addr").get<long>());
+    LONGS_EQUAL(2, static_cast<long>(jd.at("lines").size()));
+    LONGS_EQUAL(0x0000, jd.at("lines")[0].at("addr").get<long>());
+    STRCMP_EQUAL("LD B,00H", jd.at("lines")[0].at("mnemonic").get<std::string>().c_str());
+    LONGS_EQUAL(2, static_cast<long>(jd.at("lines")[0].at("bytes").size()));
 }
 
 TEST(Abc80WebProtocol, ErrorJsonEscapesTheReason)

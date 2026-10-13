@@ -20,8 +20,8 @@ static void printUsage(const char* prog)
               << "Usage: " << prog << " [options]\n\n"
               << "Options:\n"
               << "  -h, --help            Show this help message and exit\n"
-              << "  -r, --rom <name|path> ROM to boot: 'monitor' (book monitor, default),\n"
-              << "                        '1993' (author's 1993 ROM), or a path to a ROM file\n"
+              << "  -r, --rom <name|path> ROM to boot: 'monitor' (Monitor from the Book, default),\n"
+              << "                        '1993' (Charles Chiou's ROM), or a path to a ROM file\n"
               << "  -b, --batch <file>    Execute commands from script file and exit\n"
               << "  -c, --command <cmd>   Execute a single command string and exit\n"
               << "      --web [port]      Serve the web front panel (default port 8080) until Ctrl+C\n";

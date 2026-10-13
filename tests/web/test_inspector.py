@@ -29,9 +29,44 @@ def test_registers_and_flags_match_the_telemetry_frame(panel):
         assert lit == bool(regs["af"] & mask), element
 
 
-def test_panels_without_server_data_do_not_show_sample_data(panel):
+def test_disassembly_panel_shows_live_disassembly_when_paused(panel):
     panel.open()
     page = panel.page
-    assert "not provided" in page.inner_text("#disasm-container")
-    assert "LD" not in page.inner_text("#disasm-container")
-    assert "not provided" in page.inner_text("#hex-editor-table")
+    page.click("#btn-cpu-pause")
+    panel.wait_telemetry(lambda t: t.get("paused") is True, what="CPU paused")
+    wait_for(lambda: page.locator("#disasm-container .disasm-line.current").count() == 1, what="disassembly active line")
+    assert page.locator("#disasm-container .disasm-line").count() > 0
+    assert "▶" in page.inner_text("#disasm-container .disasm-line.current")
+    assert page.inner_text("#cpu-status-badge") == "PAUSED"
+
+
+def test_cold_load_live_disassembly_and_memory_while_running(panel):
+    panel.open()
+    page = panel.page
+
+    # Verify emulator is running on cold load
+    assert page.inner_text("#cpu-status-badge").strip() == "RUNNING"
+
+    # Disassembly stream must decode instructions immediately on cold load (dimmed)
+    wait_for(lambda: page.locator("#disasm-container .disasm-line").count() > 0,
+             what="cold load disassembly decoded")
+    assert "dimmed" in page.locator("#disasm-container").get_attribute("class")
+
+    # Switch to Memory Map tab while running
+    page.click("button[data-tab='tab-memory']")
+    wait_for(lambda: page.locator("#tab-memory").is_visible(), what="tab-memory visible")
+
+    # Memory hex viewer must be populated
+    wait_for(lambda: page.locator("#hex-editor-table .hex-row").count() > 0,
+             what="cold load memory hex rows loaded")
+    assert page.locator("#hex-editor-table .hex-row .hex-addr").first.inner_text().strip() == "0000:"
+
+    # Stack memory window must be populated with TOS while running
+    wait_for(lambda: page.locator("#stack-editor-table .stack-row").count() > 0,
+             what="cold load stack rows loaded")
+    top_stack_row = page.locator("#stack-editor-table .stack-row").first
+    assert "tos" in top_stack_row.get_attribute("class")
+    assert "▶ TOS" in top_stack_row.locator(".stack-marker").inner_text()
+    assert "dimmed" in page.locator("#stack-editor-table").get_attribute("class")
+
+
