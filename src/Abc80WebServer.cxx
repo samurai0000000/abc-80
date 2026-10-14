@@ -10,6 +10,7 @@
 #include <abc80/KeyQueue.hxx>
 #include <abc80/WebProtocol.hxx>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -53,14 +54,19 @@ struct Abc80WebServer::Impl {
     // One emulated board and everything that belongs to it. Guarded by mtx.
     struct Session {
         std::string token;
+        bool isResident{false};
         RomId rom{RomId::Monitor};
-        bool ready{false};                    // booted; set under mtx
-        bool paused{false};                   // execution paused; set under mtx
+        bool ready{false};                     // booted; set under mtx
+        bool paused{false};                    // execution paused; set under mtx
+        bool autoPaused{false};                // paused automatically due to 0 websocket connections
+        bool aiPunching{false};                // AI punch mode active (locks out human input)
+        bool resumedForAiPunch{false};         // temporarily woken up to process AI punches
+        bool wasManuallyPausedBeforeAi{false}; // true if session was manually paused before AI wake
         Abc80Board board;
         std::unique_ptr<KeyQueue> keys;
         uint64_t frames{0};
         uint64_t cycles{0};
-        std::shared_ptr<FrameOutbox> outbox;  // null while detached
+        std::vector<std::shared_ptr<FrameOutbox>> outboxes;  // multi-subscriber for resident
         Clock::time_point detachedAt{Clock::now()};
         std::mutex mtx;
     };
@@ -80,14 +86,25 @@ struct Abc80WebServer::Impl {
     // Lock order: registryMtx, then a session's mtx. Never the reverse.
     mutable std::mutex registryMtx;
     std::map<std::string, std::shared_ptr<Session>> sessions;
+    std::shared_ptr<Session> residentSession;
 
     std::mutex wakeMtx;
     std::condition_variable wake;
+
+    AiCancelCallback onAiCancel;
+    mutable std::mutex cancelCbMtx;
 
     void setError(const std::string &e)
     {
         std::lock_guard<std::mutex> lock(errorMtx);
         error = e;
+    }
+
+    bool hasActivePunches() const
+    {
+        if (!residentSession) return false;
+        std::lock_guard<std::mutex> lock(residentSession->mtx);
+        return residentSession->aiPunching || residentSession->resumedForAiPunch;
     }
 
     // ---- session lifecycle ----
@@ -109,6 +126,10 @@ struct Abc80WebServer::Impl {
         s.keys = std::make_unique<KeyQueue>(profile.keys);
         s.ready = true;
         s.paused = false;
+        s.autoPaused = false;
+        s.aiPunching = false;
+        s.resumedForAiPunch = false;
+        s.wasManuallyPausedBeforeAi = false;
         s.frames = 0;
         s.cycles = 0;
         if (config.bootTurbo) {
@@ -178,10 +199,24 @@ struct Abc80WebServer::Impl {
             } else if (!session->ready) {
                 result = Attach::NotReady;  // an earlier attempt to create it failed
             } else {
-                if (session->outbox) {
-                    session->outbox->close();  // another tab with this token takes over
+                if (session->isResident) {
+                    session->outboxes.push_back(outbox);
+                    // Attachment: auto-resume if auto-paused; stay paused if manually paused
+                    if (session->autoPaused) {
+                        session->paused = false;
+                        session->autoPaused = false;
+                    }
+                } else {
+                    for (auto &ob : session->outboxes) {
+                        ob->close();  // another tab with this token takes over
+                    }
+                    session->outboxes.clear();
+                    session->outboxes.push_back(outbox);
+                    if (session->autoPaused) {
+                        session->paused = false;
+                        session->autoPaused = false;
+                    }
                 }
-                session->outbox = outbox;
             }
         }
         if (result != Attach::Ok) {
@@ -195,6 +230,14 @@ struct Abc80WebServer::Impl {
         }
         attached.fetch_add(1);
         wake.notify_all();
+
+        // Send initial state if the session is paused so client gets telemetry immediately
+        {
+            std::lock_guard<std::mutex> lock(session->mtx);
+            if (session->paused) {
+                outbox->post(telemetryFor(*session, false));
+            }
+        }
 
         std::thread sender([&ws, outbox] {
             std::string frame;
@@ -224,12 +267,23 @@ struct Abc80WebServer::Impl {
         sender.join();
         {
             std::lock_guard<std::mutex> lock(session->mtx);
-            if (session->outbox == outbox) {
-                session->outbox.reset();
+            auto it = std::find(session->outboxes.begin(), session->outboxes.end(), outbox);
+            if (it != session->outboxes.end()) {
+                session->outboxes.erase(it);
+            }
+            if (session->outboxes.empty()) {
                 session->detachedAt = Clock::now();
+                // Detachment: auto-pause if running and not active in AI punch
+                if (!session->paused && !session->aiPunching && !session->resumedForAiPunch) {
+                    const uint32_t remaining = session->board.finishInstruction();
+                    session->cycles += remaining;
+                    session->paused = true;
+                    session->autoPaused = true;
+                }
             }
         }
         attached.fetch_sub(1);
+        wake.notify_all();
         ws.close();
     }
 
@@ -245,6 +299,9 @@ struct Abc80WebServer::Impl {
             break;
         case ClientMessage::Type::Key: {
             std::lock_guard<std::mutex> lock(s.mtx);
+            if (s.isResident && s.aiPunching) {
+                break;
+            }
             if (m.down) {
                 if (!s.keys->press(m.keyCode)) {
                     outbox.post(buildErrorJson("key queue full"));
@@ -255,59 +312,117 @@ struct Abc80WebServer::Impl {
             break;
         }
         case ClientMessage::Type::Reset: {
-            std::lock_guard<std::mutex> lock(s.mtx);
-            s.board.reset();
-            s.keys->clear();
-            s.paused = false;
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string frame;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
+                s.board.reset();
+                s.keys->clear();
+                s.paused = false;
+                s.autoPaused = false;
+                s.resumedForAiPunch = false;
+                s.wasManuallyPausedBeforeAi = false;
+                frame = telemetryFor(s, false);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(frame);
+            }
             break;
         }
         case ClientMessage::Type::SetRom: {
-            std::lock_guard<std::mutex> lock(s.mtx);
-            if (!boot(s, m.rom)) {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string frame;
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
+                ok = boot(s, m.rom);
+                if (ok) {
+                    frame = telemetryFor(s, false);
+                    targets = s.outboxes;
+                }
+            }
+            if (!ok) {
                 outbox.post(buildErrorJson("cannot load the ROM"));
+            } else {
+                for (auto &ob : targets) {
+                    ob->post(frame);
+                }
             }
             break;
         }
         case ClientMessage::Type::Run: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
             std::string frame;
             {
                 std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
                 if (s.paused) {
                     s.paused = false;
+                    s.autoPaused = false;
+                    s.resumedForAiPunch = false;
+                    s.wasManuallyPausedBeforeAi = false;
                     frame = telemetryFor(s, false);
+                    targets = s.outboxes;
                 }
             }
-            if (!frame.empty()) {
-                outbox.post(frame);
+            for (auto &ob : targets) {
+                ob->post(frame);
             }
             break;
         }
         case ClientMessage::Type::Pause: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
             std::string frame;
             {
                 std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
                 if (!s.paused) {
                     const uint32_t remaining = s.board.finishInstruction();
                     s.cycles += remaining;
                     s.paused = true;
                 }
+                s.autoPaused = false;
+                s.resumedForAiPunch = false;
+                s.wasManuallyPausedBeforeAi = false;
                 frame = telemetryFor(s, false);
+                targets = s.outboxes;
             }
-            outbox.post(frame);
+            for (auto &ob : targets) {
+                ob->post(frame);
+            }
             break;
         }
         case ClientMessage::Type::Step: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
             std::string frame;
             {
                 std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
                 if (s.paused) {
                     const uint32_t stepT = s.board.stepInstruction();
                     s.cycles += stepT;
+                    s.autoPaused = false;
+                    s.resumedForAiPunch = false;
+                    s.wasManuallyPausedBeforeAi = false;
                     frame = telemetryFor(s, false);
+                    targets = s.outboxes;
                 }
             }
-            if (!frame.empty()) {
-                outbox.post(frame);
+            for (auto &ob : targets) {
+                ob->post(frame);
             }
             break;
         }
@@ -329,6 +444,17 @@ struct Abc80WebServer::Impl {
                 reply = buildDisasmJson(m.memAddr, lines);
             }
             outbox.post(reply);
+            break;
+        }
+        case ClientMessage::Type::CancelAiPunch: {
+            AiCancelCallback cb;
+            {
+                std::lock_guard<std::mutex> lock(cancelCbMtx);
+                cb = onAiCancel;
+            }
+            if (cb) {
+                cb();
+            }
             break;
         }
         }
@@ -386,14 +512,29 @@ struct Abc80WebServer::Impl {
         std::lock_guard<std::mutex> reg(registryMtx);
         for (auto it = sessions.begin(); it != sessions.end();) {
             Session &s = *it->second;
+            if (s.isResident) {
+                ++it;  // Resident session is permanent in memory; never destroyed
+                continue;
+            }
             std::unique_lock<std::mutex> lock(s.mtx, std::try_to_lock);
-            if (lock && !s.outbox && now - s.detachedAt > grace) {
+            if (lock && s.outboxes.empty() && now - s.detachedAt > grace) {
                 lock.unlock();
                 it = sessions.erase(it);
             } else {
                 ++it;
             }
         }
+    }
+
+    bool hasUniqueSessions() const
+    {
+        std::lock_guard<std::mutex> lock(registryMtx);
+        for (const auto &kv : sessions) {
+            if (!kv.second->isResident) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void workerLoop()
@@ -403,16 +544,24 @@ struct Abc80WebServer::Impl {
         while (running.load()) {
             {
                 std::unique_lock<std::mutex> lock(wakeMtx);
-                wake.wait_for(lock, std::chrono::milliseconds(250), [this] { return !running.load() || attached.load() > 0; });
+                if (attached.load() == 0 && !hasActivePunches() && !hasUniqueSessions()) {
+                    wake.wait(lock, [this] {
+                        return !running.load() || attached.load() > 0 || hasActivePunches();
+                    });
+                } else {
+                    wake.wait_for(lock, std::chrono::seconds(1), [this] {
+                        return !running.load() || attached.load() > 0 || hasActivePunches();
+                    });
+                }
             }
             if (!running.load()) {
                 break;
             }
-            if (Clock::now() - lastExpiry > std::chrono::milliseconds(250)) {
+            if (Clock::now() - lastExpiry > std::chrono::seconds(1)) {
                 expireDetached();
                 lastExpiry = Clock::now();
             }
-            if (attached.load() == 0) {
+            if (attached.load() == 0 && !hasActivePunches()) {
                 next = Clock::now();
                 continue;
             }
@@ -428,8 +577,8 @@ struct Abc80WebServer::Impl {
             for (auto &sp : snapshot) {
                 Session &s = *sp;
                 std::unique_lock<std::mutex> lock(s.mtx, std::try_to_lock);
-                if (!lock || !s.outbox) {
-                    continue;  // busy (booting or handling a message) or detached: it simply misses this frame
+                if (!lock || (s.outboxes.empty() && !s.resumedForAiPunch)) {
+                    continue;  // busy or detached without AI punch
                 }
                 if (s.paused) {
                     continue;
@@ -445,9 +594,11 @@ struct Abc80WebServer::Impl {
                 }
                 s.board.stepFrame();
                 const std::string frame = telemetryFor(s);
-                std::shared_ptr<FrameOutbox> outbox = s.outbox;
+                std::vector<std::shared_ptr<FrameOutbox>> outboxes = s.outboxes;
                 lock.unlock();
-                outbox->post(frame);  // never blocks: the newest frame replaces an unsent one
+                for (auto &ob : outboxes) {
+                    ob->post(frame);
+                }
             }
 
             next += kFramePeriod;
@@ -469,7 +620,8 @@ struct Abc80WebServer::Impl {
         const std::string webDir = config.root + "/" + config.webRoot;
 
         svr = std::make_unique<httplib::Server>();
-        svr->new_task_queue = [] { return new httplib::ThreadPool(32); };  // one thread per open tab plus requests
+        const size_t poolSize = std::max<size_t>(32, config.maxSessions * 2 + 16);
+        svr->new_task_queue = [poolSize] { return new httplib::ThreadPool(poolSize); };
         svr->set_write_timeout(static_cast<time_t>(config.sendTimeoutMs / 1000),
                                static_cast<time_t>((config.sendTimeoutMs % 1000) * 1000));
         svr->set_payload_max_length(kMaxClientMessageBytes);
@@ -510,6 +662,33 @@ struct Abc80WebServer::Impl {
             return false;
         }
         boundPort.store(p);
+
+        // Pre-create resident emulator session if configured
+        if (config.createResident) {
+            residentSession = std::make_shared<Session>();
+            residentSession->token = "resident";
+            residentSession->isResident = true;
+            residentSession->rom = config.defaultRom;
+            {
+                std::lock_guard<std::mutex> lock(registryMtx);
+                sessions.emplace("resident", residentSession);
+            }
+            {
+                std::lock_guard<std::mutex> lock(residentSession->mtx);
+                if (!boot(*residentSession, config.defaultRom)) {
+                    setError("cannot load resident ROM");
+                    svr.reset();
+                    sessions.clear();
+                    residentSession.reset();
+                    return false;
+                }
+                // Resident emulator starts auto-paused until viewers or AI attach
+                residentSession->paused = true;
+                residentSession->autoPaused = true;
+                residentSession->resumedForAiPunch = false;
+            }
+        }
+
         running.store(true);
         serverThread = std::thread([this] { svr->listen_after_bind(); });
         svr->wait_until_ready();
@@ -528,8 +707,8 @@ struct Abc80WebServer::Impl {
             std::lock_guard<std::mutex> reg(registryMtx);
             for (auto &kv : sessions) {
                 std::lock_guard<std::mutex> lock(kv.second->mtx);
-                if (kv.second->outbox) {
-                    kv.second->outbox->close();
+                for (auto &ob : kv.second->outboxes) {
+                    ob->close();
                 }
             }
         }
@@ -545,6 +724,7 @@ struct Abc80WebServer::Impl {
         svr.reset();
         std::lock_guard<std::mutex> reg(registryMtx);
         sessions.clear();
+        residentSession.reset();
     }
 };
 
@@ -593,6 +773,209 @@ std::string Abc80WebServer::lastError() const
 {
     std::lock_guard<std::mutex> lock(_impl->errorMtx);
     return _impl->error;
+}
+
+bool Abc80WebServer::isResidentRunning() const
+{
+    if (!_impl->residentSession) return false;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return !_impl->residentSession->paused;
+}
+
+bool Abc80WebServer::isResidentPaused() const
+{
+    if (!_impl->residentSession) return false;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return _impl->residentSession->paused;
+}
+
+bool Abc80WebServer::isResidentAutoPaused() const
+{
+    if (!_impl->residentSession) return false;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return _impl->residentSession->autoPaused;
+}
+
+size_t Abc80WebServer::residentSubscriberCount() const
+{
+    if (!_impl->residentSession) return 0;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return _impl->residentSession->outboxes.size();
+}
+
+void Abc80WebServer::punchResidentKey(uint8_t keyCode, bool down)
+{
+    if (!_impl->residentSession) return;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    if (down) {
+        _impl->residentSession->board.pressKey(keyCode);
+    } else {
+        _impl->residentSession->board.releaseKey(keyCode);
+    }
+}
+
+void Abc80WebServer::resetResident()
+{
+    if (!_impl->residentSession) return;
+    std::vector<std::shared_ptr<FrameOutbox>> targets;
+    std::string frame;
+    {
+        Impl::Session &s = *_impl->residentSession;
+        std::lock_guard<std::mutex> lock(s.mtx);
+        s.board.reset();
+        if (s.keys) {
+            s.keys->clear();
+        }
+        s.paused = false;
+        s.autoPaused = false;
+        s.wasManuallyPausedBeforeAi = false;
+        frame = _impl->telemetryFor(s, false);
+        targets = s.outboxes;
+    }
+    for (auto &ob : targets) {
+        ob->post(frame);
+    }
+    _impl->wake.notify_all();
+}
+
+void Abc80WebServer::broadcastAiPunch(const std::string &key, bool down, size_t remaining)
+{
+    if (!_impl->residentSession) return;
+    const std::string frame = buildAiPunchJson(key, down, remaining);
+    std::vector<std::shared_ptr<FrameOutbox>> targets;
+    {
+        std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+        targets = _impl->residentSession->outboxes;
+    }
+    for (auto &ob : targets) {
+        ob->post(frame);
+    }
+}
+
+void Abc80WebServer::setResidentClockWakeForAi(bool wake)
+{
+    if (!_impl->residentSession) return;
+    std::vector<std::shared_ptr<FrameOutbox>> targets;
+    std::string frame;
+    {
+        Impl::Session &s = *_impl->residentSession;
+        std::lock_guard<std::mutex> lock(s.mtx);
+        if (wake) {
+            if (!s.aiPunching) {
+                s.aiPunching = true;
+                s.board.clearKeys();
+                if (s.keys) {
+                    s.keys->clear();
+                }
+                if (s.paused) {
+                    s.wasManuallyPausedBeforeAi = !s.autoPaused;
+                    s.paused = false;
+                    s.autoPaused = false;
+                    s.resumedForAiPunch = true;
+                } else {
+                    s.wasManuallyPausedBeforeAi = false;
+                    s.resumedForAiPunch = false;
+                }
+            }
+        } else {
+            if (s.aiPunching || s.resumedForAiPunch) {
+                const bool restoreManualPause = s.wasManuallyPausedBeforeAi;
+                s.aiPunching = false;
+                s.resumedForAiPunch = false;
+                s.wasManuallyPausedBeforeAi = false;
+                if (restoreManualPause) {
+                    if (!s.paused) {
+                        const uint32_t remaining = s.board.finishInstruction();
+                        s.cycles += remaining;
+                    }
+                    s.paused = true;
+                    s.autoPaused = false;
+                    frame = _impl->telemetryFor(s, false);
+                    targets = s.outboxes;
+                } else if (s.outboxes.empty()) {
+                    if (!s.paused) {
+                        const uint32_t remaining = s.board.finishInstruction();
+                        s.cycles += remaining;
+                    }
+                    s.paused = true;
+                    s.autoPaused = true;
+                }
+            }
+        }
+    }
+    for (auto &ob : targets) {
+        ob->post(frame);
+    }
+    _impl->wake.notify_all();
+}
+
+void Abc80WebServer::setOnAiCancel(AiCancelCallback cb)
+{
+    std::lock_guard<std::mutex> lock(_impl->cancelCbMtx);
+    _impl->onAiCancel = std::move(cb);
+}
+
+void Abc80WebServer::cancelAiPunch()
+{
+    AiCancelCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(_impl->cancelCbMtx);
+        cb = _impl->onAiCancel;
+    }
+    if (cb) {
+        cb();
+    }
+}
+
+bool Abc80WebServer::readResidentCpu(TelemetryFrame &frame) const
+{
+    if (!_impl->residentSession) return false;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    const Abc80Cpu &cpu = _impl->residentSession->board.getCpu();
+    frame.seq = _impl->residentSession->frames;
+    frame.rom = romProfile(_impl->residentSession->rom).name;
+    frame.cycles = _impl->residentSession->cycles;
+    frame.paused = _impl->residentSession->paused;
+    frame.displayMasks = _impl->residentSession->board.displayMasks(_impl->config.litDutyMin);
+    frame.displayDigits = _impl->residentSession->board.displayDigits(_impl->config.litDutyMin);
+    frame.ep = _impl->residentSession->board.epLed();
+    frame.halt = _impl->residentSession->board.haltLed();
+    frame.speakerLed = _impl->residentSession->board.speakerLedFraction();
+    frame.speakerLevel = (_impl->residentSession->board.getPpi().getDigitStrobe() & 0x80) != 0;
+    frame.pc = _impl->residentSession->board.lastFetchAddress();
+    frame.sp = cpu.getSP();
+    frame.af = cpu.getAF();
+    frame.bc = cpu.getBC();
+    frame.de = cpu.getDE();
+    frame.hl = cpu.getHL();
+    frame.ix = cpu.getIX();
+    frame.iy = cpu.getIY();
+    return true;
+}
+
+std::vector<uint8_t> Abc80WebServer::readResidentMemory(uint16_t addr, uint16_t count) const
+{
+    if (!_impl->residentSession) return {};
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return _impl->residentSession->board.readMemoryBlock(addr, count);
+}
+
+std::vector<DisasmLine> Abc80WebServer::disassembleResident(uint16_t addr, uint16_t count) const
+{
+    if (!_impl->residentSession) return {};
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    return _impl->residentSession->board.disassemble(addr, count);
+}
+
+bool Abc80WebServer::readResidentDisplay(std::string &digits, uint8_t &epLed, uint8_t &haltLed) const
+{
+    if (!_impl->residentSession) return false;
+    std::lock_guard<std::mutex> lock(_impl->residentSession->mtx);
+    const auto d = _impl->residentSession->board.displayDigits(_impl->config.litDutyMin);
+    digits.assign(d.begin(), d.end());
+    epLed = _impl->residentSession->board.epLed() ? 1 : 0;
+    haltLed = _impl->residentSession->board.haltLed() ? 1 : 0;
+    return true;
 }
 
 } // namespace abc80

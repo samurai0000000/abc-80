@@ -8,6 +8,8 @@
  */
 
 #include <abc80/Abc80WebServer.hxx>
+#include <abc80/AiKeySequencer.hxx>
+#include <abc80/AimonGatewayClient.hxx>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -33,6 +35,17 @@ ServerConfig testConfig()
     c.port = 0;               // ephemeral
     c.bootTurbo = true;       // sessions start at the ROM's steady state
     c.sessionGraceSeconds = 300;
+    c.createResident = false; // isolated unique sessions
+    return c;
+}
+
+ServerConfig residentTestConfig()
+{
+    ServerConfig c;
+    c.port = 0;               // ephemeral
+    c.bootTurbo = true;       // sessions start at the ROM's steady state
+    c.sessionGraceSeconds = 1;
+    c.createResident = true;  // resident session enabled
     return c;
 }
 
@@ -571,6 +584,305 @@ TEST(Abc80WebServer, ReadMemReadDisasmAndStackTelemetry)
     CHECK(t.at("stackBaseAddr").get<uint16_t>() == t.at("registers").at("sp").get<uint16_t>());
 }
 
+TEST(Abc80WebServer, ResidentSessionCreatedOnStartupAndNeverExpiredByGrace)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+    LONGS_EQUAL(1, static_cast<long>(server.sessionCount()));
+    CHECK(server.isResidentPaused());
+    CHECK(server.isResidentAutoPaused());
+
+    // Connect tab to resident session
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("resident");
+    CHECK(tab.anyTelemetry(8000));
+    LONGS_EQUAL(1, static_cast<long>(server.sessionCount()));
+    LONGS_EQUAL(1, static_cast<long>(server.residentSubscriberCount()));
+
+    // Disconnect tab and wait for grace period (1s)
+    tab.close();
+    CHECK(waitUntil([&] { return server.attachedCount() == 0; }, 5000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+
+    // Resident session is NEVER destroyed by expireDetached()!
+    LONGS_EQUAL(1, static_cast<long>(server.sessionCount()));
+    LONGS_EQUAL(0, static_cast<long>(server.residentSubscriberCount()));
+    CHECK(server.isResidentAutoPaused());
+}
+
+TEST(Abc80WebServer, ResidentSessionAutoPauseAndAutoResume)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+    CHECK(server.isResidentAutoPaused());
+
+    // Connect tab
+    Tab tab1(server.port());
+    CHECK(tab1.connect());
+    tab1.hello("resident");
+
+    json t;
+    CHECK(tab1.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", true);
+    }, 8000, &t));
+    CHECK(!server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+
+    // Disconnect tab -> auto-pauses
+    tab1.close();
+    CHECK(waitUntil([&] { return server.isResidentAutoPaused(); }, 5000));
+    CHECK(server.isResidentPaused());
+
+    // Reconnect tab -> auto-resumes
+    Tab tab2(server.port());
+    CHECK(tab2.connect());
+    tab2.hello("resident");
+    CHECK(tab2.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", true);
+    }, 8000, &t));
+    CHECK(!server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+}
+
+TEST(Abc80WebServer, ResidentSessionPreservesManualPauseAcrossReconnect)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    Tab tab1(server.port());
+    CHECK(tab1.connect());
+    tab1.hello("resident");
+    CHECK(tab1.anyTelemetry(8000));
+
+    // Manually pause
+    tab1.pause();
+    json t;
+    CHECK(tab1.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000, &t));
+    CHECK(server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+
+    // Disconnect tab
+    tab1.close();
+    CHECK(waitUntil([&] { return server.attachedCount() == 0; }, 5000));
+
+    // Reconnect: session should stay paused because it was MANUALLY paused!
+    Tab tab2(server.port());
+    CHECK(tab2.connect());
+    tab2.hello("resident");
+    CHECK(tab2.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000, &t));
+    CHECK(server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+}
+
+TEST(Abc80WebServer, ResidentSessionMultiSubscriberBroadcast)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    Tab tab1(server.port());
+    CHECK(tab1.connect());
+    tab1.hello("resident");
+    CHECK(tab1.anyTelemetry(8000));
+
+    Tab tab2(server.port());
+    CHECK(tab2.connect());
+    tab2.hello("resident");
+    CHECK(tab2.anyTelemetry(8000));
+
+    LONGS_EQUAL(2, static_cast<long>(server.residentSubscriberCount()));
+
+    // Broadcast AI punch event
+    server.broadcastAiPunch("ADRS", true, 3);
+
+    json p1, p2;
+    CHECK(tab1.waitFor("aiPunch", [](const json &j) {
+        return j.value("key", "") == "ADRS" && j.value("down", false) && j.value("remaining", 0) == 3;
+    }, 4000, &p1));
+    CHECK(tab2.waitFor("aiPunch", [](const json &j) {
+        return j.value("key", "") == "ADRS" && j.value("down", false) && j.value("remaining", 0) == 3;
+    }, 4000, &p2));
+}
+
+TEST(Abc80WebServer, ResidentSessionAiPunchClockWakeAndAutoPause)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    // Starts auto-paused with 0 viewers
+    CHECK(server.isResidentAutoPaused());
+
+    // Wake clock for AI punch
+    server.setResidentClockWakeForAi(true);
+    CHECK(server.isResidentRunning());
+
+    // Step a few cycles/frames while punch occurs
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // AI punch finishes while 0 viewers attached -> returns to auto-pause!
+    server.setResidentClockWakeForAi(false);
+    CHECK(server.isResidentAutoPaused());
+    CHECK(server.isResidentPaused());
+}
+
+TEST(Abc80WebServer, ResidentKeyNameAliasesAccepted)
+{
+    uint8_t code = 0;
+    CHECK(keyCodeFromName("RUN", code));
+    BYTES_EQUAL(KEY_RUN, code);
+    CHECK(keyCodeFromName("GO", code));
+    BYTES_EQUAL(KEY_RUN, code);
+
+    CHECK(keyCodeFromName("ADDR", code));
+    BYTES_EQUAL(KEY_ADRS, code);
+    CHECK(keyCodeFromName("ADRS", code));
+    BYTES_EQUAL(KEY_ADRS, code);
+
+    CHECK(keyCodeFromName("STEP", code));
+    BYTES_EQUAL(KEY_STEP, code);
+    CHECK(keyCodeFromName("TO TAPE", code));
+    BYTES_EQUAL(KEY_STEP, code);
+
+    CHECK(keyCodeFromName("BP", code));
+    BYTES_EQUAL(KEY_BP, code);
+    CHECK(keyCodeFromName("FROM TAPE", code));
+    BYTES_EQUAL(KEY_BP, code);
+}
+
+TEST(Abc80WebServer, CancelAiPunchMessageTriggersCallback)
+{
+    Abc80WebServer server(residentTestConfig());
+    std::atomic<bool> cancelled{false};
+    server.setOnAiCancel([&] { cancelled.store(true); });
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("resident");
+    CHECK(tab.anyTelemetry(8000));
+
+    tab.send({ { "type", "cancelAiPunch" } });
+    CHECK(waitUntil([&] { return cancelled.load(); }, 4000));
+}
+
+TEST(Abc80WebServer, ResidentSessionPreservesManualPauseAfterAiClockWakeWithViewerAttached)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("resident");
+    CHECK(tab.anyTelemetry(8000));
+
+    // Operator manually pauses the resident session while watching
+    tab.pause();
+    json t;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000, &t));
+    CHECK(server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+
+    // AI punch starts -> wakes clock temporarily
+    server.setResidentClockWakeForAi(true);
+    CHECK(server.isResidentRunning());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // AI punch ends while viewer tab is STILL connected -> must restore manual pause!
+    server.setResidentClockWakeForAi(false);
+    CHECK(server.isResidentPaused());
+    CHECK(!server.isResidentAutoPaused());
+}
+
+TEST(Abc80WebServer, ResidentSessionLocksOutHumanInputDuringAiPunch)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("resident");
+    CHECK(tab.anyTelemetry(8000));
+    CHECK(server.isResidentRunning());
+
+    // Enter AI punch mode
+    server.setResidentClockWakeForAi(true);
+
+    // Human attempts to pause or reset while AI punch is active -> must be ignored
+    tab.pause();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    CHECK(server.isResidentRunning());
+
+    server.setResidentClockWakeForAi(false);
+}
+
+TEST(Abc80WebServer, ResidentResetAndGatewayToolSchemas)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    AiKeySequencer seq(
+        [&server](const std::string &key, bool down, size_t remaining) {
+            uint8_t code = 0;
+            if (key == "RST") {
+                if (down) {
+                    server.resetResident();
+                }
+            } else if (keyCodeFromName(key, code)) {
+                server.punchResidentKey(code, down);
+            }
+            server.broadcastAiPunch(key, down, remaining);
+        },
+        [&server]() {
+            server.setResidentClockWakeForAi(false);
+        },
+        40,
+        15
+    );
+
+    AimonClientConfig gwCfg;
+    gwCfg.enabled = false;
+    gwCfg.webPort = server.port();
+    AimonGatewayClient gw(server, seq, gwCfg);
+
+    // 1. Verify abc80_read_cpu schema (autoPaused + flags)
+    const json cpuJson = json::parse(gw.handleToolCall("abc80_read_cpu", "{}"));
+    CHECK(cpuJson.contains("autoPaused"));
+    CHECK(cpuJson.at("autoPaused").get<bool>());
+    CHECK(cpuJson.contains("flags"));
+    CHECK(cpuJson.at("flags").contains("z"));
+    CHECK(cpuJson.at("flags").contains("c"));
+
+    // 2. Verify abc80_read_display schema (display_masks + leds.speaker)
+    const json dispJson = json::parse(gw.handleToolCall("abc80_read_display", "{}"));
+    CHECK(dispJson.contains("display_masks"));
+    LONGS_EQUAL(6, static_cast<long>(dispJson.at("display_masks").size()));
+    CHECK(dispJson.at("leds").contains("speaker"));
+
+    // 3. Verify abc80_read_memory schema (hex_dump)
+    const json memJson = json::parse(gw.handleToolCall("abc80_read_memory", "{\"addr\":0,\"count\":16}"));
+    CHECK(memJson.contains("hex_dump"));
+    CHECK(memJson.at("hex_dump").get<std::string>().find("0000:") == 0);
+
+    // 4. Verify abc80_punch_keys with "RST" tactile reset and schema fields
+    const json punchJson = json::parse(gw.handleToolCall("abc80_punch_keys", "{\"keys\":[\"RST\"],\"sync\":true}"));
+    STRCMP_EQUAL("completed", punchJson.value("status", "").c_str());
+    LONGS_EQUAL(1, static_cast<long>(punchJson.value("enqueued_count", 0)));
+    CHECK(punchJson.contains("estimated_duration_sec"));
+    CHECK(punchJson.contains("hint"));
+
+    // 5. Verify abc80_get_punch_status includes remaining
+    const json statusJson = json::parse(gw.handleToolCall("abc80_get_punch_status", "{}"));
+    CHECK(statusJson.contains("remaining"));
+    LONGS_EQUAL(0, static_cast<long>(statusJson.at("remaining").get<size_t>()));
+}
+
 /*
  * Local variables:
  * mode: C++
@@ -580,3 +892,4 @@ TEST(Abc80WebServer, ReadMemReadDisasmAndStackTelemetry)
  * indent-tabs-mode: nil
  * End:
  */
+

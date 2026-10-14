@@ -52,7 +52,7 @@ bool keyCodeFromName(const std::string &name, uint8_t &code) noexcept
         }
         return false;
     }
-    if (name == "GO") {
+    if (name == "GO" || name == "RUN") {
         code = KEY_RUN;
         return true;
     }
@@ -60,15 +60,15 @@ bool keyCodeFromName(const std::string &name, uint8_t &code) noexcept
         code = KEY_DATA;
         return true;
     }
-    if (name == "ADRS") {
+    if (name == "ADRS" || name == "ADDR") {
         code = KEY_ADRS;
         return true;
     }
-    if (name == "TO TAPE") {
+    if (name == "TO TAPE" || name == "STEP") {
         code = KEY_STEP;
         return true;
     }
-    if (name == "FROM TAPE") {
+    if (name == "FROM TAPE" || name == "BP") {
         code = KEY_BP;
         return true;
     }
@@ -126,6 +126,11 @@ ClientMessage parseClientMessage(const std::string &text)
 
     if (type == "step") {
         m.type = ClientMessage::Type::Step;
+        return m;
+    }
+
+    if (type == "cancelAiPunch") {
+        m.type = ClientMessage::Type::CancelAiPunch;
         return m;
     }
 
@@ -262,6 +267,16 @@ std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines)
         item["mnemonic"] = line.mnemonic;
         j["lines"].push_back(std::move(item));
     }
+    return j.dump();
+}
+
+std::string buildAiPunchJson(const std::string &key, bool down, size_t remaining)
+{
+    json j;
+    j["type"] = "aiPunch";
+    j["key"] = key;
+    j["down"] = down;
+    j["remaining"] = remaining;
     return j.dump();
 }
 

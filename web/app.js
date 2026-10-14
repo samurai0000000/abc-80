@@ -26,6 +26,7 @@
         wsConnected: false,
         lastTelemetry: null,
         paused: false,
+        aiLocked: false,
         disasm: {
             lines: [],
             minAddr: null,
@@ -73,12 +74,22 @@
         try { return window.sessionStorage; } catch (e) { return null; }
     }
 
-    // A random token kept in sessionStorage: a reload of this tab reattaches to the same board,
-    // another tab gets its own.
+    function selectedInstance() {
+        const select = document.getElementById('instance-select');
+        const store = storage();
+        const saved = store ? store.getItem('abc80_instance') : null;
+        if (select && select.value) return select.value;
+        return saved === 'resident' ? 'resident' : 'unique';
+    }
+
+    // A random token kept in sessionStorage for unique instance, or "resident" for resident instance.
     function sessionToken() {
+        if (selectedInstance() === 'resident') {
+            return 'resident';
+        }
         const store = storage();
         let token = store ? store.getItem('abc80_token') : null;
-        if (!token) {
+        if (!token || token === 'resident') {
             const bytes = new Uint8Array(18);
             window.crypto.getRandomValues(bytes);
             token = Array.from(bytes, b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
@@ -102,6 +113,15 @@
         if (label) label.textContent = text;
     }
 
+    function updateHostStatus() {
+        const inst = selectedInstance().toUpperCase();
+        if (state.wsConnected) {
+            setHostStatus(true, 'HOST: ONLINE (' + inst + ')');
+        } else {
+            setHostStatus(false, 'HOST: OFFLINE');
+        }
+    }
+
     function scheduleReconnect() {
         setTimeout(connectHostWebSocket, reconnectDelayMs);
         reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000);
@@ -112,14 +132,14 @@
         try {
             ws = new WebSocket(url);
         } catch (e) {
-            setHostStatus(false, 'HOST: OFFLINE');
+            updateHostStatus();
             scheduleReconnect();
             return;
         }
         ws.onopen = function () {
             state.wsConnected = true;
             reconnectDelayMs = 1000;
-            setHostStatus(true, 'HOST: ONLINE');
+            updateHostStatus();
             updateExecutionControls();
             ws.send(JSON.stringify({ type: 'hello', token: sessionToken(), rom: selectedRom() }));
             fetchMemory(state.mem.baseAddr);
@@ -130,11 +150,13 @@
             if (msg.type === 'telemetry') applyTelemetry(msg);
             else if (msg.type === 'disasm') handleDisasmResponse(msg);
             else if (msg.type === 'memData') handleMemDataResponse(msg);
+            else if (msg.type === 'aiPunch') handleAiPunch(msg);
             else if (msg.type === 'error') console.warn('[ABC-80 host] ' + msg.reason);
         };
         ws.onclose = function () {
             state.wsConnected = false;
-            setHostStatus(false, 'HOST: OFFLINE');
+            setOperatorLockout(false);
+            updateHostStatus();
             updateExecutionControls();
             scheduleReconnect();
         };
@@ -150,14 +172,17 @@
     }
 
     function sendRun() {
+        if (state.aiLocked) return;
         sendHostCommand({ type: 'run' });
     }
 
     function sendPause() {
+        if (state.aiLocked) return;
         sendHostCommand({ type: 'pause' });
     }
 
     function sendStep() {
+        if (state.aiLocked) return;
         sendHostCommand({ type: 'step' });
     }
 
@@ -295,6 +320,7 @@
     }
 
     function handleKeypadPress(key) {
+        if (state.aiLocked) return;
         initAudio();
         if (key === 'RST') {
             handleHardwareReset();
@@ -309,12 +335,14 @@
     }
 
     function handleKeypadRelease(key) {
+        if (state.aiLocked) return;
         if (key === 'RST') return;
         sendHostCommand({ type: 'key', key: KEY_NAME_FOR_BUTTON[key] || key, action: 'up' });
     }
 
     // The reset switch is not part of the key matrix: it resets the CPU and the PPI.
     function handleHardwareReset() {
+        if (state.aiLocked) return;
         initAudio();
         sendHostCommand({ type: 'reset' });
         const btn = document.getElementById('btn-hw-rst');
@@ -324,7 +352,119 @@
         }
     }
 
+    // ---- AI Keypad Punching, Operator Lockout & Hand Animation ----
+
+    let aiHandFadeTimer = null;
+
+    function setOperatorLockout(locked) {
+        state.aiLocked = !!locked;
+        const grids = document.querySelectorAll('.keypad-grid-3x4, .keypad-bezel-module, #disc-hw-rst');
+        grids.forEach(el => el.classList.toggle('ai-locked', !!locked));
+        const rstBtn = document.getElementById('btn-hw-rst');
+        if (rstBtn) {
+            rstBtn.disabled = !!locked;
+        }
+        const romSelect = document.getElementById('rom-select');
+        if (romSelect) {
+            romSelect.disabled = !!locked;
+        }
+        const cancelBtn = document.getElementById('cancel-ai-btn');
+        if (cancelBtn) {
+            cancelBtn.disabled = !locked;
+        }
+        updateExecutionControls();
+    }
+
+    function findKeyButton(name) {
+        if (!name) return null;
+        let norm = String(name).toUpperCase().trim();
+        if (norm === 'RST') {
+            return document.getElementById('btn-hw-rst') || document.querySelector('.tactile-switch[data-key="RST"]');
+        }
+        if (norm === 'GO' || norm === 'RUN') {
+            return document.querySelector('.key-btn[data-key="GO EXEC"], .key-btn[data-key="GO"]');
+        }
+        if (norm === 'ADDR') norm = 'ADRS';
+        if (norm === 'STEP') norm = 'TO TAPE';
+        if (norm === 'BP') norm = 'FROM TAPE';
+        return document.querySelector('.key-btn[data-key="' + norm + '"]');
+    }
+
+    function handleAiPunch(msg) {
+        const cursor = document.getElementById('ai-hand-cursor');
+        if (!cursor) return;
+
+        if (aiHandFadeTimer) {
+            clearTimeout(aiHandFadeTimer);
+            aiHandFadeTimer = null;
+        }
+
+        const isPunchActive = (msg.remaining !== undefined && msg.remaining > 0) || !!msg.down;
+        setOperatorLockout(isPunchActive);
+
+        const btn = findKeyButton(msg.key);
+        if (btn) {
+            const rect = btn.getBoundingClientRect();
+            // Position cursor pointer fingertip on button center
+            const x = rect.left + rect.width / 2 - 28;
+            const y = rect.top + rect.height / 2 - 8;
+            cursor.style.left = Math.round(x) + 'px';
+            cursor.style.top = Math.round(y) + 'px';
+            cursor.classList.remove('ai-hand-hidden');
+
+            if (msg.down) {
+                cursor.classList.add('ai-punch-down');
+                btn.classList.add('ai-punched');
+                initAudio();
+            } else {
+                cursor.classList.remove('ai-punch-down');
+                btn.classList.remove('ai-punched');
+            }
+        }
+
+        if (msg.remaining === 0 && !msg.down) {
+            setOperatorLockout(false);
+            aiHandFadeTimer = setTimeout(function () {
+                cursor.classList.add('ai-hand-hidden');
+                document.querySelectorAll('.key-btn.ai-punched, #btn-hw-rst.ai-punched').forEach(function (b) {
+                    b.classList.remove('ai-punched');
+                });
+            }, 800);
+        }
+    }
+
+    function initInstanceSelect() {
+        const select = document.getElementById('instance-select');
+        if (!select) return;
+        const saved = storage() ? storage().getItem('abc80_instance') : 'unique';
+        select.value = (saved === 'resident') ? 'resident' : 'unique';
+        select.addEventListener('change', function () {
+            const store = storage();
+            if (store) store.setItem('abc80_instance', select.value);
+            updateHostStatus();
+            if (ws) {
+                ws.close();
+            }
+        });
+    }
+
+    function initAiControls() {
+        const cancelBtn = document.getElementById('cancel-ai-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                sendHostCommand({ type: 'cancelAiPunch' });
+                setOperatorLockout(false);
+                const cursor = document.getElementById('ai-hand-cursor');
+                if (cursor) cursor.classList.add('ai-hand-hidden');
+                document.querySelectorAll('.key-btn.ai-punched, #btn-hw-rst.ai-punched').forEach(function (b) {
+                    b.classList.remove('ai-punched');
+                });
+            });
+        }
+    }
+
     function changeRom(name) {
+        if (state.aiLocked) return;
         const store = storage();
         if (store) store.setItem('abc80_rom', name);
         sendHostCommand({ type: 'setRom', rom: name });
@@ -350,7 +490,24 @@
         sendPause: sendPause,
         sendStep: sendStep,
         disconnect: function () { reconnectDelayMs = 3600000; if (ws) { ws.onmessage = null; ws.close(); } },  // stop live frames (test hook)
-        get token() { return sessionToken(); }
+        get token() { return sessionToken(); },
+        get selectedInstance() { return selectedInstance(); },
+        setInstance: function (inst) {
+            const select = document.getElementById('instance-select');
+            if (select) select.value = inst;
+            const store = storage();
+            if (store) store.setItem('abc80_instance', inst);
+            updateHostStatus();
+            if (ws) ws.close();
+        },
+        get isAiLocked() {
+            return !!state.aiLocked;
+        },
+        get isAiHandVisible() {
+            const el = document.getElementById('ai-hand-cursor');
+            return el ? !el.classList.contains('ai-hand-hidden') : false;
+        },
+        handleAiPunch: handleAiPunch
     };
 
     let scopeCanvas, scopeCtx, scopePhase = 0;
@@ -521,6 +678,14 @@
             if (badge) {
                 badge.textContent = 'OFFLINE';
                 badge.className = 'cpu-status-badge offline';
+            }
+        } else if (state.aiLocked) {
+            if (btnRun) btnRun.disabled = true;
+            if (btnPause) btnPause.disabled = true;
+            if (btnStep) btnStep.disabled = true;
+            if (badge) {
+                badge.textContent = state.paused ? 'PAUSED' : 'RUNNING';
+                badge.className = 'cpu-status-badge ' + (state.paused ? 'paused' : 'running');
             }
         } else if (state.paused) {
             if (btnRun) btnRun.disabled = false;
@@ -851,6 +1016,14 @@
 
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'F12') {
+                e.preventDefault();
+                document.getElementById('btn-toggle-inspector').click();
+                return;
+            }
+            if (state.aiLocked) {
+                return;
+            }
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (!e.repeat) handleHardwareReset();
@@ -871,11 +1044,6 @@
                 if (!e.repeat) sendStep();
                 return;
             }
-            if (e.key === 'F12') {
-                e.preventDefault();
-                document.getElementById('btn-toggle-inspector').click();
-                return;
-            }
             const name = keyNameForEvent(e);
             if (name === null) return;
             e.preventDefault();
@@ -888,12 +1056,16 @@
             const name = heldByCode[e.code];
             if (!name) return;
             delete heldByCode[e.code];
-            handleKeypadRelease(name);
+            if (!state.aiLocked) {
+                handleKeypadRelease(name);
+            }
         });
 
         window.addEventListener('blur', () => {
             Object.keys(heldByCode).forEach(code => {
-                handleKeypadRelease(heldByCode[code]);
+                if (!state.aiLocked) {
+                    handleKeypadRelease(heldByCode[code]);
+                }
                 delete heldByCode[code];
             });
         });
@@ -1381,6 +1553,9 @@
             if (saved === '1993' || saved === 'monitor') romSelect.value = saved;
             romSelect.addEventListener('change', () => changeRom(romSelect.value));
         }
+
+        initInstanceSelect();
+        initAiControls();
 
         // Tactile Reset Button (#disc-hw-rst and #btn-hw-rst)
         const hwRstBtn = document.getElementById('btn-hw-rst');

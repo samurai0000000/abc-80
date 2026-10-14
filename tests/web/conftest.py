@@ -51,12 +51,19 @@ class Server:
 
 
 @pytest.fixture(scope="session")
-def server():
+def server(tmp_path_factory):
     binary = ROOT / BUILD_DIR / "abc80_server"
     assert binary.exists(), "%s is missing; run `make` first" % binary
+    tmp_home = tmp_path_factory.mktemp("abc80_home")
+    cfg_dir = tmp_home / ".config" / "abc-80"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "abc-80.cfg").write_text("aimon = { enabled = false; };\n")
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_home)
     process = subprocess.Popen(
-        [str(binary), "--port", "0", "--boot-turbo", "--root", str(ROOT), "--grace", "2", "--max-sessions", "32"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(ROOT))
+        [str(binary), "--bind", "127.0.0.1", "--port", "0", "--boot-turbo",
+         "--root", str(ROOT), "--grace", "2", "--max-sessions", "32"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(ROOT), env=env)
     port = None
     end = time.monotonic() + 60
     buffered = ""

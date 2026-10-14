@@ -148,12 +148,21 @@
                     <span class="status-dot dot-connected" id="host-ws-dot"></span>
                     <span class="status-text" id="host-ws-text">HOST: CONNECTING</span>
                 </div>
+                <label class="instance-picker" title="Select between a private unique emulator session or the shared resident emulator instance.">INSTANCE
+                    <select id="instance-select">
+                        <option value="unique" selected>Unique Emulator</option>
+                        <option value="resident">Resident Emulator</option>
+                    </select>
+                </label>
                 <label class="rom-picker" title="Which ROM the board boots. Changing it power-cycles the board.">ROM
                     <select id="rom-select">
                         <option value="monitor">Monitor from the Book</option>
                         <option value="1993">Charles Chiou's ROM</option>
                     </select>
                 </label>
+                <button id="cancel-ai-btn" class="btn-cancel-ai" disabled title="Cancel active AI key sequence">
+                    Cancel AI
+                </button>
                 <div class="clock-display">
                     <span class="clock-label">CLK:</span>
                     <span class="clock-val" id="cpu-freq">1.79 MHz</span>
@@ -1878,8 +1887,19 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- AI Hand animation cursor -->
+    <div id="ai-hand-cursor" class="ai-hand-cursor ai-hand-hidden" aria-hidden="true">
+        <svg class="ai-hand-svg" viewBox="0 0 48 48">
+            <g class="ai-hand-graphic">
+                <path d="M12 28 C12 20 18 14 24 14 C26 14 28 15 28 18 L28 4 C28 2 31 1 33 2 C35 3 35 5 35 7 L35 20 C36 19 38 19 39 20 C41 21 41 23 41 25 L41 32 C41 40 33 46 24 46 C16 46 12 38 12 28 Z" fill="#00e038" fill-opacity="0.9" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+                <circle cx="28" cy="8" r="2.5" fill="#ffffff"/>
+                <path d="M22 26 L22 36 M28 24 L28 38 M34 26 L34 36" stroke="#003310" stroke-width="1.5" stroke-linecap="round"/>
+            </g>
+        </svg>
+        <div class="ai-hand-indicator">AI</div>
+    </div>
 
+    <script src="app.js"></script>
 
 </body>
 </html>

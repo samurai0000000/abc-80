@@ -5,6 +5,9 @@
  */
 
 #include <abc80/ServerRunner.hxx>
+#include <abc80/AiKeySequencer.hxx>
+#include <abc80/AimonGatewayClient.hxx>
+#include <abc80/WebProtocol.hxx>
 
 #include <atomic>
 #include <chrono>
@@ -13,6 +16,7 @@
 #include <cstdlib>
 #include <cerrno>
 #include <iostream>
+#include <memory>
 #include <thread>
 
 namespace abc80 {
@@ -124,7 +128,7 @@ bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::
     return true;
 }
 
-int runServerUntilSignalled(const ServerConfig &cfg)
+int runServerUntilSignalled(const ServerConfig &cfg, const Abc80Config *appConfig)
 {
     if (cfg.bind != "127.0.0.1" && cfg.bind != "localhost" && cfg.bind != "::1") {
         std::cerr << "warning: listening on " << cfg.bind
@@ -140,10 +144,67 @@ int runServerUntilSignalled(const ServerConfig &cfg)
         std::cerr << "error: " << server.lastError() << "\n";
         return 1;
     }
+
+    std::unique_ptr<AiKeySequencer> sequencer;
+    std::unique_ptr<AimonGatewayClient> gatewayClient;
+
+    if (cfg.createResident) {
+        unsigned punchInterval = 500;
+        unsigned holdDuration = 120;
+        if (appConfig) {
+            punchInterval = appConfig->aiKeypad().punchIntervalMs;
+            holdDuration = appConfig->aiKeypad().holdDurationMs;
+        }
+
+        sequencer = std::make_unique<AiKeySequencer>(
+            [&server](const std::string &key, bool down, size_t remaining) {
+                uint8_t code = 0;
+                if (key == "RST") {
+                    if (down) {
+                        server.resetResident();
+                    }
+                } else if (keyCodeFromName(key, code)) {
+                    server.punchResidentKey(code, down);
+                }
+                server.broadcastAiPunch(key, down, remaining);
+            },
+            [&server]() {
+                server.setResidentClockWakeForAi(false);
+            },
+            punchInterval,
+            holdDuration
+        );
+
+        server.setOnAiCancel([&sequencer]() {
+            if (sequencer) {
+                sequencer->cancel();
+            }
+        });
+
+        AimonClientConfig gwCfg;
+        if (appConfig) {
+            gwCfg.enabled = appConfig->aimon().enabled;
+            gwCfg.host = appConfig->aimon().host;
+            gwCfg.port = appConfig->aimon().port;
+            gwCfg.reconnectIntervalSec = appConfig->aimon().reconnectIntervalSec;
+        }
+        gwCfg.webPort = server.port();
+
+        gatewayClient = std::make_unique<AimonGatewayClient>(server, *sequencer, gwCfg);
+        gatewayClient->start();
+    }
+
     std::cout << "LISTENING " << server.port() << std::endl;  // flushed: test harnesses wait for this line
 
     while (!g_shutdown.load() && server.isRunning()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    if (gatewayClient) {
+        gatewayClient->stop();
+    }
+    if (sequencer) {
+        sequencer->stop();
     }
     server.stop();
     return 0;

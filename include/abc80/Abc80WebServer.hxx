@@ -12,9 +12,12 @@
 #define ABC80_WEB_SERVER_HXX
 
 #include <abc80/Abc80Rom.hxx>
+#include <abc80/WebProtocol.hxx>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace abc80 {
 
@@ -26,6 +29,7 @@ struct ServerConfig {
     RomId defaultRom{RomId::Monitor};
     bool bootTurbo{false};              // run a new session's boot unpaced to the ROM's steady state
     bool coldBoot{false};               // cold start (RAM cleared, no warm flag) instead of warm
+    bool createResident{true};          // pre-create permanent resident emulator instance ("resident")
     size_t maxSessions{8};
     unsigned sessionGraceSeconds{300};  // a detached board is kept this long
     unsigned sendTimeoutMs{200};        // socket write timeout; a stalled client never blocks others
@@ -51,6 +55,29 @@ public:
     size_t sessionCount() const;        // boards alive (attached or within the grace period)
     size_t attachedCount() const;       // sessions with a tab attached
     std::string lastError() const;
+
+    // Resident session inspection and control
+    bool isResidentRunning() const;
+    bool isResidentPaused() const;
+    bool isResidentAutoPaused() const;
+    size_t residentSubscriberCount() const;
+
+    // AI Punching and Clock Control for resident emulator
+    void punchResidentKey(uint8_t keyCode, bool down);
+    void resetResident();
+    void broadcastAiPunch(const std::string &key, bool down, size_t remaining);
+    void setResidentClockWakeForAi(bool wake);
+
+    // Callbacks for emergency cancellation (e.g. Cancel AI Actions button in Web UI)
+    using AiCancelCallback = std::function<void()>;
+    void setOnAiCancel(AiCancelCallback cb);
+    void cancelAiPunch();
+
+    // Resident state inspection for aimon gateway tools
+    bool readResidentCpu(TelemetryFrame &frame) const;
+    std::vector<uint8_t> readResidentMemory(uint16_t addr, uint16_t count) const;
+    std::vector<DisasmLine> disassembleResident(uint16_t addr, uint16_t count) const;
+    bool readResidentDisplay(std::string &digits, uint8_t &epLed, uint8_t &haltLed) const;
 
 private:
     struct Impl;

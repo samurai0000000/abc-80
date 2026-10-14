@@ -59,3 +59,37 @@ def server_attached(server):
     import urllib.request
     with urllib.request.urlopen(server.url + "api/status", timeout=5) as r:
         return json.loads(r.read())["attached"]
+
+
+def test_instance_selector_defaults_to_unique(panel):
+    panel.open()
+    val = panel.page.input_value("#instance-select")
+    assert val == "unique", f"Expected default unique, got {val}"
+    status = panel.page.text_content("#host-ws-text")
+    assert "UNIQUE" in status, f"Expected UNIQUE in status, got {status}"
+
+
+def test_instance_selector_switch_to_resident_shares_board(context, server):
+    a = Panel(context.new_page(), server).open()
+    b = Panel(context.new_page(), server).open()
+    try:
+        # Both switch to Resident Emulator
+        a.page.select_option("#instance-select", "resident")
+        a.wait_telemetry(lambda t: True, what="tab A reconnected to resident")
+        assert a.page.evaluate("window.__abc80.token") == "resident"
+        wait_for(lambda: "RESIDENT" in a.page.text_content("#host-ws-text"), timeout=5, what="status RESIDENT on tab A")
+
+        b.page.select_option("#instance-select", "resident")
+        b.wait_telemetry(lambda t: True, what="tab B reconnected to resident")
+        assert b.page.evaluate("window.__abc80.token") == "resident"
+        wait_for(lambda: "RESIDENT" in b.page.text_content("#host-ws-text"), timeout=5, what="status RESIDENT on tab B")
+
+        # Typing on resident in tab A appears live on tab B!
+        a.type_keys("ADRS", "4", "3", "2", "1")
+        a.wait_digits(lambda d: d.startswith("4321"), what="tab A address 4321")
+        b.wait_digits(lambda d: d.startswith("4321"), what="tab B mirrors address 4321")
+    finally:
+        a.page.close()
+        b.page.close()
+        assert a.errors == [] and b.errors == []
+

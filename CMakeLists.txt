@@ -38,6 +38,10 @@ set(CPPUTEST_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(CPPUTEST_MEM_LEAK_DETECTION_DISABLED ON CACHE BOOL "" FORCE)
 add_subdirectory(third_party/cpputest EXCLUDE_FROM_ALL)
 
+# Third-party libraries
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CONFIGPP REQUIRED libconfig++)
+
 # Core library
 add_library(abc80_core STATIC
     src/Abc80Bus.cxx
@@ -48,6 +52,9 @@ add_library(abc80_core STATIC
     src/KeyQueue.cxx
     src/WebProtocol.cxx
     src/Abc80WebServer.cxx
+    src/Abc80Config.cxx
+    src/AiKeySequencer.cxx
+    src/AimonGatewayClient.cxx
     src/ServerRunner.cxx
     src/Abc80Tape.cxx
     src/Abc80Cli.cxx
@@ -58,13 +65,17 @@ target_include_directories(abc80_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/chips
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sokol
+    ${CONFIGPP_INCLUDE_DIRS}
 )
 # Third-party headers are SYSTEM so -Wall -Wextra -Werror -pedantic apply only to our code.
 target_include_directories(abc80_core SYSTEM PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cpp-httplib
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include
 )
-target_link_libraries(abc80_core PUBLIC Threads::Threads)
+target_link_libraries(abc80_core PUBLIC
+    Threads::Threads
+    ${CONFIGPP_LIBRARIES}
+)
 # One WebSocket close handshake wait for every translation unit (the library default is 5 s, which
 # would delay shutdown behind an idle client). Defined globally so all inline definitions agree.
 target_compile_definitions(abc80_core PUBLIC CPPHTTPLIB_WEBSOCKET_CLOSE_TIMEOUT_SECOND=1)
@@ -112,6 +123,8 @@ add_executable(abc80_tests
     tests/Abc80WebProtocolTest.cxx
     tests/Abc80WebServerTest.cxx
     tests/Abc80ServerArgsTest.cxx
+    tests/Abc80ConfigTest.cxx
+    tests/Abc80AiKeySequencerTest.cxx
 )
 # Property tests need RapidCheck, installed system-wide (as aimon uses it).
 find_library(RAPIDCHECK_LIBRARY rapidcheck)

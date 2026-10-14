@@ -23,7 +23,7 @@ namespace abc80 {
 constexpr size_t kMaxClientMessageBytes = 4096;
 
 struct ClientMessage {
-    enum class Type { Invalid, Hello, SetRom, Key, Reset, Run, Pause, Step, ReadMem, ReadDisasm };
+    enum class Type { Invalid, Hello, SetRom, Key, Reset, Run, Pause, Step, ReadMem, ReadDisasm, CancelAiPunch };
 
     Type type{Type::Invalid};
     std::string token;      // Hello
@@ -41,7 +41,8 @@ struct ClientMessage {
 // kMaxClientMessageBytes) yields Type::Invalid with a reason.
 ClientMessage parseClientMessage(const std::string &text);
 
-// "0".."9", "A".."F" (either case), "+", "-", "GO", "DATA", "ADRS", "TO TAPE", "FROM TAPE".
+// "0".."9", "A".."F" (either case), "+", "-", "GO", "DATA", "ADRS", "TO TAPE", "FROM TAPE",
+// plus aliases "RUN", "ADDR", "STEP", "BP".
 // Returns false and leaves code untouched for anything else (including "RST").
 bool keyCodeFromName(const std::string &name, uint8_t &code) noexcept;
 
@@ -70,6 +71,7 @@ std::string buildTelemetryJson(const TelemetryFrame &frame);
 std::string buildErrorJson(const std::string &reason);
 std::string buildMemDataJson(uint16_t addr, const std::vector<uint8_t> &data);
 std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines);
+std::string buildAiPunchJson(const std::string &key, bool down, size_t remaining);
 
 } // namespace abc80
 

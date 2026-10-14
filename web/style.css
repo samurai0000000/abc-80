@@ -5782,3 +5782,117 @@ button[data-key="RST"] .key-label {
     border-radius: 4px;
     padding: 2px 6px;
 }
+
+/* Instance Picker */
+.instance-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.instance-picker select {
+    background: #0f172a;
+    color: #00e038;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.instance-picker select:focus {
+    border-color: #00e038;
+    outline: none;
+}
+
+/* Cancel AI Button */
+.btn-cancel-ai {
+    background: #c62828;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #e53935;
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin: 0 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-cancel-ai:not(:disabled):hover {
+    background: #b71c1c;
+    box-shadow: 0 0 8px rgba(229, 57, 53, 0.6);
+}
+
+.btn-cancel-ai:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: #555555;
+    background: #2a2020;
+    color: #888888;
+}
+
+/* Human Operator Keypad Lockout during AI punching */
+.keypad-grid-3x4.ai-locked .key-btn,
+.keypad-bezel-module.ai-locked .key-btn,
+#disc-hw-rst.ai-locked #btn-hw-rst {
+    pointer-events: none !important;
+    opacity: 0.65;
+    cursor: not-allowed !important;
+    filter: grayscale(0.5);
+}
+
+.key-btn.ai-punched,
+#btn-hw-rst.ai-punched {
+    box-shadow: 0 0 15px #00e038, inset 0 0 6px rgba(0, 224, 56, 0.6) !important;
+    filter: brightness(1.3) !important;
+    transform: scale(0.92) translateZ(0) !important;
+}
+
+/* AI Hand Animated Cursor */
+#ai-hand-cursor {
+    position: fixed;
+    z-index: 10000;
+    pointer-events: none;
+    width: 48px;
+    height: 48px;
+    transition: left 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.12s ease, opacity 0.3s ease;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#ai-hand-cursor.ai-hand-hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+#ai-hand-cursor.ai-punch-down {
+    transform: scale(0.85) translateY(4px);
+}
+
+.ai-hand-svg {
+    width: 40px;
+    height: 40px;
+}
+
+.ai-hand-indicator {
+    background: #00e038;
+    color: #0d120e;
+    font-family: 'Fira Code', monospace;
+    font-weight: 800;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    margin-top: -6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}

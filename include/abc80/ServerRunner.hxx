@@ -10,6 +10,7 @@
 #define ABC80_SERVER_RUNNER_HXX
 
 #include <abc80/Abc80WebServer.hxx>
+#include <abc80/Abc80Config.hxx>
 #include <string>
 
 namespace abc80 {
@@ -24,7 +25,7 @@ const char *serverUsage();
 
 // Starts the server, prints "LISTENING <port>" on stdout, and runs until SIGINT or SIGTERM.
 // The signal handler only sets a flag; the server is stopped on this thread. Returns the exit code.
-int runServerUntilSignalled(const ServerConfig &cfg);
+int runServerUntilSignalled(const ServerConfig &cfg, const Abc80Config *appConfig = nullptr);
 
 } // namespace abc80
 
