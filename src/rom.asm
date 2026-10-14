@@ -1202,6 +1202,196 @@ rmusic:         ; [05f2]
             db      80h             ; [05fc] end of reset chime marker (80h)
 
 ; ==============================================================================
+; SECTION 12B: BUILT-IN DEMO PROGRAMS — COUNTER, ORGAN, CLOCK, TIGERS (05fdh - 0724h)
+; (Restored from physical EPROM image; corresponds to missing manual pages 198 - 200)
+; ==============================================================================
+
+; 4-Digit BCD Free-Running Counter Demo (05fdh - 0624h)
+; Displays incrementing 4-digit BCD count in RAM buffer 1100h..1105h; pauses while any key is held
+            org     05fdh
+countr:         ; [05fd]
+            ld      ix,1100h        ; [05fd] [dd 21 00 11] point display buffer ix to 1100h
+            ld      de,0000h        ; [0601] [11 00 00] initialize 4-digit bcd counter de = 0000h
+cnt_lp:         ; [0604]
+            call    scd_k1          ; [0604] [cd cd 04] scan display & check keypad once
+            jr      nc,cnt_lp       ; [0607] [30 fb] if key pressed (c=0), pause count & keep scanning
+            ld      a,e             ; [0609] [7b] load low bcd byte
+            add     a,01h           ; [060a] [c6 01] increment low byte by 1
+            daa                     ; [060c] [27] decimal adjust low bcd byte
+            ld      e,a             ; [060d] [5f] store updated low bcd byte
+            ld      a,d             ; [060e] [7a] load high bcd byte
+            adc     a,00h           ; [060f] [ce 00] propagate carry into high bcd byte
+            daa                     ; [0611] [27] decimal adjust high bcd byte
+            ld      d,a             ; [0612] [57] store updated high bcd byte
+            ld      a,e             ; [0613] [7b] convert low bcd byte into 2 7-segment digits
+            ld      hl,1100h        ; [0614] [21 00 11] point hl to 1100h
+            call    tobyseg         ; [0617] [cd 25 05] write digits to 1100h..1101h, advance hl to 1102h
+            ld      (hl),02h        ; [061a] [36 02] store separator segment 02h at 1102h
+            inc     hl              ; [061c] [23] advance hl to 1103h
+            ld      a,d             ; [061d] [7a] convert high bcd byte into 2 7-segment digits
+            call    tobyseg         ; [061e] [cd 25 05] write digits to 1103h..1104h, advance hl to 1105h
+            ld      (hl),00h        ; [0621] [36 00] blank leftmost digit at 1105h
+            jr      cnt_lp          ; [0623] [18 df] repeat counter loop
+
+; Electronic Organ Demo on Hex Keypad 0..F (0625h - 0657h)
+            org     0625h
+organ:          ; [0625]
+            ld      ix,blank        ; [0625] [dd 21 e0 07] point ix to blank display buffer (07e0h)
+org_wt:         ; [0629]
+            call    scd_k           ; [0629] [cd a6 04] wait for debounced keypress (key code in a)
+            ld      hl,orgtab       ; [062c] [21 48 06] point hl to 16-note organ pitch table (0648h)
+            add     a,l             ; [062f] [85] index table by key code (00h..0fh)
+            ld      l,a             ; [0630] [6f]
+            ld      a,0c0h          ; [0631] [3e c0] enable all 6 keypad column strobes (pc0..pc5 low)
+org_tn:         ; [0633]
+            out     (digit),a       ; [0633] [d3 82] output speaker state (pc7) & column strobes
+            ld      b,(hl)          ; [0635] [46] load half-period delay constant for note
+org_dl:         ; [0636]
+            nop                     ; [0636] [00]
+            nop                     ; [0637] [00]
+            nop                     ; [0638] [00]
+            djnz    org_dl          ; [0639] [10 fb] half-period timing loop
+            xor     80h             ; [063b] [ee 80] invert speaker output bit (pc7)
+            ld      c,a             ; [063d] [4f] save next speaker/strobe byte in c
+            in      a,(keypad)      ; [063e] [db 80] read keypad row sense lines (pa0..pa5)
+            or      0c0h            ; [0640] [f6 c0] mask unused upper bits pa6..pa7 high
+            inc     a               ; [0642] [3c] if no key pressed, 0ffh + 1 -> 00h (z = 1)
+            ld      a,c             ; [0643] [79] restore speaker/strobe state to a
+            jr      z,organ         ; [0644] [28 df] key released -> wait for next keypress
+            jr      org_tn          ; [0646] [18 eb] key still held -> continue square-wave tone
+
+; Organ Half-Period Pitch Table for Hex Keys 0..F (0648h - 0657h)
+orgtab:         ; [0648]
+            db      0b2h, 0a8h, 96h, 85h, 7eh, 70h, 64h, 59h ; [0648] keys 0..7
+            db      54h, 4ah, 42h, 3eh, 37h, 31h, 2ch, 29h   ; [0650] keys 8..F
+
+; 12-Hour Digital Clock Demo & BCD Time Subroutines (0658h - 06dbh)
+; Time state: 1200h = seconds (BCD), 1201h = minutes (BCD), 1202h = hours (BCD)
+; Display buffer: 1203h..1208h (6 7-segment digits: SS, MM., HH.)
+            org     0658h
+clock:          ; [0658]
+            di                      ; [0658] [f3] disable interrupts for accurate software timing
+            ld      ix,1203h        ; [0659] [dd 21 03 12] point ix to clock display buffer (1203h)
+clk_lp:         ; [065d]
+            ld      b,64h           ; [065d] [06 64] 100 display scan passes per second (~1.0 s)
+clk_sc:         ; [065f]
+            call    scd_k1          ; [065f] [cd cd 04] refresh 6-digit clock display once
+            djnz    clk_sc          ; [0662] [10 fb] loop 100 scan passes
+            call    clkinc          ; [0664] [cd 6f 06] increment bcd time at 1200h..1202h
+            call    clkdp           ; [0667] [cd 87 06] format bcd time into 1203h..1208h
+clk_fn:         ; [066a]
+            nop                     ; [066a] [00] fine timing trim loop (b = 0 -> 256 iterations)
+            djnz    clk_fn          ; [066b] [10 fd]
+            jr      clk_lp          ; [066d] [18 ee] repeat for next second
+
+; Increment 3-Byte BCD Clock (SS, MM, HH) at 1200h..1202h (066fh - 0686h)
+            org     066fh
+clkinc:         ; [066f]
+            ld      hl,clktab       ; [066f] [21 9f 06] point hl to modulo limit table (60h, 60h, 12h)
+            ld      de,1200h        ; [0672] [11 00 12] point de to bcd seconds (1200h)
+            ld      b,03h           ; [0675] [06 03] 3 bcd fields: seconds, minutes, hours
+            scf                     ; [0677] [37] set carry to add 1 second on first iteration
+clki_l:         ; [0678]
+            ld      a,(de)          ; [0678] [1a] load current bcd field
+            adc     a,00h           ; [0679] [ce 00] add carry from previous field
+            daa                     ; [067b] [27] decimal adjust bcd result
+            ld      (de),a          ; [067c] [12] store incremented bcd value
+            sub     (hl)            ; [067d] [96] compare against modulo limit (60h or 12h)
+            jr      c,clki_n        ; [067e] [38 01] if < limit (c = 1), no rollover
+            ld      (de),a          ; [0680] [12] reached limit -> wrap field to 00h (c = 0)
+clki_n:         ; [0681]
+            ccf                     ; [0681] [3f] invert carry: c = 1 if wrapped, c = 0 if not
+            inc     hl              ; [0682] [23] advance modulo table pointer
+            inc     de              ; [0683] [13] advance bcd time pointer
+            djnz    clki_l          ; [0684] [10 f2] process all 3 fields
+            ret                     ; [0686] [c9]
+
+; Format 3-Byte BCD Clock at 1200h..1202h into 7-Segment Buffer 1203h..1208h (0687h - 069eh)
+            org     0687h
+clkdp:          ; [0687]
+            ld      hl,1203h        ; [0687] [21 03 12] point hl to 7-segment output buffer (1203h)
+            ld      de,1200h        ; [068a] [11 00 12] point de to bcd time bytes (1200h)
+            ld      b,03h           ; [068d] [06 03] 3 bytes to convert (ss, mm, hh)
+clkd_l:         ; [068f]
+            ld      a,(de)          ; [068f] [1a] load bcd byte
+            call    tobyseg         ; [0690] [cd 25 05] convert to 2 7-segment digits at (hl), hl+=2
+            inc     de              ; [0693] [13] next bcd byte
+            djnz    clkd_l          ; [0694] [10 f9] convert all 3 bytes (hl ends at 1209h)
+            dec     hl              ; [0696] [2b] hl = 1208h
+            dec     hl              ; [0697] [2b] hl = 1207h (hours units digit)
+            set     6,(hl)          ; [0698] [cb f6] set decimal point bit 6 on 1207h
+            dec     hl              ; [069a] [2b] hl = 1206h
+            dec     hl              ; [069b] [2b] hl = 1205h (minutes units digit)
+            set     6,(hl)          ; [069c] [cb f6] set decimal point bit 6 on 1205h
+            ret                     ; [069e] [c9]
+
+; Clock Modulo Rollover Constants: 60 Seconds, 60 Minutes, 12 Hours (069fh - 06a1h)
+clktab:         ; [069f]
+            db      60h, 60h, 12h   ; [069f] [60 60 12]
+
+; Clock Preset / Display Helper Routines Using RAM 1050h..1052h (06a2h - 06dbh)
+            org     06a2h
+clkrst:         ; [06a2]
+            ld      b,01h           ; [06a2] [06 01] format 1 byte (2 digits) from 1050h
+            call    clkset          ; [06a4] [cd c3 06]
+            ld      b,04h           ; [06a7] [06 04] blank remaining 4 digits
+            call    clkclr          ; [06a9] [cd d5 06]
+            jr      clk_wt          ; [06ac] [18 11]
+clkrs2:         ; [06ae]
+            ld      b,02h           ; [06ae] [06 02] format 2 bytes (4 digits) from 1050h..1051h
+            call    clkset          ; [06b0] [cd c3 06]
+            ld      b,02h           ; [06b3] [06 02] blank remaining 2 digits
+            call    clkclr          ; [06b5] [cd d5 06]
+            jr      clk_wt          ; [06b8] [18 05]
+clkrs3:         ; [06ba]
+            ld      b,03h           ; [06ba] [06 03] format 3 bytes (6 digits) from 1050h..1052h
+            call    clkset          ; [06bc] [cd c3 06]
+clk_wt:         ; [06bf]
+            call    scd_k           ; [06bf] [cd a6 04] scan display until key pressed
+            halt                    ; [06c2] [76] halt cpu
+
+            org     06c3h
+clkset:         ; [06c3]
+            ld      ix,dispbf       ; [06c3] [dd 21 c6 17] point ix to system display buffer (17c6h)
+            ld      de,1050h        ; [06c7] [11 50 10] source bcd buffer at 1050h
+            ld      hl,dispbf       ; [06ca] [21 c6 17] destination display buffer at 17c6h
+clks_l:         ; [06cd]
+            ld      a,(de)          ; [06cd] [1a] load byte from (de)
+            call    tobyseg         ; [06ce] [cd 25 05] write 2 7-segment digits to (hl), hl+=2
+            inc     de              ; [06d1] [13] advance source pointer
+            djnz    clks_l          ; [06d2] [10 f9] repeat for b bytes
+            ret                     ; [06d4] [c9]
+
+            org     06d5h
+clkclr:         ; [06d5]
+            sub     a               ; [06d5] [97] a = 00h (blank segment pattern)
+clkc_l:         ; [06d6]
+            ld      (hl),a          ; [06d6] [77] clear display digit at (hl)
+            inc     hl              ; [06d7] [23] advance display pointer
+            djnz    clkc_l          ; [06d8] [10 fc] clear b digits
+            ret                     ; [06da] [c9]
+
+            db      0ffh            ; [06db] [ff] unused eprom fill byte before tigers
+
+; "Two Tigers" (Frere Jacques) Musical Demo & Score Table (06dch - 0724h)
+            org     06dch
+tigers:         ; [06dc]
+            ld      iy,score        ; [06dc] [fd 21 e4 06] point iy to "two tigers" score (06e4h)
+            call    music           ; [06e0] [cd 11 04] invoke music synthesizer (loops on 40h marker)
+            halt                    ; [06e3] [76] halt if music returns
+
+score:          ; [06e4]
+            db      11h, 04h, 13h, 04h, 15h, 04h, 11h, 04h ; [06e4] Do Re Mi Do
+            db      11h, 04h, 13h, 04h, 15h, 04h, 11h, 04h ; [06ec] Do Re Mi Do
+            db      15h, 04h, 16h, 04h, 18h, 08h           ; [06f4] Mi Fa So-
+            db      15h, 04h, 16h, 04h, 18h, 08h           ; [06fa] Mi Fa So-
+            db      18h, 02h, 1ah, 02h, 18h, 02h, 16h, 02h, 15h, 04h, 11h, 04h ; [0700] So La So Fa Mi Do
+            db      18h, 02h, 1ah, 02h, 18h, 02h, 16h, 02h, 15h, 04h, 11h, 04h ; [070c] So La So Fa Mi Do
+            db      11h, 04h, 0ch, 04h, 11h, 08h           ; [0718] Do G. Do-
+            db      11h, 04h, 0ch, 04h, 11h, 08h           ; [071e] Do G. Do-
+            db      40h                                    ; [0724] repeat marker (bit 6 set -> jp m,music)
+
+; ==============================================================================
 ; SECTION 13: SUBFUNCTION JUMP TABLES & FONT BITMASKS (0725h - 07e7h)
 ; ==============================================================================
 

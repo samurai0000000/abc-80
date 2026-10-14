@@ -352,6 +352,21 @@ The factory 2732 Monitor ROM provides standard callable subroutines for user ass
 | `TO_TAPE` | Dumps memory block to cassette audio output | `HL` = Start addr, `DE` = End addr |
 | `FROM_TAPE`| Reads memory block from cassette audio input | Reads header into RAM and verifies checksum |
 
+### Built-In Demonstration & Utility Programs (`05FDH`–`0724H`)
+
+The upper code region of the 2KB Monitor ROM (`05FDH`–`0724H`, 296 bytes) contains four standalone demonstration programs and reusable BCD/display subroutines:
+
+| Label | Hex Addr | RAM / I/O Workspace | Description |
+| :--- | :---: | :--- | :--- |
+| `COUNTR` | `05FDH` | `1100H`–`1105H` (`IX` display buffer), `DE` (BCD count) | 4-digit BCD free-running counter (`00.00`–`99.99`); pauses while any key is held down (`C=0` from `SCD&K1`). |
+| `ORGAN` | `0625H` | `07E0H` (`blank`), Port A (`80H`), Port C (`82H`) | 16-key electronic organ mapping hex keys `0`–`F` via `ORGTAB` (`0648H`–`0657H`) to square-wave audio on `PC7`. |
+| `ORGTAB` | `0648H` | 16-byte ROM table (`0648H`–`0657H`) | Half-period delay constants (`B2H` down to `29H`) for hex keys `0`–`F`. |
+| `CLOCK` | `0658H` | `1200H`–`1202H` (BCD `SS,MM,HH`), `1203H`–`1208H` (display) | 12-hour digital clock (`HH.MM.SS`); refreshes display 100 times per second via `SCD&K1`, then calls `CLKINC` and `CLKDP`. |
+| `CLKINC` | `066FH` | `1200H`–`1202H` (`DE`), `CLKTAB` at `069FH` (`60H,60H,12H`) | Increments 3-byte BCD time `(SS, MM, HH)` with modulo `60:60:12` rollover. |
+| `CLKDP` | `0687H` | `1200H`–`1202H` $\rightarrow$ `1203H`–`1208H` | Converts 3 BCD time bytes into 6 7-segment digits via `2BYSEG` (`0525H`) and sets decimal-point bit 6 (`40H`) on `1205H` and `1207H`. |
+| `CLKRST` | `06A2H` | `1050H`–`1052H` $\rightarrow$ `dispbf` (`17C6H`–`17CBH`) | Preset display helpers (`06A2H` = 1 byte, `06AEH` = 2 bytes, `06BAH` = 3 bytes) calling `CLKSET` (`06C3H`) and `CLKCLR` (`06D5H`). |
+| `TIGERS` | `06DCH` | `IY = 06E4H` (`SCORE`), Port C (`82H` bit 7) | Loads `IY` with `SCORE` (`06E4H`–`0724H`, 32 note pairs for "Two Tigers" / *Frère Jacques* plus `40H` repeat marker) and calls `MUSIC` (`0411H`). |
+
 ---
 
 ## 9. Primary Reference Documentation

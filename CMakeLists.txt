@@ -119,6 +119,7 @@ add_executable(abc80_tests
     tests/Abc80LedTest.cxx
     tests/Abc80EpromProgrammerTest.cxx
     tests/Abc80BookRomErrataTest.cxx
+    tests/Abc80BookRomGapTest.cxx
     tests/Abc80ResetTest.cxx
     tests/Abc80WebProtocolTest.cxx
     tests/Abc80WebServerTest.cxx

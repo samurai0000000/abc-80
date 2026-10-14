@@ -82,6 +82,6 @@ The ABC-80 addresses its Intel 8255 PPI and accessories via Z80 `IN`/`OUT` port 
 
 ## Documentation Links
 
-* [**ABC-80 Hardware Overview (`doc/ABC-80.md`)**](./doc/ABC-80.md) — Comprehensive reference with CPU-to-8255 schematics, peripheral multiplexing circuits, memory map, pin tables, and monitor ROM API.
-* [**Monitor ROM Assembly Source (`src/rom.asm`)**](./src/rom.asm) — Complete 2KB Monitor ROM disassembled in Modern Unix/GNU lowercase assembly with full English engineering comments.
+* [**ABC-80 Hardware Overview (`doc/ABC-80.md`)**](./doc/ABC-80.md) — Comprehensive reference with CPU-to-8255 schematics, peripheral multiplexing circuits, memory map, pin tables, monitor ROM API, and built-in demo programs (`05FDh`–`0724h`).
+* [**Monitor ROM Assembly Source (`src/rom.asm`)**](./src/rom.asm) — Complete 2,048-byte Monitor ROM disassembled in Modern Unix/GNU lowercase assembly with full English engineering comments, including the restored built-in demo suite (`countr` at `05fdh`, `organ` at `0625h`, `clock`/`clkinc`/`clkdp` at `0658h`, and `tigers` at `06dch`).
 * [**Scanned Reference Manuals (`scanned_docs/README.md`)**](./scanned_docs/README.md) — Consolidated PDF documentation ([`scanned_docs/Z80_Micro_Computer_Building.pdf`](./scanned_docs/Z80_Micro_Computer_Building.pdf)), scanning tools, and interactive network scanner protocol.
