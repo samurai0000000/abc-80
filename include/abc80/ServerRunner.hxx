@@ -18,7 +18,7 @@ namespace abc80 {
 // Parses abc80_server options into cfg. Returns false with err set on a bad option or value;
 // help is set when -h/--help was given. Options:
 //   --port N  --bind ADDR  --web-dir DIR  --root DIR  --rom monitor|1993  --boot warm|cold
-//   --boot-turbo  --max-sessions N  --grace SECONDS
+//   --boot-turbo  --max-sessions N  --grace SECONDS  --aimon  --no-aimon
 bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::string &err, bool &help);
 
 const char *serverUsage();

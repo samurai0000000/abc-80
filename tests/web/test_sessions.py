@@ -93,3 +93,43 @@ def test_instance_selector_switch_to_resident_shares_board(context, server):
         b.page.close()
         assert a.errors == [] and b.errors == []
 
+
+def test_instance_selector_defaults_to_resident_in_iframe_and_query_param(context, server):
+    # 1. Embedded inside an iframe (like aimon's monitor tab: window.self !== window.top)
+    host_page = context.new_page()
+    q_page = context.new_page()
+    try:
+        host_page.set_content(
+            f'<!DOCTYPE html><html><body><iframe id="mon" src="{server.url}"></iframe></body></html>'
+        )
+        frame = host_page.frame_locator("#mon")
+        wait_for(
+            lambda: frame.locator("#instance-select").input_value() == "resident",
+            timeout=5,
+            what="iframe #instance-select defaults to resident",
+        )
+        wait_for(
+            lambda: "RESIDENT" in (frame.locator("#host-ws-text").text_content() or ""),
+            timeout=5,
+            what="iframe #host-ws-text shows RESIDENT",
+        )
+        child_frame = host_page.frames[1]
+        assert child_frame.evaluate("window.__abc80 && window.__abc80.token") == "resident"
+
+        # 2. Explicit ?instance=resident query parameter on a top-level tab
+        q_page.goto(server.url + "?instance=resident", wait_until="domcontentloaded")
+        wait_for(
+            lambda: q_page.input_value("#instance-select") == "resident",
+            timeout=5,
+            what="query-param #instance-select defaults to resident",
+        )
+        wait_for(
+            lambda: "RESIDENT" in (q_page.text_content("#host-ws-text") or ""),
+            timeout=5,
+            what="query-param #host-ws-text shows RESIDENT",
+        )
+        assert q_page.evaluate("window.__abc80 && window.__abc80.token") == "resident"
+    finally:
+        host_page.close()
+        q_page.close()
+

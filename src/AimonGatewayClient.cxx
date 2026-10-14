@@ -165,9 +165,23 @@ void AimonGatewayClient::stop()
     if (!_running.exchange(false)) {
         return;
     }
-    _connected.store(false);
+    const bool wasConnected = _connected.exchange(false);
     int sock = _currentSock.exchange(-1);
     if (sock >= 0) {
+        if (wasConnected) {
+            sendUnregistration(sock);
+            ::shutdown(sock, SHUT_WR);
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(sock, &rfds);
+            struct timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 50000;
+            if (::select(sock + 1, &rfds, nullptr, nullptr, &tv) > 0) {
+                char drain[512];
+                (void)::read(sock, drain, sizeof(drain));
+            }
+        }
         ::shutdown(sock, SHUT_RDWR);
         ::close(sock);
     }
@@ -232,6 +246,20 @@ bool AimonGatewayClient::sendRegistration(int sockFd)
             {"web_port", _config.webPort},
             {"web_path", "/"},
             {"tools", buildToolsArray()}
+        }}
+    };
+    return sendLine(sockFd, req.dump());
+}
+
+bool AimonGatewayClient::sendUnregistration(int sockFd)
+{
+    json req = {
+        {"jsonrpc", "2.0"},
+        {"id", 2},
+        {"method", "gateway/unregister"},
+        {"params", {
+            {"subsystem", "abc80"},
+            {"web_port", _config.webPort}
         }}
     };
     return sendLine(sockFd, req.dump());

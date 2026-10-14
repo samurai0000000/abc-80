@@ -62,7 +62,9 @@ const char *serverUsage()
            "      --boot MODE      warm (default) or cold start\n"
            "      --boot-turbo     Run each new board's boot unpaced to the ROM's steady state\n"
            "      --max-sessions N Boards alive at once (default 8)\n"
-           "      --grace SECONDS  Keep a detached board this long (default 300)\n";
+           "      --grace SECONDS  Keep a detached board this long (default 300)\n"
+           "      --aimon          Enable aimon MCP gateway registration (overrides config)\n"
+           "      --no-aimon       Disable aimon MCP gateway registration (overrides config)\n";
 }
 
 bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::string &err, bool &help)
@@ -120,6 +122,12 @@ bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::
             if (v == nullptr) return false;
             if (!parseLong(v, 0, 86400, n)) { err = "--grace must be 0-86400 seconds"; return false; }
             cfg.sessionGraceSeconds = static_cast<unsigned>(n);
+        } else if (arg == "--aimon") {
+            cfg.aimonEnabled = true;
+            cfg.aimonCliOverride = true;
+        } else if (arg == "--no-aimon") {
+            cfg.aimonEnabled = false;
+            cfg.aimonCliOverride = true;
         } else {
             err = "unknown option: " + arg;
             return false;
@@ -182,11 +190,15 @@ int runServerUntilSignalled(const ServerConfig &cfg, const Abc80Config *appConfi
         });
 
         AimonClientConfig gwCfg;
+        gwCfg.enabled = cfg.aimonEnabled;
         if (appConfig) {
             gwCfg.enabled = appConfig->aimon().enabled;
             gwCfg.host = appConfig->aimon().host;
             gwCfg.port = appConfig->aimon().port;
             gwCfg.reconnectIntervalSec = appConfig->aimon().reconnectIntervalSec;
+        }
+        if (cfg.aimonCliOverride) {
+            gwCfg.enabled = cfg.aimonEnabled;
         }
         gwCfg.webPort = server.port();
 

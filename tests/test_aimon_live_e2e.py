@@ -17,6 +17,7 @@ import time
 import urllib.request
 
 AIMON_HTTP_ENDPOINT = "http://127.0.0.1:3883/message"
+AIMON_MONITORS_ENDPOINT = "http://127.0.0.1:3883/api/monitors"
 EXPECTED_TOOLS = [
     "abc80_cancel_punching",
     "abc80_disassemble",
@@ -32,6 +33,13 @@ def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         return s.getsockname()[1]
+
+
+def get_discovered_monitors() -> list:
+    req = urllib.request.Request(AIMON_MONITORS_ENDPOINT, method="GET")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        return data if isinstance(data, list) else data.get("monitors", [])
 
 
 def send_mcp_request(method: str, params: dict = None) -> dict:
@@ -72,7 +80,7 @@ def test_aimon_live_e2e():
 
     print(f"[E2E] Starting resident abc80_server on port {port}...")
     server_proc = subprocess.Popen(
-        [server_bin, "--port", str(port), "--root", repo_root],
+        [server_bin, "--port", str(port), "--root", repo_root, "--aimon"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -93,6 +101,13 @@ def test_aimon_live_e2e():
 
         # Allow TCP gateway registration to settle
         time.sleep(1.0)
+
+        # Verify ephemeral monitor is visible and connected in /api/monitors
+        monitors = get_discovered_monitors()
+        matching_ephemeral = [m for m in monitors if m.get("subsystem") == "abc80" and m.get("port") == port]
+        assert len(matching_ephemeral) == 1 and matching_ephemeral[0].get("connected") is True, (
+            f"Expected ephemeral abc80 on port {port} to be connected in /api/monitors; got {monitors}"
+        )
 
         # 1. Query tools/list from live aimon daemon
         print("[E2E] Step 1: Querying tools/list from live aimon daemon...")
@@ -197,13 +212,30 @@ def test_aimon_live_e2e():
             server_proc.kill()
             server_proc.wait()
 
-        # Verify clean deregistration in aimon
+        # Verify clean deregistration of the ephemeral instance in aimon
         time.sleep(0.5)
+        after_monitors = get_discovered_monitors()
+        lingering_ephemeral = [m for m in after_monitors if m.get("subsystem") == "abc80" and m.get("port") == port]
+        assert len(lingering_ephemeral) == 0, (
+            f"Ephemeral abc80 on port {port} was not cleanly removed from /api/monitors: {lingering_ephemeral}"
+        )
+
+        active_abc_monitors = [
+            m for m in after_monitors
+            if m.get("subsystem") == "abc80" and m.get("connected") is True
+        ]
         after_tools_resp = send_mcp_request("tools/list")
         after_tools = {t["name"] for t in after_tools_resp.get("result", {}).get("tools", [])}
         remaining_abc = [t for t in EXPECTED_TOOLS if t in after_tools]
-        assert len(remaining_abc) == 0, f"Tools not cleanly deregistered on exit: {remaining_abc}"
-        print("[E2E] Server process terminated; all tools cleanly deregistered from live aimon registry.")
+
+        if active_abc_monitors:
+            assert len(remaining_abc) == len(EXPECTED_TOOLS), (
+                f"Active resident abc80 monitor(s) {active_abc_monitors} lost tools after ephemeral exit: {remaining_abc}"
+            )
+            print("[E2E] Ephemeral server unregistered cleanly; resident abc80 monitor retained all 7 MCP tools.")
+        else:
+            assert len(remaining_abc) == 0, f"Tools not cleanly deregistered on exit: {remaining_abc}"
+            print("[E2E] Server process terminated; all tools cleanly deregistered from live aimon registry.")
 
 
 if __name__ == "__main__":

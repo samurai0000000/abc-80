@@ -44,6 +44,7 @@ private:
     void runLoop();
     bool connectToGateway(int &sockFd);
     bool sendRegistration(int sockFd);
+    bool sendUnregistration(int sockFd);
     void processMessages(int sockFd);
 
     Abc80WebServer &_server;

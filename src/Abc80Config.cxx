@@ -257,6 +257,7 @@ ServerConfig Abc80Config::toServerConfig(const std::string &root) const
     c.coldBoot = (_server.bootMode == "cold");
     c.bootTurbo = _server.bootTurbo;
     c.createResident = true;
+    c.aimonEnabled = _aimon.enabled;
     c.maxSessions = _server.maxSessions;
     c.sessionGraceSeconds = _server.sessionGraceSeconds;
     return c;

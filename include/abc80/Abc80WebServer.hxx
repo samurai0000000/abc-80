@@ -30,6 +30,8 @@ struct ServerConfig {
     bool bootTurbo{false};              // run a new session's boot unpaced to the ROM's steady state
     bool coldBoot{false};               // cold start (RAM cleared, no warm flag) instead of warm
     bool createResident{true};          // pre-create permanent resident emulator instance ("resident")
+    bool aimonEnabled{true};            // register resident instance with aimon gateway
+    bool aimonCliOverride{false};       // true when --aimon or --no-aimon was passed on CLI
     size_t maxSessions{8};
     unsigned sessionGraceSeconds{300};  // a detached board is kept this long
     unsigned sendTimeoutMs{200};        // socket write timeout; a stalled client never blocks others

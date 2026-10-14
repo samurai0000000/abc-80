@@ -41,6 +41,25 @@ TEST(Abc80ServerArgs, NoArgumentsLeavesTheLoopbackDefaults)
     CHECK(cfg.defaultRom == RomId::Monitor);
     CHECK(!cfg.bootTurbo);
     CHECK(!cfg.coldBoot);
+    CHECK(cfg.aimonEnabled);
+    CHECK(!cfg.aimonCliOverride);
+}
+
+TEST(Abc80ServerArgs, AimonOverrideFlagsSetCliOverrideAndEnabledState)
+{
+    CHECK(parse({ "--no-aimon" }, cfg, err, help));
+    CHECK(!cfg.aimonEnabled);
+    CHECK(cfg.aimonCliOverride);
+
+    ServerConfig cfg2;
+    cfg2.aimonEnabled = false;
+    CHECK(parse({ "--aimon" }, cfg2, err, help));
+    CHECK(cfg2.aimonEnabled);
+    CHECK(cfg2.aimonCliOverride);
+
+    const std::string usage = serverUsage();
+    CHECK(usage.find("--no-aimon") != std::string::npos);
+    CHECK(usage.find("--aimon") != std::string::npos);
 }
 
 TEST(Abc80ServerArgs, EveryOptionIsApplied)
@@ -113,6 +132,19 @@ TEST(Abc80ServerArgs, PropertyArbitraryArgumentsAreAcceptedInRangeOrRejected)
         }
     });
     CHECK(ok);
+}
+
+TEST_GROUP(Abc80ServerArgsNegative)
+{
+};
+
+IGNORE_TEST(Abc80ServerArgsNegative, WrongExpectationsMustFail)
+{
+    ServerConfig c;
+    std::string e;
+    bool h = false;
+    CHECK(parse({ "--no-aimon" }, c, e, h));
+    CHECK_TEXT(c.aimonEnabled, "Expected --no-aimon to leave aimonEnabled true (negative control)");
 }
 
 /*

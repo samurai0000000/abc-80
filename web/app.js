@@ -74,12 +74,26 @@
         try { return window.sessionStorage; } catch (e) { return null; }
     }
 
+    function defaultInstance() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const urlInst = params.get('instance');
+            if (urlInst === 'resident' || urlInst === 'unique') {
+                return urlInst;
+            }
+            return (window.self !== window.top) ? 'resident' : 'unique';
+        } catch (e) {
+            return 'resident';
+        }
+    }
+
     function selectedInstance() {
-        const select = document.getElementById('instance-select');
         const store = storage();
         const saved = store ? store.getItem('abc80_instance') : null;
-        if (select && select.value) return select.value;
-        return saved === 'resident' ? 'resident' : 'unique';
+        if (saved === 'resident' || saved === 'unique') return saved;
+        const select = document.getElementById('instance-select');
+        if (select && select.dataset.initialized === 'true' && select.value) return select.value;
+        return defaultInstance();
     }
 
     // A random token kept in sessionStorage for unique instance, or "resident" for resident instance.
@@ -436,11 +450,14 @@
     function initInstanceSelect() {
         const select = document.getElementById('instance-select');
         if (!select) return;
-        const saved = storage() ? storage().getItem('abc80_instance') : 'unique';
-        select.value = (saved === 'resident') ? 'resident' : 'unique';
+        const store = storage();
+        const saved = store ? store.getItem('abc80_instance') : null;
+        const initial = (saved === 'resident' || saved === 'unique') ? saved : defaultInstance();
+        select.value = initial;
+        select.dataset.initialized = 'true';
         select.addEventListener('change', function () {
-            const store = storage();
-            if (store) store.setItem('abc80_instance', select.value);
+            const s = storage();
+            if (s) s.setItem('abc80_instance', select.value);
             updateHostStatus();
             if (ws) {
                 ws.close();
@@ -1510,6 +1527,8 @@
         initScope();
         initViewportNavigation();
         setupKeyboardListeners();
+        initInstanceSelect();
+        initAiControls();
         connectHostWebSocket();
 
         // Matrix keys press on mousedown/touchstart and release on mouseup/mouseleave/touchend/touchcancel.
@@ -1553,9 +1572,6 @@
             if (saved === '1993' || saved === 'monitor') romSelect.value = saved;
             romSelect.addEventListener('change', () => changeRom(romSelect.value));
         }
-
-        initInstanceSelect();
-        initAiControls();
 
         // Tactile Reset Button (#disc-hw-rst and #btn-hw-rst)
         const hwRstBtn = document.getElementById('btn-hw-rst');

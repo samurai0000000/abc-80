@@ -62,7 +62,7 @@ def server(tmp_path_factory):
     env["HOME"] = str(tmp_home)
     process = subprocess.Popen(
         [str(binary), "--bind", "127.0.0.1", "--port", "0", "--boot-turbo",
-         "--root", str(ROOT), "--grace", "2", "--max-sessions", "32"],
+         "--root", str(ROOT), "--grace", "2", "--max-sessions", "32", "--no-aimon"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(ROOT), env=env)
     port = None
     end = time.monotonic() + 60

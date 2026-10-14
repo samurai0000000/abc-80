@@ -883,6 +883,97 @@ TEST(Abc80WebServer, ResidentResetAndGatewayToolSchemas)
     LONGS_EQUAL(0, static_cast<long>(statusJson.at("remaining").get<size_t>()));
 }
 
+TEST(Abc80WebServer, GatewayClientSendsRegisterAndUnregisterOnShutdown)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    const int listenFd = ::socket(AF_INET, SOCK_STREAM, 0);
+    CHECK(listenFd >= 0);
+    int yes = 1;
+    ::setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+    struct sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(0);
+    CHECK(::bind(listenFd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == 0);
+    CHECK(::listen(listenFd, 1) == 0);
+
+    socklen_t addrLen = sizeof(addr);
+    CHECK(::getsockname(listenFd, reinterpret_cast<struct sockaddr *>(&addr), &addrLen) == 0);
+    const int gwPort = ntohs(addr.sin_port);
+
+    std::vector<std::string> lines;
+    std::mutex linesMutex;
+    std::thread acceptThread([listenFd, &lines, &linesMutex]() {
+        struct sockaddr_in caddr;
+        socklen_t clen = sizeof(caddr);
+        const int cfd = ::accept(listenFd, reinterpret_cast<struct sockaddr *>(&caddr), &clen);
+        if (cfd < 0) return;
+
+        std::string buf;
+        char chunk[2048];
+        while (true) {
+            const ssize_t n = ::read(cfd, chunk, sizeof(chunk));
+            if (n <= 0) break;
+            buf.append(chunk, static_cast<size_t>(n));
+            size_t pos = 0;
+            while ((pos = buf.find('\n')) != std::string::npos) {
+                std::string line = buf.substr(0, pos);
+                buf.erase(0, pos + 1);
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                if (!line.empty()) {
+                    std::lock_guard<std::mutex> lk(linesMutex);
+                    lines.push_back(line);
+                }
+            }
+        }
+        ::close(cfd);
+    });
+
+    AiKeySequencer seq(
+        [](const std::string &, bool, size_t) {},
+        []() {},
+        40,
+        15
+    );
+
+    AimonClientConfig gwCfg;
+    gwCfg.enabled = true;
+    gwCfg.host = "127.0.0.1";
+    gwCfg.port = gwPort;
+    gwCfg.reconnectIntervalSec = 1;
+    gwCfg.webPort = server.port();
+
+    AimonGatewayClient gw(server, seq, gwCfg);
+    CHECK(gw.start());
+
+    const auto deadline = Clock::now() + std::chrono::seconds(5);
+    while (Clock::now() < deadline && !gw.isConnected()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    CHECK(gw.isConnected());
+
+    gw.stop();
+    if (acceptThread.joinable()) {
+        acceptThread.join();
+    }
+    ::close(listenFd);
+
+    std::lock_guard<std::mutex> lk(linesMutex);
+    LONGS_EQUAL(2, static_cast<long>(lines.size()));
+    const json regMsg = json::parse(lines[0]);
+    STRCMP_EQUAL("gateway/register", regMsg.value("method", "").c_str());
+    LONGS_EQUAL(server.port(), regMsg["params"].value("web_port", 0));
+
+    const json unregMsg = json::parse(lines[1]);
+    STRCMP_EQUAL("gateway/unregister", unregMsg.value("method", "").c_str());
+    STRCMP_EQUAL("abc80", unregMsg["params"].value("subsystem", "").c_str());
+    LONGS_EQUAL(server.port(), unregMsg["params"].value("web_port", 0));
+}
+
 /*
  * Local variables:
  * mode: C++
