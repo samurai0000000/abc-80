@@ -908,6 +908,28 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
         }
     }
 
+    // First, if the bundled tapes/ directory is present in the working directory,
+    // copy all pre-modulated *.tape files (0001..0029 and 0100..0103) into _tapesDir.
+    bool copiedAny = false;
+    if (std::filesystem::exists("tapes", ec) && std::filesystem::is_directory("tapes", ec)) {
+        for (const auto& entry : std::filesystem::directory_iterator("tapes", ec)) {
+            if (!entry.is_regular_file() || entry.path().extension() != ".tape") {
+                continue;
+            }
+            const std::filesystem::path dst = std::filesystem::path(_tapesDir) / entry.path().filename();
+            const auto opts = overwrite
+                ? std::filesystem::copy_options::overwrite_existing
+                : std::filesystem::copy_options::skip_existing;
+            std::filesystem::copy_file(entry.path(), dst, opts, ec);
+            if (!ec) {
+                copiedAny = true;
+            }
+        }
+        if (copiedAny) {
+            return Abc80Status::OK;
+        }
+    }
+
     struct SeedProgram {
         uint16_t fileId;
         uint16_t startAddr;
@@ -918,6 +940,24 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
     const SeedProgram seeds[] = {
         {
             0x0001,
+            0x1000,
+            "Lab01: Data Transfer (1000H)",
+            {
+                0x3E, 0x01, 0x06, 0x02, 0x0E, 0x03, 0x16, 0x04,
+                0x1E, 0x05, 0x21, 0x50, 0x10, 0x77, 0x23, 0x70,
+                0x23, 0x71, 0x23, 0x72, 0x23, 0x73, 0x01, 0x34,
+                0x12, 0x11, 0x78, 0x56, 0x21, 0x50, 0x10, 0xED,
+                0x43, 0x60, 0x10, 0xED, 0x53, 0x62, 0x10, 0x22,
+                0x64, 0x10, 0xDD, 0x21, 0xC6, 0x17, 0x11, 0x50,
+                0x10, 0x1A, 0xCD, 0x11, 0x05, 0xCD, 0x04, 0x05,
+                0xCD, 0x64, 0x04, 0x06, 0x20, 0xCD, 0xCD, 0x04,
+                0x10, 0xFB, 0x1C, 0x7B, 0xFE, 0x55, 0x20, 0x02,
+                0x1E, 0x60, 0xFE, 0x66, 0x20, 0xE3, 0x18, 0xB0,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            }
+        },
+        {
+            0x0100,
             0x1000,
             "BCD Up-Counter (1000H)",
             {
@@ -935,7 +975,7 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
             }
         },
         {
-            0x0002,
+            0x0101,
             0x1000,
             "Segment Chaser (1000H)",
             {
@@ -955,7 +995,7 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
             }
         },
         {
-            0x0003,
+            0x0102,
             0x1000,
             "Dual-Tone Chime (1000H)",
             {
@@ -967,7 +1007,7 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
             }
         },
         {
-            0x0004,
+            0x0103,
             0x1000,
             "Fibonacci Display (1000H)",
             {

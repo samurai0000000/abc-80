@@ -70,8 +70,14 @@ public:
     // segment (0=a .. 6=g, 7=dp) was driven lit. Port B is active-low, so a low bit is a lit segment.
     uint32_t digitSegmentOnTStates(uint8_t digit, uint8_t canonicalSegment) const noexcept;
 
-    // Latched Port C output of the auxiliary (EPROM programmer) 8255.
+    // Latched Port C output of the auxiliary (EPROM programmer / appliance relay) 8255 (0x40 - 0x43).
     uint8_t auxPortCOutput() const noexcept { return _ppiAux.pc.outp; }
+
+    // Latched outputs and control word of the expansion 8255 (0x00 - 0x03, 74LS139 pin 12).
+    uint8_t expPortAOutput() const noexcept { return _ppiExp.pa.outp; }
+    uint8_t expPortBOutput() const noexcept { return _ppiExp.pb.outp; }
+    uint8_t expPortCOutput() const noexcept { return _ppiExp.pc.outp; }
+    uint8_t getExpControl() const noexcept { return _ppiExp.control; }
 
     // The EPROM in the programmer socket (U7). Eleven address bits (A0-A10), blank = 0xFF, kept across reset().
     uint8_t targetEprom(uint16_t address) const noexcept { return _eprom[address & 0x07FF]; }
@@ -93,14 +99,16 @@ private:
     void updateDigitSegments(uint8_t digitStrobe, uint8_t segmentMask);
     void accumulate() noexcept;  // account time since the last event to the current port state
 
-    // Three 8255 PPI instances:
+    // Four 8255 PPI instances (decoded by 74LS139 on A7:A6):
     // 1. Primary: Keypad, 7-Segment display, Cassette I/O, Speaker (0x80 - 0x83)
-    // 2. Aux: 2716/2732 EPROM Programmer accessory (0x40 - 0x43)
+    // 2. Aux: 2716/2732 EPROM Programmer & Appliance Relay accessory (0x40 - 0x43)
     // 3. Parallel Link: PC-Link server communication (0xC0 - 0xC3)
+    // 4. Expansion: 3-axis stepper motor & external I/O accessory (0x00 - 0x03)
     i8255_t _ppiPrimary;
     i8255_t _ppiAux;
     std::array<uint8_t, 2048> _eprom;
     i8255_t _ppiLink;
+    i8255_t _ppiExp;
 
     // Display latch state: 6 digits (0 = rightmost/data, 5 = leftmost/address)
     uint8_t _segmentOutput;

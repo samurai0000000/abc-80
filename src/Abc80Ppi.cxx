@@ -65,6 +65,7 @@ void Abc80Ppi::reset()
     i8255_init(&_ppiPrimary);
     i8255_init(&_ppiAux);
     i8255_init(&_ppiLink);
+    i8255_init(&_ppiExp);
 
     _segmentOutput = 0x00;
     _digitStrobe = 0xFF;
@@ -211,7 +212,7 @@ uint8_t Abc80Ppi::readPort(uint8_t port)
 
         pins = i8255_tick(&_ppiPrimary, pins);
         return I8255_GET_DATA(pins);
-    } else if ((port & 0xFC) == 0x40) { // Aux PPI (EPROM Programmer): 0x40 - 0x43
+    } else if ((port & 0xFC) == 0x40) { // Aux PPI (EPROM Programmer / Relays): 0x40 - 0x43
         uint8_t reg = port & 0x03;
         uint64_t pins = I8255_CS | I8255_RD;
         if (reg & 1) pins |= I8255_A0;
@@ -234,6 +235,24 @@ uint8_t Abc80Ppi::readPort(uint8_t port)
         }
 
         pins = i8255_tick(&_ppiLink, pins);
+        return I8255_GET_DATA(pins);
+    } else if ((port & 0xFC) == 0x00) { // Expansion PPI (Stepper Motors): 0x00 - 0x03
+        uint8_t reg = port & 0x03;
+        uint64_t pins = I8255_CS | I8255_RD;
+        if (reg & 1) pins |= I8255_A0;
+        if (reg & 2) pins |= I8255_A1;
+
+        if ((_ppiExp.control & I8255_CTRL_A) == I8255_CTRL_A_INPUT) {
+            I8255_SET_PA(pins, 0xFF);
+        }
+        if ((_ppiExp.control & I8255_CTRL_B) == I8255_CTRL_B_INPUT) {
+            I8255_SET_PB(pins, 0xFF);
+        }
+        if ((_ppiExp.control & (I8255_CTRL_CHI | I8255_CTRL_CLO)) != 0) {
+            I8255_SET_PC(pins, 0xFF);
+        }
+
+        pins = i8255_tick(&_ppiExp, pins);
         return I8255_GET_DATA(pins);
     }
 
@@ -281,6 +300,14 @@ void Abc80Ppi::writePort(uint8_t port, uint8_t val)
         I8255_SET_DATA(pins, val);
 
         i8255_tick(&_ppiLink, pins);
+    } else if ((port & 0xFC) == 0x00) { // Expansion PPI: 0x00 - 0x03
+        uint8_t reg = port & 0x03;
+        uint64_t pins = I8255_CS | I8255_WR;
+        if (reg & 1) pins |= I8255_A0;
+        if (reg & 2) pins |= I8255_A1;
+        I8255_SET_DATA(pins, val);
+
+        i8255_tick(&_ppiExp, pins);
     }
 }
 

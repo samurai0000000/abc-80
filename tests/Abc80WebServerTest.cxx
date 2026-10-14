@@ -994,9 +994,9 @@ TEST(Abc80WebServer, CassetteTapeDeckWebSocketTransportAndLibrarySeeding)
     CHECK(firstTel.contains("tape"));
     STRCMP_EQUAL("stopped", firstTel["tape"].value("state", "").c_str());
     STRCMP_EQUAL("0001", firstTel["tape"].value("fileId", "").c_str());
-    STRCMP_EQUAL("BCD Up-Counter (1000H)", firstTel["tape"].value("annotation", "").c_str());
+    STRCMP_EQUAL("Lab01: Data Transfer (1000H)", firstTel["tape"].value("annotation", "").c_str());
 
-    // Request tape_list and verify 4 seeded default tapes exist (0001..0004)
+    // Request tape_list and verify seeded default tapes exist (0001..0029, 0100..0103)
     tab.send({ { "type", "tape_list" } });
     json listMsg;
     CHECK(tab.waitFor("tape_list", [](const json &j) {

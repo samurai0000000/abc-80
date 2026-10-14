@@ -25,11 +25,11 @@ def test_cassette_deck_ui_and_seeded_tapes(panel):
     for btn_id in ("#btn-tape-play", "#btn-tape-rec", "#btn-tape-rew", "#btn-tape-stop"):
         assert not page.locator(btn_id).is_disabled(), btn_id
 
-    # Verify seeded demo tapes (0001..0004) are populated in the library
+    # Verify seeded tapes (0001..0029 and 0100..0103) are populated in the library
     wait_for(lambda: page.locator("#tape-library-list .tape-lib-row").count() >= 4,
              what="seeded tapes in library list")
     assert page.input_value("#tape-file-id-input") == "0001"
-    assert "BCD Up-Counter" in page.input_value("#tape-annotation-input")
+    assert "Lab01: Data Transfer" in page.input_value("#tape-annotation-input")
 
 
 def test_cassette_annotation_32_char_and_slot_selection(panel):
@@ -61,11 +61,11 @@ def test_cassette_reel_spin_and_authentic_from_tape_playback(panel):
     page.click("button[data-tab='tab-tape']")
     wait_for(lambda: page.locator("#tab-tape").is_visible(), what="tab-tape visible")
 
-    # Select seeded tape 0004 (Fibonacci Table at 1000H..1012H: 21 20 10 ...) and press PLAY
-    page.fill("#tape-file-id-input", "0004")
+    # Select seeded showcase tape 0102 (Dual-Tone Chime at 1000H..100EH: 21 FA 00 ...) and press PLAY
+    page.fill("#tape-file-id-input", "0102")
     page.click("#btn-tape-select")
-    panel.wait_telemetry(lambda t: t.get("tape", {}).get("fileId") == "0004",
-                         what="tape 0004 selected")
+    panel.wait_telemetry(lambda t: t.get("tape", {}).get("fileId") == "0102",
+                         what="tape 0102 selected")
 
     page.click("#btn-tape-play")
     panel.wait_telemetry(lambda t: t.get("tape", {}).get("state") == "playing",
@@ -76,12 +76,12 @@ def test_cassette_reel_spin_and_authentic_from_tape_playback(panel):
              what="deck-playing class on #cassette-deck")
     assert page.inner_text("#tape-status-badge").strip() == "PLAYING"
 
-    # Key in FROM TAPE -> 0 -> 0 -> 0 -> 4 -> GO EXEC on the ABC-80 keypad
-    panel.type_keys("FROM TAPE", "0", "0", "0", "4", "GO EXEC", delay=60)
+    # Key in FROM TAPE -> 0 -> 1 -> 0 -> 2 -> GO EXEC on the ABC-80 keypad
+    panel.type_keys("FROM TAPE", "0", "1", "0", "2", "GO EXEC", delay=60)
 
     # Wait for the authentic audio playback to finish and the deck to auto-stop
     panel.wait_telemetry(lambda t: t.get("tape", {}).get("state") == "stopped",
-                         timeout=30.0, what="tape playback auto-stop after FROM TAPE 0004")
+                         timeout=30.0, what="tape playback auto-stop after FROM TAPE 0102")
 
     # Verify the ABC-80 Monitor ROM decoded the audio tones into RAM 1000H (0x21)
     panel.type_keys("ADRS", "1", "0", "0", "0", "DATA", delay=60)

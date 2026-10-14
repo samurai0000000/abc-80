@@ -126,6 +126,7 @@ add_executable(abc80_tests
     tests/Abc80ServerArgsTest.cxx
     tests/Abc80ConfigTest.cxx
     tests/Abc80AiKeySequencerTest.cxx
+    tests/Abc80ExercisesTest.cxx
 )
 # Property tests need RapidCheck, installed system-wide (as aimon uses it).
 find_library(RAPIDCHECK_LIBRARY rapidcheck)

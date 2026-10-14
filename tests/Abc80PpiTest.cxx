@@ -142,9 +142,30 @@ TEST(Abc80Ppi, CassetteTapeAudioBit)
 
 TEST(Abc80Ppi, UnmappedPortReturnsFloatingBus)
 {
-    // Any read from an unmapped port (e.g. 0x99) must return 0xFF
+    // Any read from an unmapped port (e.g. 0x99) or unconfigured input port must return 0xFF
     BYTES_EQUAL(0xFF, ppi.readPort(0x99));
     BYTES_EQUAL(0xFF, ppi.readPort(0x00));
+    BYTES_EQUAL(0xFF, ppi.readPort(0x01));
+    BYTES_EQUAL(0xFF, ppi.readPort(0x02));
+}
+
+TEST(Abc80Ppi, ExpansionPpiPorts00To03LatchAndReadback)
+{
+    // Configure Expansion 8255 PPI (0x03 = 0x80: Mode 0, PA/PB/PC all outputs)
+    ppi.writePort(0x03, 0x80);
+    BYTES_EQUAL(0x80, ppi.getExpControl());
+
+    ppi.writePort(0x00, 0x33);
+    ppi.writePort(0x01, 0x66);
+    ppi.writePort(0x02, 0xCC);
+
+    BYTES_EQUAL(0x33, ppi.expPortAOutput());
+    BYTES_EQUAL(0x66, ppi.expPortBOutput());
+    BYTES_EQUAL(0xCC, ppi.expPortCOutput());
+
+    BYTES_EQUAL(0x33, ppi.readPort(0x00));
+    BYTES_EQUAL(0x66, ppi.readPort(0x01));
+    BYTES_EQUAL(0xCC, ppi.readPort(0x02));
 }
 
 /*
