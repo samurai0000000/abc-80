@@ -885,6 +885,11 @@ std::string CassetteDeck::tapePathForId(uint16_t fileId) const
 
 Abc80Status CassetteDeck::seedDefaultTapesIfEmpty() const
 {
+    return seedDefaultTapes(false);
+}
+
+Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
+{
     if (_tapesDir.empty()) {
         return Abc80Status::INVALID_ARG;
     }
@@ -894,10 +899,12 @@ Abc80Status CassetteDeck::seedDefaultTapesIfEmpty() const
         return Abc80Status::BUS_ERROR;
     }
 
-    // Check if any xxxx.tape file already exists
-    for (const auto& entry : std::filesystem::directory_iterator(_tapesDir, ec)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".tape") {
-            return Abc80Status::OK;
+    if (!overwrite) {
+        // Check if any xxxx.tape file already exists
+        for (const auto& entry : std::filesystem::directory_iterator(_tapesDir, ec)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".tape") {
+                return Abc80Status::OK;
+            }
         }
     }
 
@@ -954,29 +961,36 @@ Abc80Status CassetteDeck::seedDefaultTapesIfEmpty() const
             {
                 0x21, 0xFA, 0x00, // 1000: LD HL,00FAH
                 0xCD, 0x70, 0x04, // 1003: CALL MS1K (0470H)
-                0x21, 0xFA, 0x00, // 1006: LD HL,00FAH
+                0x21, 0xF4, 0x01, // 1006: LD HL,01F4H
                 0xCD, 0x75, 0x04, // 1009: CALL MS2K (0475H)
-                0xC3, 0x33, 0x00  // 100C: JP MAIN (0033H)
+                0xC3, 0x00, 0x10  // 100C: JP 1000H
             }
         },
         {
             0x0004,
             0x1000,
-            "Fibonacci Table (1000H)",
+            "Fibonacci Display (1000H)",
             {
-                0x21, 0x20, 0x10, // 1000: LD HL,1020H
-                0x36, 0x01,       // 1003: LD (HL),01H
-                0x23,             // 1005: INC HL
-                0x36, 0x01,       // 1006: LD (HL),01H
-                0x06, 0x08,       // 1008: LD B,08H
-                0x7E,             // 100A: LD A,(HL)
-                0x2B,             // 100B: DEC HL
-                0x86,             // 100C: ADD A,(HL)
-                0x23,             // 100D: INC HL
-                0x23,             // 100E: INC HL
-                0x77,             // 100F: LD (HL),A
-                0x10, 0xF7,       // 1010: DJNZ 100AH
-                0x76              // 1012: HALT
+                0x11, 0x40, 0x10, // 1000: LD DE,1040H
+                0x01, 0x01, 0x00, // 1003: LD BC,0001H (B=prev=00, C=curr=01)
+                0x79,             // 1006: LD A,C
+                0x12,             // 1007: LD (DE),A
+                0xCD, 0x11, 0x05, // 1008: CALL DADP (0511H)
+                0xCD, 0x04, 0x05, // 100B: CALL ADRSDP (0504H)
+                0xCD, 0x64, 0x04, // 100E: CALL MS3K17 (0464H)
+                0xC5,             // 1011: PUSH BC
+                0x06, 0x28,       // 1012: LD B,28H
+                0xCD, 0xCD, 0x04, // 1014: CALL SCD_K1 (04CDH)
+                0x10, 0xFB,       // 1017: DJNZ 1014H
+                0xC1,             // 1019: POP BC
+                0x79,             // 101A: LD A,C
+                0x80,             // 101B: ADD A,B
+                0x27,             // 101C: DAA
+                0x38, 0xE1,       // 101D: JR C,1000H
+                0x41,             // 101F: LD B,C
+                0x4F,             // 1020: LD C,A
+                0x13,             // 1021: INC DE
+                0x18, 0xE2        // 1022: JR 1006H
             }
         }
     };

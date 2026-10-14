@@ -387,14 +387,31 @@ TEST(Abc80Tape, AuthenticFromTapeAfterProlongedIdlePlayBeforeGo)
     board.stepInstruction();
 
     uint64_t elapsed = 0;
-    while (elapsed < 40000000ULL && board.lastFetchAddress() != 0x009B) {
+    while (elapsed < 60000000ULL && board.lastFetchAddress() != 0x009B) {
         elapsed += board.stepInstruction();
     }
     CHECK_TRUE(board.lastFetchAddress() == 0x009B);
     BYTES_EQUAL(0x00, board.getBus().readByte(0x17F6) & 0x80);
-    LONGS_EQUAL(0x1012, board.getBus().readWord(0x17EE));
-    BYTES_EQUAL(0x21, board.getBus().readByte(0x1000));
-    BYTES_EQUAL(0x76, board.getBus().readByte(0x1012));
+    LONGS_EQUAL(0x1023, board.getBus().readWord(0x17EE));
+    BYTES_EQUAL(0x11, board.getBus().readByte(0x1000));
+    BYTES_EQUAL(0xE2, board.getBus().readByte(0x1023));
+
+    // Also verify seeded 0003.tape ("Dual-Tone Chime (1000H)") loops cleanly to 0x1000 (JP 1000H)
+    uint16_t id3 = 0, start3 = 0, end3 = 0;
+    std::string annot3;
+    std::vector<TapePulseRun> runs3;
+    std::vector<uint8_t> code3;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(Abc80Tape::loadTapeFile(tempDir + "/0003.tape", id3, annot3, runs3)));
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(Abc80Tape::decodeProgramFromRuns(runs3, id3, start3, end3, code3)));
+    LONGS_EQUAL(0x0003, id3);
+    LONGS_EQUAL(0x1000, start3);
+    LONGS_EQUAL(0x100E, end3);
+    LONGS_EQUAL(15, code3.size());
+    BYTES_EQUAL(0xC3, code3[12]);
+    BYTES_EQUAL(0x00, code3[13]);
+    BYTES_EQUAL(0x10, code3[14]);
 }
 
 /*

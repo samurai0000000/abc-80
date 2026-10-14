@@ -144,7 +144,8 @@ public:
     const std::string& tapesDir() const noexcept { return _tapesDir; }
     std::string tapePathForId(uint16_t fileId) const;
 
-    // Seed built-in demo programs (0001.tape .. 0004.tape) if directory is empty
+    // Seed built-in demo programs (0001.tape .. 0004.tape)
+    Abc80Status seedDefaultTapes(bool overwrite = false) const;
     Abc80Status seedDefaultTapesIfEmpty() const;
     std::vector<TapeFileInfo> listTapes() const;
 

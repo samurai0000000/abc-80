@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <filesystem>
 
 namespace abc80 {
 
@@ -599,10 +601,90 @@ std::string Abc80Cli::executeCommand(const std::string& cmdLine)
             return _qbHost.getScreen().getFullText();
         }
         return "Usage: qb <connect|key|ins|del|save|load|screen>";
+    } else if (cmd == "tape") {
+        std::string sub;
+        iss >> sub;
+        if (sub == "seed") {
+            std::string dir;
+            iss >> dir;
+            if (!dir.empty()) {
+                CassetteDeck& deck = _board.getCassetteDeck();
+                deck.setTapesDir(dir);
+                if (deck.seedDefaultTapes(true) == Abc80Status::OK) {
+                    return "Seeded default tapes in " + dir;
+                }
+                return "Error: failed to seed tapes in " + dir;
+            }
+            return "Usage: tape seed <dir>";
+        } else if (sub == "encode") {
+            std::string asmPath, binPath, outPath;
+            if (!(iss >> asmPath >> binPath >> outPath)) {
+                return "Usage: tape encode <asmFile> <binFile> <outTape>";
+            }
+            std::string stem = std::filesystem::path(outPath).stem().string();
+            uint16_t fileId = 0;
+            if (!Abc80Tape::parseFileId(stem, fileId)) {
+                stem = std::filesystem::path(asmPath).stem().string();
+                if (!Abc80Tape::parseFileId(stem, fileId)) {
+                    return "Error: invalid 4-hex-digit File ID in " + outPath;
+                }
+            }
+
+            uint16_t startAddr = 0x1000;
+            std::string annotation;
+            {
+                std::ifstream asmIn(asmPath);
+                if (!asmIn.is_open()) {
+                    return "Error: failed to open " + asmPath;
+                }
+                std::string line;
+                while (std::getline(asmIn, line)) {
+                    auto annotPos = line.find("Annotation:");
+                    if (annotPos != std::string::npos) {
+                        std::string val = line.substr(annotPos + 11);
+                        while (!val.empty() && std::isspace(static_cast<unsigned char>(val.front()))) {
+                            val.erase(val.begin());
+                        }
+                        while (!val.empty() && std::isspace(static_cast<unsigned char>(val.back()))) {
+                            val.pop_back();
+                        }
+                        annotation = val;
+                    }
+                    auto startPos = line.find("Start:");
+                    if (startPos != std::string::npos) {
+                        std::string val = line.substr(startPos + 6);
+                        try {
+                            startAddr = static_cast<uint16_t>(std::stoul(val, nullptr, 16));
+                        } catch (...) {
+                        }
+                    }
+                }
+            }
+
+            std::ifstream binIn(binPath, std::ios::binary);
+            if (!binIn.is_open()) {
+                return "Error: failed to open " + binPath;
+            }
+            std::vector<uint8_t> code((std::istreambuf_iterator<char>(binIn)),
+                                      std::istreambuf_iterator<char>());
+            if (code.empty()) {
+                return "Error: empty binary " + binPath;
+            }
+
+            std::vector<TapePulseRun> runs;
+            if (Abc80Tape::encodeProgramToRuns(fileId, startAddr, code.data(), code.size(), runs) != Abc80Status::OK) {
+                return "Error: failed to encode tape runs for " + outPath;
+            }
+            if (Abc80Tape::saveTapeFile(outPath, fileId, annotation, runs) != Abc80Status::OK) {
+                return "Error: failed to write " + outPath;
+            }
+            return "Encoded " + outPath + " (" + std::to_string(code.size()) + " bytes, label='" + annotation + "')";
+        }
+        return "Usage: tape <seed <dir> | encode <asmFile> <binFile> <outTape>>";
     } else if (cmd == "help" || cmd == "?") {
         return "Commands: step (s), run (c) [tstates], break (b) <hex>, delete (d) <hex>,\n"
                "          clear, reg, disp, peek <hex> [len], poke <hex> <val>, key (k) <c>,\n"
-               "          dis [addr] [count], qb <subcmd>, reset, quit (q)";
+               "          dis [addr] [count], qb <subcmd>, tape seed <dir>, reset, quit (q)";
     } else if (cmd == "quit" || cmd == "q" || cmd == "exit") {
         return "QUIT";
     }
