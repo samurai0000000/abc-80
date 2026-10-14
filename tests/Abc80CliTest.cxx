@@ -202,6 +202,32 @@ TEST(Abc80Cli, InteractiveBatchRunScriptExecution)
     CHECK_TRUE(out.find("Wrote 0x55") != std::string::npos);
 }
 
+TEST(Abc80Cli, QuickBasicCliSubcommandsOperateAgainst1993Rom)
+{
+    std::string rConn = cli->executeCommand("qb connect");
+    CHECK_TRUE(rConn.find("Connected") != std::string::npos);
+    CHECK_TRUE(cli->getQbHost().isConnected());
+
+    std::string rKey = cli->executeCommand("qb key END");
+    CHECK_TRUE(rKey.find("mode=data") != std::string::npos);
+
+    cli->executeCommand("qb key A");
+    cli->executeCommand("qb key 5");
+    BYTES_EQUAL(0xA5, board.getBus().readByte(0x1000));
+
+    std::string rIns = cli->executeCommand("qb ins 1000");
+    CHECK_TRUE(rIns.find("Inserted") != std::string::npos);
+    BYTES_EQUAL(0x00, board.getBus().readByte(0x1000));
+    BYTES_EQUAL(0xA5, board.getBus().readByte(0x1001));
+
+    std::string rDel = cli->executeCommand("qb del 1000");
+    CHECK_TRUE(rDel.find("Deleted") != std::string::npos);
+    BYTES_EQUAL(0xA5, board.getBus().readByte(0x1000));
+
+    std::string rScreen = cli->executeCommand("qb screen");
+    CHECK_TRUE(rScreen.find("Charles Chiou") != std::string::npos);
+}
+
 /*
  * Local variables:
  * mode: C++

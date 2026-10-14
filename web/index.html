@@ -172,6 +172,10 @@
                 </div>
             </div>
             <div class="header-right">
+                <button id="btn-toggle-qb-crt" class="header-btn" title="Toggle Early-'90s PC/AT Color VGA CRT Monitor (QuickBASIC 4.0)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span>PC/AT CRT</span>
+                </button>
                 <button id="btn-toggle-inspector" class="header-btn" title="Toggle Developer Inspector (F12)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
                     <span>Inspector</span>
@@ -2004,6 +2008,70 @@
             </div>
             <div class="hud-hint">
                 💡 Click ANY component on PCB. Nudge: Arrows (Shift=5px, Alt=0.2px). Size: [+][-]. Rotate: [[][] / R.
+            </div>
+        </div>
+    </div>
+
+    <!-- Early-'90s 14" Home-Use Color VGA CRT Monitor (PC/AT QuickBASIC 4.0 Host Interface) -->
+    <div id="qb-crt-window" class="qb-crt-window hidden" role="dialog" aria-label="PC/AT Color VGA CRT Monitor">
+        <!-- Molded Putty/Beige ABS Outer Cabinet -->
+        <div class="qb-crt-cabinet">
+            <!-- Top Bezel: Ventilation Louvers, Embossed Badge, Focus Indicator & Window Controls -->
+            <div class="qb-crt-top-bezel" id="qb-crt-drag-handle">
+                <div class="qb-crt-brand-plate">
+                    <span class="qb-brand-emblem">VGA</span>
+                    <span class="qb-brand-model">PC/AT MultiSync • 14" COLOR DISPLAY</span>
+                </div>
+                <div class="qb-crt-vents" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="qb-crt-header-right">
+                    <span id="qb-link-badge" class="qb-link-badge standby">LINK: STANDBY</span>
+                    <span id="qb-focus-badge" class="qb-focus-badge pcb-focus" title="Click inside monitor to route PC keyboard to QuickBASIC; click PCB to route to ABC-80 keypad">KBD FOCUS: ABC-80 PCB</span>
+                    <button id="btn-qb-close" class="qb-bezel-close-btn" title="Close Monitor Window">&times;</button>
+                </div>
+            </div>
+
+            <!-- Deeply Recessed Dark Charcoal Monitor Well & Curved CRT Glass Tube -->
+            <div class="qb-crt-well">
+                <div class="qb-crt-tube" id="qb-crt-tube">
+                    <div id="qb-crt-screen" class="qb-crt-screen" tabindex="0" aria-label="QuickBASIC 80x25 Color VGA Screen"></div>
+                    <div class="qb-crt-scanlines" aria-hidden="true"></div>
+                    <div class="qb-crt-glare" aria-hidden="true"></div>
+                </div>
+            </div>
+
+            <!-- Lower Molded Control Apron: Physical Tactile Controls, File Slot, Brightness & Power Switch -->
+            <div class="qb-crt-apron">
+                <div class="qb-apron-group qb-apron-actions">
+                    <button id="btn-qb-connect" class="qb-apron-btn qb-btn-primary" title="Execute InitialABC handshake & upload 1700H–1760H helpers (F1)">Connect (F1)</button>
+                    <button id="btn-qb-adds" class="qb-apron-btn" title="Address Input Mode (Home)">ADDs (Home)</button>
+                    <button id="btn-qb-data" class="qb-apron-btn" title="Data Input Mode (End)">Data (End)</button>
+                    <button id="btn-qb-prev" class="qb-apron-btn" title="Decrement Address (PageUp)">- (PgUp)</button>
+                    <button id="btn-qb-next" class="qb-apron-btn" title="Increment Address (PageDown)">+ (PgDn)</button>
+                    <button id="btn-qb-ins" class="qb-apron-btn" title="Insert 00H Byte via 1700H/1720H Helper (Insert)">INS</button>
+                    <button id="btn-qb-del" class="qb-apron-btn" title="Delete Byte via 1740H/1760H Helper (Delete)">DEL</button>
+                    <button id="btn-qb-run" class="qb-apron-btn qb-btn-accent" title="Execute Z80 Program at Current Address (Shift+F5)">Run (Shift+F5)</button>
+                    <button id="btn-qb-mon-009b" class="qb-apron-btn" title="Exit 0B00H PC-Link & Jump to 009BH Interactive Keypad Monitor">009BH Monitor</button>
+                </div>
+                <div class="qb-apron-group qb-apron-files">
+                    <label class="qb-file-label" for="qb-filename-input">.ABC</label>
+                    <input type="text" id="qb-filename-input" class="qb-file-input" value="TEST.ABC" maxlength="32" spellcheck="false" placeholder="PROGRAM.ABC" />
+                    <select id="qb-program-select" class="qb-program-select" title="Saved .abc programs in ~/.config/abc-80/programs/">
+                        <option value="">-- Library --</option>
+                    </select>
+                    <button id="btn-qb-load" class="qb-apron-btn" title="Load .abc File into ABC-80 RAM (or press Shift+F10)">Load</button>
+                    <button id="btn-qb-save" class="qb-apron-btn" title="Save Current RAM Block to .abc File (or press Shift+F9)">Save</button>
+                </div>
+                <div class="qb-apron-group qb-apron-hardware">
+                    <label class="qb-wheel-label" title="CRT Brightness Thumbwheel">☼
+                        <input type="range" id="qb-crt-brightness" class="qb-brightness-wheel" min="0.55" max="1.25" step="0.05" value="1.0" />
+                    </label>
+                    <button id="btn-qb-power" class="qb-power-switch power-on" title="Monitor Power Switch">
+                        <span class="qb-power-led" id="qb-power-led"></span>
+                        <span class="qb-power-label">POWER</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

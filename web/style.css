@@ -6452,3 +6452,455 @@ button[data-key="RST"] .key-label {
     white-space: nowrap;
 }
 
+/* ==========================================================================
+   Early-'90s 14" Home-Use Color VGA CRT Monitor (PC/AT QuickBASIC 4.0 Host)
+   ========================================================================== */
+
+.qb-crt-window {
+    position: fixed;
+    top: 72px;
+    right: 28px;
+    z-index: 450;
+    user-select: none;
+    filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.78));
+    transition: opacity 0.15s ease;
+}
+
+.qb-crt-window.hidden {
+    display: none !important;
+}
+
+.qb-crt-cabinet {
+    background: linear-gradient(160deg, #e2dccb 0%, #d8d2c2 38%, #c7c0ac 82%, #b6af9b 100%);
+    border: 2px solid #9f9884;
+    border-top-color: #f0eadc;
+    border-left-color: #ebe5d5;
+    border-right-color: #8f8874;
+    border-bottom-color: #7c7563;
+    border-radius: 14px 14px 10px 10px;
+    padding: 12px 16px 14px 16px;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.65),
+        inset 0 -4px 8px rgba(70, 64, 52, 0.45),
+        0 10px 28px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.qb-crt-window.crt-focused .qb-crt-cabinet {
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.75),
+        inset 0 -4px 8px rgba(70, 64, 52, 0.45),
+        0 0 0 2px rgba(56, 189, 248, 0.75),
+        0 14px 36px rgba(0, 0, 0, 0.8);
+}
+
+/* Top Bezel & Ventilation Louvers */
+.qb-crt-top-bezel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 8px 6px 8px;
+    background: linear-gradient(180deg, #cfc8b6 0%, #c2bba8 100%);
+    border: 1px solid #a39c88;
+    border-top-color: #b5ae9b;
+    border-bottom-color: #e8e2d3;
+    border-radius: 7px;
+    cursor: grab;
+}
+
+.qb-crt-top-bezel:active {
+    cursor: grabbing;
+}
+
+.qb-crt-brand-plate {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qb-brand-emblem {
+    background: linear-gradient(135deg, #1d4ed8 0%, #dc2626 50%, #15803d 100%);
+    color: #ffffff;
+    font-family: 'Orbitron', var(--font-sans), sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #333;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.qb-brand-model {
+    color: #3b372e;
+    font-family: var(--font-sans), sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.qb-crt-vents {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.qb-crt-vents span {
+    width: 18px;
+    height: 4px;
+    background: #575245;
+    border-bottom: 1px solid #e5dfd0;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+.qb-crt-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qb-link-badge,
+.qb-focus-badge {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.4px;
+}
+
+.qb-link-badge.standby {
+    background: #3f3a30;
+    color: #fde047;
+    border: 1px solid #716856;
+}
+
+.qb-link-badge.connected {
+    background: #064e3b;
+    color: #55ff55;
+    border: 1px solid #10b981;
+    box-shadow: 0 0 6px rgba(85, 255, 85, 0.35);
+}
+
+.qb-focus-badge.crt-focus {
+    background: #1e3a8a;
+    color: #93c5fd;
+    border: 1px solid #3b82f6;
+}
+
+.qb-focus-badge.pcb-focus {
+    background: #4b463b;
+    color: #d6d0c2;
+    border: 1px solid #78705e;
+}
+
+.qb-bezel-close-btn {
+    background: #b5ae9b;
+    color: #2e2a22;
+    border: 1px solid #7c7563;
+    border-top-color: #e5dfd0;
+    border-left-color: #e5dfd0;
+    border-radius: 4px;
+    width: 22px;
+    height: 20px;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qb-bezel-close-btn:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #991b1b;
+}
+
+/* Deeply Recessed Dark Charcoal Monitor Well & Curved CRT Tube */
+.qb-crt-well {
+    background: linear-gradient(180deg, #161816 0%, #222522 50%, #141614 100%);
+    padding: 14px 18px;
+    border-radius: 16px;
+    border: 4px solid #8f8874;
+    border-top-color: #6e6858;
+    border-left-color: #787160;
+    border-right-color: #b8b19f;
+    border-bottom-color: #c9c2b0;
+    box-shadow:
+        inset 0 6px 16px rgba(0, 0, 0, 0.95),
+        inset 0 0 28px rgba(0, 0, 0, 0.85);
+}
+
+.qb-crt-tube {
+    position: relative;
+    background: #000000;
+    border-radius: 18px;
+    padding: 12px 16px;
+    border: 2px solid #0d0f0d;
+    box-shadow:
+        inset 0 0 24px rgba(0, 0, 0, 0.9),
+        0 0 12px rgba(85, 255, 255, 0.08);
+    overflow: hidden;
+    filter: brightness(var(--crt-brightness, 1.0));
+}
+
+.qb-crt-tube.power-off .qb-crt-screen {
+    opacity: 0.02;
+    filter: blur(2px);
+}
+
+/* 80x25 Color VGA Text Matrix (SCREEN 12 80x25 character cell grid) */
+.qb-crt-screen {
+    position: relative;
+    z-index: 1;
+    font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+    font-size: 13.5px;
+    line-height: 1.18;
+    letter-spacing: 0px;
+    font-variant-ligatures: none;
+    white-space: pre;
+    background: #000000;
+    color: #AAAAAA;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+
+.qb-crt-row {
+    display: block;
+    height: 1.18em;
+    white-space: pre;
+}
+
+.qb-cell-clickable {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.qb-cell-clickable:hover {
+    filter: brightness(1.35);
+    background-color: rgba(85, 255, 85, 0.18);
+}
+
+/* Authentic IBM VGA 16-Color Palette (QuickBASIC SCREEN 12 COLOR 0..15) */
+.vga-fg-0  { color: #000000; }
+.vga-fg-1  { color: #0000AA; }
+.vga-fg-2  { color: #00AA00; }
+.vga-fg-3  { color: #00AAAA; }
+.vga-fg-4  { color: #AA0000; }
+.vga-fg-5  { color: #AA00AA; }
+.vga-fg-6  { color: #AA5500; }
+.vga-fg-7  { color: #AAAAAA; text-shadow: 0 0 2px rgba(170, 170, 170, 0.28); }
+.vga-fg-8  { color: #555555; }
+.vga-fg-9  { color: #5555FF; text-shadow: 0 0 5px rgba(85, 85, 255, 0.55); }
+.vga-fg-10 { color: #55FF55; text-shadow: 0 0 6px rgba(85, 255, 85, 0.65); }
+.vga-fg-11 { color: #55FFFF; text-shadow: 0 0 5px rgba(85, 255, 255, 0.55); }
+.vga-fg-12 { color: #FF5555; text-shadow: 0 0 5px rgba(255, 85, 85, 0.55); }
+.vga-fg-13 { color: #FF55FF; text-shadow: 0 0 6px rgba(255, 85, 255, 0.60); }
+.vga-fg-14 { color: #FFFF55; text-shadow: 0 0 6px rgba(255, 255, 85, 0.65); }
+.vga-fg-15 { color: #FFFFFF; text-shadow: 0 0 5px rgba(255, 255, 255, 0.55); }
+
+.vga-bg-0 { background-color: transparent; }
+.vga-bg-1 { background-color: #0000AA; }
+.vga-bg-2 { background-color: #00AA00; }
+.vga-bg-3 { background-color: #00AAAA; }
+.vga-bg-4 { background-color: #AA0000; }
+.vga-bg-5 { background-color: #AA00AA; }
+.vga-bg-6 { background-color: #AA5500; }
+.vga-bg-7 { background-color: #AAAAAA; }
+
+/* CRT Scanlines & Curved Glass Glare Overlays */
+.qb-crt-scanlines {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+        repeating-linear-gradient(
+            180deg,
+            rgba(0, 0, 0, 0.0) 0px,
+            rgba(0, 0, 0, 0.0) 2px,
+            rgba(0, 0, 0, 0.24) 2px,
+            rgba(0, 0, 0, 0.24) 3px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            rgba(255, 0, 0, 0.02),
+            rgba(0, 255, 0, 0.02) 1px,
+            rgba(0, 0, 255, 0.02) 2px
+        );
+}
+
+.qb-crt-glare {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.015) 32%, transparent 60%),
+        radial-gradient(circle at 50% 50%, transparent 68%, rgba(0, 0, 0, 0.48) 100%);
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.75);
+}
+
+/* Lower Molded Control Apron */
+.qb-crt-apron {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: linear-gradient(180deg, #c6bfad 0%, #b8b09d 100%);
+    border: 1px solid #918a76;
+    border-top-color: #a39b87;
+    border-bottom-color: #e2dccb;
+    border-radius: 8px;
+    padding: 7px 10px;
+}
+
+.qb-apron-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.qb-apron-btn {
+    background: linear-gradient(180deg, #ded8c8 0%, #cbc4b2 70%, #bab29f 100%);
+    color: #29251e;
+    border: 1px solid #78705e;
+    border-top-color: #f4efe2;
+    border-left-color: #ece6d7;
+    border-bottom: 2px solid #5c5647;
+    border-radius: 4px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 4px 7px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: transform 0.06s ease, background 0.1s ease;
+}
+
+.qb-apron-btn:hover {
+    background: linear-gradient(180deg, #eae4d6 0%, #d6cfc0 70%, #c6beab 100%);
+}
+
+.qb-apron-btn:active {
+    transform: translateY(1px);
+    border-bottom-width: 1px;
+}
+
+.qb-apron-btn.qb-btn-primary {
+    background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+    color: #ffffff;
+    border-color: #172554;
+    border-top-color: #60a5fa;
+    border-left-color: #3b82f6;
+}
+
+.qb-apron-btn.qb-btn-primary:hover {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.qb-apron-btn.qb-btn-accent {
+    background: linear-gradient(180deg, #15803d 0%, #166534 100%);
+    color: #ffffff;
+    border-color: #052e16;
+    border-top-color: #4ade80;
+    border-left-color: #22c55e;
+}
+
+.qb-apron-btn.qb-btn-accent:hover {
+    background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+}
+
+.qb-file-label {
+    color: #3b372e;
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.qb-file-input,
+.qb-program-select {
+    background: #1c1e1b;
+    color: #55ff55;
+    border: 1px solid #575245;
+    border-radius: 3px;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 6px;
+    height: 24px;
+    box-sizing: border-box;
+}
+
+.qb-file-input {
+    width: 102px;
+    text-transform: uppercase;
+}
+
+.qb-program-select {
+    max-width: 120px;
+}
+
+.qb-wheel-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #3b372e;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.qb-brightness-wheel {
+    width: 56px;
+    cursor: pointer;
+}
+
+/* Recessed Square Push-Button Power Switch & Green Power LED */
+.qb-power-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(180deg, #cfc8b6 0%, #b5ae9b 100%);
+    border: 2px solid #6e6858;
+    border-top-color: #ece6d7;
+    border-left-color: #ece6d7;
+    border-radius: 5px;
+    padding: 4px 8px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.qb-power-led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #14532d;
+    border: 1px solid #052e16;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-power-switch.power-on .qb-power-led {
+    background: #4ade80;
+    box-shadow: 0 0 7px #22c55e;
+}
+
+.qb-power-label {
+    color: #29251e;
+    font-family: var(--font-sans), sans-serif;
+    font-size: 9.5px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+}
+

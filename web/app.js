@@ -64,6 +64,21 @@
             toneHz: 0,
             library: [],
             listRequested: false
+        },
+        qb: {
+            visible: false,
+            focused: false,
+            powerOn: true,
+            connected: false,
+            mode: 'disconnected',
+            currentAddress: 0x1000,
+            highlightedKey: 0,
+            promptBuffer: '',
+            statusMessage: '',
+            rows: [],
+            attrs: [],
+            programs: [],
+            statusRequested: false
         }
     };
 
@@ -163,6 +178,7 @@
         ws.onopen = function () {
             state.wsConnected = true;
             state.tape.listRequested = false;
+            state.qb.statusRequested = false;
             reconnectDelayMs = 1000;
             updateHostStatus();
             updateExecutionControls();
@@ -176,6 +192,7 @@
             else if (msg.type === 'disasm') handleDisasmResponse(msg);
             else if (msg.type === 'memData') handleMemDataResponse(msg);
             else if (msg.type === 'tape_list') handleTapeListResponse(msg);
+            else if (msg.type === 'qb_state') handleQbStateResponse(msg);
             else if (msg.type === 'aiPunch') handleAiPunch(msg);
             else if (msg.type === 'error') console.warn('[ABC-80 host] ' + msg.reason);
         };
@@ -296,6 +313,16 @@
             const store = storage();
             if (store) store.setItem('abc80_rom', msg.rom);
         }
+        if (msg.rom === '1993' && !state.qb.statusRequested) {
+            state.qb.statusRequested = true;
+            setQbCrtVisible(true, false);
+            sendHostCommand({ type: 'qb_status' });
+        } else if (msg.rom === 'monitor' && state.qb.statusRequested) {
+            state.qb.statusRequested = false;
+            state.qb.connected = false;
+            state.qb.mode = 'disconnected';
+            setQbCrtVisible(false, false);
+        }
         scheduleSpeaker(msg.speakerLevel, msg.speakerEdges);
     }
 
@@ -389,6 +416,9 @@
         if (state.aiLocked) return;
         initAudio();
         sendHostCommand({ type: 'reset' });
+        if (selectedRom() === '1993' || state.qb.visible) {
+            setTimeout(() => sendHostCommand({ type: 'qb_status' }), 40);
+        }
         const btn = document.getElementById('btn-hw-rst');
         if (btn) {
             btn.classList.add('key-pressed');
@@ -515,6 +545,16 @@
         const store = storage();
         if (store) store.setItem('abc80_rom', name);
         sendHostCommand({ type: 'setRom', rom: name });
+        if (name === '1993') {
+            state.qb.statusRequested = true;
+            setQbCrtVisible(true, false);
+            setTimeout(() => sendHostCommand({ type: 'qb_status' }), 40);
+        } else {
+            state.qb.statusRequested = false;
+            state.qb.connected = false;
+            state.qb.mode = 'disconnected';
+            setQbCrtVisible(false, false);
+        }
     }
 
     // For tests and the console.
@@ -530,6 +570,9 @@
         updateDisassembly: updateDisassembly,
         get memState() { return state.mem; },
         get stackState() { return state.stack; },
+        get qbState() { return state.qb; },
+        setQbFocus: setQbFocus,
+        setQbCrtVisible: setQbCrtVisible,
         fetchMemory: fetchMemory,
         fetchStack: fetchStack,
         updateStackView: updateStackView,
@@ -799,6 +842,488 @@
             });
         }
         updateCassetteDeckUI();
+    }
+
+    // ==========================================================================
+    // Early-'90s 14" Color VGA CRT Monitor (QuickBASIC 4.0 PC/AT Host)
+    // ==========================================================================
+
+    function escapeHtml(ch) {
+        if (ch === '&') return '&amp;';
+        if (ch === '<') return '&lt;';
+        if (ch === '>') return '&gt;';
+        return ch;
+    }
+
+    // Translate internal ASCII CP437 placeholders back to authentic IBM VGA CP437 Unicode glyphs
+    function translateCp437Glyph(ch, row1, col1, fg) {
+        if (row1 >= 1 && row1 <= 5) {
+            if (ch === '#') return '\u2588'; // █ (219)
+            if (ch === '.') return '\u2584'; // ▄ (220)
+            if (ch === '^') return '\u2580'; // ▀ (223)
+            if (ch === '[') return '\u2590'; // ▐ (222)
+            if (ch === ']') return '\u258C'; // ▌ (221)
+        }
+        if (row1 === 8 && fg === 9 && ch === '#') {
+            return '\u2588'; // ███ mode cursor
+        }
+        // Highlighted key blocks in ColourKeyPressed (fg 10 green or fg 12 red on key rows)
+        if ((row1 === 12 || row1 === 14 || row1 === 17 || row1 === 22) && (fg === 10 || fg === 12) && ch === '#') {
+            return '\u2588';
+        }
+        // Memory table frame (Rows 7..17, Cols 13..53): single vertical/double horizontal CP437 box
+        if (row1 >= 7 && row1 <= 17 && col1 >= 13 && col1 <= 53) {
+            if (row1 === 7) {
+                if (col1 === 13) return '\u2552'; // ╒
+                if (col1 === 33) return '\u2564'; // ╤
+                if (col1 === 53) return '\u2555'; // ╕
+                if (ch === '-') return '\u2550';  // ═
+            } else if (row1 === 9) {
+                if (col1 === 13) return '\u255E'; // ╞
+                if (col1 === 33) return '\u256A'; // ╪
+                if (col1 === 53) return '\u2561'; // ╡
+                if (ch === '-') return '\u2550';  // ═
+            } else if (row1 === 13) {
+                if (col1 === 13) return '\u251C'; // ├
+                if (col1 === 33) return '\u253C'; // ┼
+                if (col1 === 53) return '\u2524'; // ┤
+                if (ch === '-') return '\u2500';  // ─
+                if (ch === '*') return '\u25C4';  // ◄/► indicator
+            } else if (row1 === 17) {
+                if (col1 === 13) return '\u2558'; // ╘
+                if (col1 === 33) return '\u2567'; // ╧
+                if (col1 === 53) return '\u255B'; // ╛
+                if (ch === '-') return '\u2550';  // ═
+            } else if (ch === '|') {
+                return '\u2502'; // │
+            }
+        }
+        // Right-side function key boxes (Rows 11..18, Cols 57..72): double-line CP437 box
+        if (row1 >= 11 && row1 <= 18 && col1 >= 57 && col1 <= 72) {
+            if (ch === '|') return '\u2551'; // ║
+            if (ch === '-' && !(row1 === 12 && col1 === 69)) return '\u2550'; // ═ (preserve '-' label at row 12 col 69)
+            if (row1 === 12 && col1 === 69 && ch === '-') return '\u2500'; // ─
+            if (ch === '+') {
+                if (row1 === 11) return col1 === 57 ? '\u2554' : (col1 === 72 ? '\u2557' : '\u2566');
+                if (row1 === 13) return col1 === 57 ? '\u2560' : (col1 === 72 ? '\u2563' : '\u256C');
+                if (row1 === 15) return col1 === 57 ? '\u255A' : (col1 === 72 ? '\u255D' : '\u2569');
+                if (row1 === 16) return col1 === 57 ? '\u2554' : (col1 === 72 ? '\u2557' : '\u2566');
+                if (row1 === 18) return col1 === 57 ? '\u255A' : (col1 === 72 ? '\u255D' : '\u2569');
+            }
+        }
+        // Bottom hex key bar (Rows 21..23, Cols 8..72): double-line CP437 box
+        if (row1 >= 21 && row1 <= 23 && col1 >= 8 && col1 <= 72) {
+            if (ch === '|') return '\u2551'; // ║
+            if (ch === '-') return '\u2550'; // ═
+            if (ch === '+') {
+                if (row1 === 21) return col1 === 8 ? '\u2554' : (col1 === 72 ? '\u2557' : '\u2566');
+                if (row1 === 23) return col1 === 8 ? '\u255A' : (col1 === 72 ? '\u255D' : '\u2569');
+            }
+        }
+        return ch;
+    }
+
+    // Return virtual QuickBASIC key command if (row1, col1) lies inside an on-screen CP437 key cell
+    function qbKeyActionAtCell(row1, col1) {
+        if (row1 === 22 && col1 >= 9 && col1 <= 71) {
+            const rel = col1 - 9;
+            if (rel % 4 !== 3) {
+                const idx = Math.floor(rel / 4);
+                if (idx >= 0 && idx < 16) {
+                    return '0123456789ABCDEF'[idx];
+                }
+            }
+        }
+        if (row1 === 12) {
+            if (col1 >= 58 && col1 <= 61) return 'INSERT';
+            if (col1 >= 63 && col1 <= 66) return 'HOME';
+            if (col1 >= 68 && col1 <= 71) return 'PAGEUP';
+        }
+        if (row1 === 14) {
+            if (col1 >= 58 && col1 <= 61) return 'DELETE';
+            if (col1 >= 63 && col1 <= 66) return 'END';
+            if (col1 >= 68 && col1 <= 71) return 'PAGEDOWN';
+        }
+        if (row1 === 17) {
+            if (col1 >= 66 && col1 <= 71) return 'SHIFT+F5';
+        }
+        return null;
+    }
+
+    function renderQbCrtScreen() {
+        const screenEl = document.getElementById('qb-crt-screen');
+        if (!screenEl) return;
+        const rows = state.qb.rows || [];
+        const attrs = state.qb.attrs || [];
+        if (rows.length === 0) return;
+
+        let html = '';
+        for (let r = 0; r < 25; ++r) {
+            const rowStr = (rows[r] || '').padEnd(80, ' ');
+            const attrHex = (attrs[r] || '').padEnd(160, '07');
+            let rowHtml = '<div class="qb-crt-row" data-row="' + (r + 1) + '">';
+            let spanClass = '';
+            let spanAction = '';
+            let spanText = '';
+
+            for (let c = 0; c < 80; ++c) {
+                const byteHex = attrHex.substr(c * 2, 2);
+                const attrVal = parseInt(byteHex, 16);
+                const fg = isNaN(attrVal) ? 7 : (attrVal & 0x0F);
+                const bg = isNaN(attrVal) ? 0 : ((attrVal >> 4) & 0x07);
+                const action = qbKeyActionAtCell(r + 1, c + 1) || '';
+                const cls = 'vga-fg-' + fg + ' vga-bg-' + bg + (action ? ' qb-cell-clickable' : '');
+                const glyph = translateCp437Glyph(rowStr[c], r + 1, c + 1, fg);
+
+                if (cls !== spanClass || action !== spanAction) {
+                    if (spanText.length > 0) {
+                        const dataAttr = spanAction ? ' data-qb-key="' + spanAction + '"' : '';
+                        rowHtml += '<span class="' + spanClass + '"' + dataAttr + '>' + spanText + '</span>';
+                        spanText = '';
+                    }
+                    spanClass = cls;
+                    spanAction = action;
+                }
+                spanText += escapeHtml(glyph);
+            }
+            if (spanText.length > 0) {
+                const dataAttr = spanAction ? ' data-qb-key="' + spanAction + '"' : '';
+                rowHtml += '<span class="' + spanClass + '"' + dataAttr + '>' + spanText + '</span>';
+            }
+            rowHtml += '</div>';
+            html += rowHtml;
+        }
+        screenEl.innerHTML = html;
+    }
+
+    function updateQbCrtBadges() {
+        const win = document.getElementById('qb-crt-window');
+        const toggleBtn = document.getElementById('btn-toggle-qb-crt');
+        const linkBadge = document.getElementById('qb-link-badge');
+        const focusBadge = document.getElementById('qb-focus-badge');
+        const progSelect = document.getElementById('qb-program-select');
+
+        if (win) {
+            win.classList.toggle('hidden', !state.qb.visible);
+            win.classList.toggle('crt-focused', !!(state.qb.visible && state.qb.focused));
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('header-btn-active', !!state.qb.visible);
+        }
+        if (linkBadge) {
+            if (state.qb.connected) {
+                linkBadge.textContent = 'LINK: 8255 ACTIVE (' + state.qb.mode.toUpperCase() + ')';
+                linkBadge.className = 'qb-link-badge connected';
+            } else {
+                linkBadge.textContent = 'LINK: STANDBY';
+                linkBadge.className = 'qb-link-badge standby';
+            }
+        }
+        if (focusBadge) {
+            if (state.qb.visible && state.qb.focused) {
+                focusBadge.textContent = 'KBD FOCUS: VGA CRT';
+                focusBadge.className = 'qb-focus-badge crt-focus';
+            } else {
+                focusBadge.textContent = 'KBD FOCUS: ABC-80 PCB';
+                focusBadge.className = 'qb-focus-badge pcb-focus';
+            }
+        }
+        if (progSelect && Array.isArray(state.qb.programs)) {
+            const currentVal = progSelect.value;
+            let opts = '<option value="">-- Library (' + state.qb.programs.length + ') --</option>';
+            state.qb.programs.forEach(p => {
+                opts += '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>';
+            });
+            progSelect.innerHTML = opts;
+            if (currentVal && state.qb.programs.includes(currentVal)) {
+                progSelect.value = currentVal;
+            }
+        }
+    }
+
+    function setQbFocus(focused) {
+        state.qb.focused = !!(focused && state.qb.visible);
+        updateQbCrtBadges();
+    }
+
+    function setQbCrtVisible(visible, focusOnOpen) {
+        state.qb.visible = !!visible;
+        if (!visible) {
+            state.qb.focused = false;
+        } else if (focusOnOpen) {
+            state.qb.focused = true;
+        }
+        updateQbCrtBadges();
+    }
+
+    // Play QuickBASIC SOUND and PLAY MML events through WebAudio
+    function playQbAudioEvents(events) {
+        if (!Array.isArray(events) || events.length === 0) return;
+        if (!state.soundEnabled) return;
+        initAudio();
+        if (!audioCtx || audioCtx.state !== 'running') return;
+
+        let cursorTime = audioCtx.currentTime + 0.01;
+        function scheduleTone(freqHz, durationSec) {
+            if (durationSec <= 0) return;
+            if (freqHz > 20) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freqHz, cursorTime);
+                gain.gain.setValueAtTime(0.045, cursorTime);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(cursorTime);
+                osc.stop(cursorTime + durationSec);
+            }
+            cursorTime += durationSec;
+        }
+
+        function scheduleMml(mml) {
+            if (typeof mml !== 'string') return;
+            let octave = 4;
+            let defaultLen = 4;
+            let tempo = 120;
+            let i = 0;
+            while (i < mml.length) {
+                const ch = mml[i++].toUpperCase();
+                if (ch === ' ' || ch === '\t') continue;
+                if (ch === 'O' && i < mml.length && /[0-7]/.test(mml[i])) {
+                    octave = parseInt(mml[i++], 10);
+                } else if (ch === '>') {
+                    if (octave < 7) octave++;
+                } else if (ch === '<') {
+                    if (octave > 1) octave--;
+                } else if (ch === 'L') {
+                    let num = '';
+                    while (i < mml.length && /[0-9]/.test(mml[i])) num += mml[i++];
+                    if (num) defaultLen = Math.max(1, parseInt(num, 10));
+                } else if (ch === 'T') {
+                    let num = '';
+                    while (i < mml.length && /[0-9]/.test(mml[i])) num += mml[i++];
+                    if (num) tempo = Math.max(32, parseInt(num, 10));
+                } else if (ch === 'M' && i < mml.length) {
+                    i++;
+                } else if (ch >= 'A' && ch <= 'G') {
+                    const semiMap = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+                    let semi = semiMap[ch];
+                    if (i < mml.length && (mml[i] === '#' || mml[i] === '+')) { semi++; i++; }
+                    else if (i < mml.length && mml[i] === '-') { semi--; i++; }
+                    let len = defaultLen;
+                    let num = '';
+                    while (i < mml.length && /[0-9]/.test(mml[i])) num += mml[i++];
+                    if (num) len = Math.max(1, parseInt(num, 10));
+                    const midi = (octave + 1) * 12 + semi;
+                    const freq = 440.0 * Math.pow(2.0, (midi - 69) / 12.0);
+                    const dur = (240.0 / tempo) / len;
+                    scheduleTone(freq, dur);
+                }
+            }
+        }
+
+        events.forEach(ev => {
+            if (!ev) return;
+            if (ev.kind === 'sound') {
+                scheduleTone(Number(ev.freqHz) || 1000, Number(ev.durationSec) || 0.05);
+            } else if (ev.kind === 'play') {
+                scheduleMml(ev.mml || '');
+            }
+        });
+    }
+
+    function handleQbStateResponse(msg) {
+        if (!msg) return;
+        state.qb.connected = !!msg.connected;
+        state.qb.mode = msg.mode || (msg.connected ? 'neutral' : 'disconnected');
+        if (typeof msg.currentAddress === 'number') state.qb.currentAddress = msg.currentAddress;
+        if (typeof msg.highlightedKey === 'number') state.qb.highlightedKey = msg.highlightedKey;
+        if (typeof msg.promptBuffer === 'string') state.qb.promptBuffer = msg.promptBuffer;
+        if (typeof msg.statusMessage === 'string') state.qb.statusMessage = msg.statusMessage;
+        if (Array.isArray(msg.rows)) state.qb.rows = msg.rows;
+        if (Array.isArray(msg.attrs)) state.qb.attrs = msg.attrs;
+        if (Array.isArray(msg.programs)) state.qb.programs = msg.programs;
+
+        renderQbCrtScreen();
+        updateQbCrtBadges();
+        if (Array.isArray(msg.audioEvents) && msg.audioEvents.length > 0) {
+            playQbAudioEvents(msg.audioEvents);
+        }
+    }
+
+    function sendQbKey(keyName) {
+        if (!keyName) return;
+        initAudio();
+        setQbFocus(true);
+        sendHostCommand({ type: 'qb_key', key: keyName });
+    }
+
+    function connectQbHost() {
+        initAudio();
+        if (selectedRom() !== '1993') {
+            const romSelect = document.getElementById('rom-select');
+            if (romSelect) romSelect.value = '1993';
+            changeRom('1993');
+            setQbCrtVisible(true, true);
+            setTimeout(() => sendHostCommand({ type: 'qb_connect' }), 60);
+            return;
+        }
+        setQbCrtVisible(true, true);
+        sendHostCommand({ type: 'qb_connect' });
+    }
+
+    function initQbCrtWindow() {
+        const win = document.getElementById('qb-crt-window');
+        const toggleBtn = document.getElementById('btn-toggle-qb-crt');
+        const closeBtn = document.getElementById('btn-qb-close');
+        const dragHandle = document.getElementById('qb-crt-drag-handle');
+        const screenEl = document.getElementById('qb-crt-screen');
+        const tubeEl = document.getElementById('qb-crt-tube');
+        const boardContainer = document.getElementById('board-container');
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const nextVis = !state.qb.visible;
+                setQbCrtVisible(nextVis, nextVis);
+                if (nextVis) {
+                    sendHostCommand({ type: 'qb_status' });
+                }
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setQbCrtVisible(false, false);
+            });
+        }
+
+        // Click inside CRT window focuses QuickBASIC keyboard routing; click on PCB restores ABC-80 keypad focus
+        if (win) {
+            win.addEventListener('pointerdown', () => {
+                if (state.qb.visible) setQbFocus(true);
+            });
+        }
+        if (boardContainer) {
+            boardContainer.addEventListener('pointerdown', () => {
+                if (state.qb.focused) setQbFocus(false);
+            });
+        }
+
+        // Clickable on-screen CP437 virtual buttons inside the 80x25 screen
+        if (screenEl) {
+            screenEl.addEventListener('click', (e) => {
+                const cell = e.target.closest('[data-qb-key]');
+                if (cell) {
+                    const keyCmd = cell.getAttribute('data-qb-key');
+                    if (keyCmd) sendQbKey(keyCmd);
+                }
+            });
+        }
+
+        // Draggable monitor bezel
+        if (dragHandle && win) {
+            dragHandle.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button')) return;
+                e.preventDefault();
+                const rect = win.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const origLeft = rect.left;
+                const origTop = rect.top;
+
+                function onMove(ev) {
+                    const nx = Math.max(8, Math.min(window.innerWidth - 120, origLeft + (ev.clientX - startX)));
+                    const ny = Math.max(48, Math.min(window.innerHeight - 80, origTop + (ev.clientY - startY)));
+                    win.style.right = 'auto';
+                    win.style.left = Math.round(nx) + 'px';
+                    win.style.top = Math.round(ny) + 'px';
+                }
+                function onUp() {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                }
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+            });
+        }
+
+        // Lower Apron tactile controls
+        const btnConnect = document.getElementById('btn-qb-connect');
+        const btnAdds = document.getElementById('btn-qb-adds');
+        const btnData = document.getElementById('btn-qb-data');
+        const btnPrev = document.getElementById('btn-qb-prev');
+        const btnNext = document.getElementById('btn-qb-next');
+        const btnIns = document.getElementById('btn-qb-ins');
+        const btnDel = document.getElementById('btn-qb-del');
+        const btnRun = document.getElementById('btn-qb-run');
+        const btnMon009b = document.getElementById('btn-qb-mon-009b');
+        const fileInput = document.getElementById('qb-filename-input');
+        const progSelect = document.getElementById('qb-program-select');
+        const btnLoad = document.getElementById('btn-qb-load');
+        const btnSave = document.getElementById('btn-qb-save');
+        const brightnessWheel = document.getElementById('qb-crt-brightness');
+        const btnPower = document.getElementById('btn-qb-power');
+
+        if (btnConnect) btnConnect.addEventListener('click', connectQbHost);
+        if (btnAdds) btnAdds.addEventListener('click', () => sendQbKey('HOME'));
+        if (btnData) btnData.addEventListener('click', () => sendQbKey('END'));
+        if (btnPrev) btnPrev.addEventListener('click', () => sendQbKey('PAGEUP'));
+        if (btnNext) btnNext.addEventListener('click', () => sendQbKey('PAGEDOWN'));
+        if (btnIns) btnIns.addEventListener('click', () => sendQbKey('INSERT'));
+        if (btnDel) btnDel.addEventListener('click', () => sendQbKey('DELETE'));
+        if (btnRun) btnRun.addEventListener('click', () => sendQbKey('SHIFT+F5'));
+
+        if (btnMon009b) {
+            btnMon009b.addEventListener('click', () => {
+                initAudio();
+                setQbFocus(true);
+                ['HOME', '0', '0', '9', 'B', 'SHIFT+F5'].forEach(k => {
+                    sendHostCommand({ type: 'qb_key', key: k });
+                });
+                // Transfer keyboard focus back to the ABC-80 PCB so the operator can use the 009BH keypad monitor
+                setQbFocus(false);
+            });
+        }
+
+        if (progSelect && fileInput) {
+            progSelect.addEventListener('change', () => {
+                if (progSelect.value) {
+                    fileInput.value = progSelect.value;
+                }
+            });
+        }
+
+        if (btnLoad) {
+            btnLoad.addEventListener('click', () => {
+                const fname = (fileInput && fileInput.value.trim()) ? fileInput.value.trim() : 'TEST.ABC';
+                setQbFocus(true);
+                sendHostCommand({ type: 'qb_load', filename: fname });
+            });
+        }
+
+        if (btnSave) {
+            btnSave.addEventListener('click', () => {
+                const fname = (fileInput && fileInput.value.trim()) ? fileInput.value.trim() : 'TEST.ABC';
+                const startAddr = state.qb.currentAddress & 0xFFFF;
+                const finishAddr = Math.min(0xFFFF, startAddr + 0x000F);
+                setQbFocus(true);
+                sendHostCommand({ type: 'qb_save', filename: fname, startAddr: startAddr, endAddr: finishAddr });
+            });
+        }
+
+        if (brightnessWheel && tubeEl) {
+            brightnessWheel.addEventListener('input', (e) => {
+                tubeEl.style.setProperty('--crt-brightness', e.target.value);
+            });
+        }
+
+        if (btnPower && tubeEl) {
+            btnPower.addEventListener('click', () => {
+                state.qb.powerOn = !state.qb.powerOn;
+                btnPower.classList.toggle('power-on', state.qb.powerOn);
+                tubeEl.classList.toggle('power-off', !state.qb.powerOn);
+            });
+        }
     }
 
     function initInspector() {
@@ -1266,6 +1791,36 @@
         return null;
     }
 
+    function qbKeyNameForEvent(e) {
+        if (e.key === 'F1') return 'F1';
+        if (e.shiftKey) {
+            if (e.key === 'F5') return 'SHIFT+F5';
+            if (e.key === 'F9') return 'SHIFT+F9';
+            if (e.key === 'F10') return 'SHIFT+F10';
+            if (e.key === 'Escape') return 'SHIFT+ESC';
+        }
+        if (e.key === 'Home') return 'HOME';
+        if (e.key === 'End') return 'END';
+        if (e.key === 'PageUp') return 'PAGEUP';
+        if (e.key === 'PageDown') return 'PAGEDOWN';
+        if (e.key === 'Insert') return 'INSERT';
+        if (e.key === 'Delete') return 'DELETE';
+        if (e.key === 'Enter') return 'ENTER';
+        if (e.key === 'Backspace') return 'BACKSPACE';
+        if (e.key === 'Escape') return 'ESCAPE';
+
+        const promptModes = ['save_file', 'load_file', 'save_done'];
+        if (promptModes.includes(state.qb.mode)) {
+            if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                return e.key;
+            }
+        }
+        if (/^[0-9a-fA-F]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            return e.key.toUpperCase();
+        }
+        return null;
+    }
+
     function setupKeyboardListeners() {
         const heldByCode = {};  // physical key -> board key, so a release always matches its press
 
@@ -1277,6 +1832,22 @@
                 return;
             }
             if (state.aiLocked) {
+                return;
+            }
+            // When the PC/AT Color VGA CRT Monitor is visible & focused, route keys to QuickBASIC
+            if (state.qb.visible && state.qb.focused) {
+                const qbKey = qbKeyNameForEvent(e);
+                if (qbKey !== null) {
+                    e.preventDefault();
+                    if (qbKey === 'F1') {
+                        connectQbHost();
+                    } else if (qbKey === 'SHIFT+ESC') {
+                        setQbFocus(false);
+                        sendHostCommand({ type: 'qb_key', key: 'SHIFT+ESC' });
+                    } else {
+                        sendQbKey(qbKey);
+                    }
+                }
                 return;
             }
             if (e.key === 'Escape') {
@@ -1851,6 +2422,7 @@
         }
 
         initCassetteDeck();
+        initQbCrtWindow();
 
         const helpBtn = document.getElementById('btn-help');
         const helpModal = document.getElementById('help-modal');

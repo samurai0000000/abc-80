@@ -377,6 +377,57 @@ TEST(Abc80WebProtocol, TapeClientMessagesAndTelemetrySerialization)
     STRCMP_EQUAL("BCD Up-Counter (1000H)", lj["tapes"][0].value("annotation", "").c_str());
 }
 
+TEST(Abc80WebProtocol, QuickBasicClientMessagesAndQbStateSerialization)
+{
+    const ClientMessage connMsg = parseClientMessage(R"({"type":"qb_connect"})");
+    CHECK(connMsg.type == ClientMessage::Type::QbConnect);
+
+    const ClientMessage statusMsg = parseClientMessage(R"({"type":"qb_status"})");
+    CHECK(statusMsg.type == ClientMessage::Type::QbStatus);
+
+    const ClientMessage keyMsg = parseClientMessage(R"({"type":"qb_key","key":"HOME"})");
+    CHECK(keyMsg.type == ClientMessage::Type::QbKey);
+    STRCMP_EQUAL("HOME", keyMsg.qbKey.c_str());
+
+    CHECK(parseClientMessage(R"({"type":"qb_key"})").type == ClientMessage::Type::Invalid);
+    CHECK(parseClientMessage(R"({"type":"qb_key","key":""})").type == ClientMessage::Type::Invalid);
+
+    const ClientMessage saveMsg = parseClientMessage(
+        R"({"type":"qb_save","filename":"demo.abc","startAddr":4096,"endAddr":4127})");
+    CHECK(saveMsg.type == ClientMessage::Type::QbSave);
+    STRCMP_EQUAL("demo.abc", saveMsg.qbFilename.c_str());
+    LONGS_EQUAL(4096, saveMsg.qbStartAddr);
+    LONGS_EQUAL(4127, saveMsg.qbEndAddr);
+
+    CHECK(parseClientMessage(R"({"type":"qb_save","filename":"../bad.abc","startAddr":4096,"endAddr":4100})").type ==
+          ClientMessage::Type::Invalid);
+    CHECK(parseClientMessage(R"({"type":"qb_save","filename":"demo.abc","startAddr":5000,"endAddr":4096})").type ==
+          ClientMessage::Type::Invalid);
+
+    const ClientMessage loadMsg = parseClientMessage(R"({"type":"qb_load","filename":"demo.abc"})");
+    CHECK(loadMsg.type == ClientMessage::Type::QbLoad);
+    STRCMP_EQUAL("demo.abc", loadMsg.qbFilename.c_str());
+    CHECK(parseClientMessage(R"({"type":"qb_load","filename":"../bad.abc"})").type ==
+          ClientMessage::Type::Invalid);
+
+    Abc80Board board;
+    board.powerOn("vintage/rom.abc");
+    Abc80QbHost qbHost(board);
+    CHECK(qbHost.initialAbc());
+    const json qj = json::parse(buildQbStateJson(qbHost));
+    STRCMP_EQUAL("qb_state", qj.value("type", "").c_str());
+    CHECK(qj.value("connected", false));
+    CHECK(qj.value("linkReady", false));
+    STRCMP_EQUAL("neutral", qj.value("mode", "").c_str());
+    LONGS_EQUAL(0x1000, qj.value("currentAddress", 0));
+    LONGS_EQUAL(25, static_cast<long>(qj.at("rows").size()));
+    LONGS_EQUAL(25, static_cast<long>(qj.at("attrs").size()));
+    LONGS_EQUAL(80, static_cast<long>(qj["rows"][0].get<std::string>().size()));
+    LONGS_EQUAL(160, static_cast<long>(qj["attrs"][0].get<std::string>().size()));
+    CHECK(!qj.at("audioEvents").empty());
+    STRCMP_EQUAL("play", qj["audioEvents"][0].value("kind", "").c_str());
+}
+
 // ---- FrameOutbox: latest frame wins; a slow consumer never blocks the producer ----
 
 TEST_GROUP(Abc80FrameOutbox)

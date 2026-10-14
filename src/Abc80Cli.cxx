@@ -14,6 +14,7 @@ namespace abc80 {
 
 Abc80Cli::Abc80Cli(Abc80Board& board)
     : _board(board)
+    , _qbHost(board)
     , _breakpoints()
     , _running(false)
 {
@@ -528,10 +529,80 @@ std::string Abc80Cli::executeCommand(const std::string& cmdLine)
         size_t count = 8;
         iss >> count;
         return disassembleRange(addr, count);
+    } else if (cmd == "qb") {
+        std::string sub;
+        iss >> sub;
+        std::transform(sub.begin(), sub.end(), sub.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        if (sub == "connect" || sub == "init") {
+            if (_qbHost.initialAbc()) {
+                return "Connected to ABC-80 PC-Link server (0B00h)";
+            }
+            return "Error: failed to connect to 0B00h link server";
+        } else if (sub == "key") {
+            std::string kName;
+            if (iss >> kName) {
+                bool ok = _qbHost.pressKey(kName);
+                std::ostringstream ss;
+                ss << (ok ? "OK" : "ERR") << " mode=" << _qbHost.getModeName()
+                   << " addr=0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
+                   << _qbHost.getCurrentAddress();
+                return ss.str();
+            }
+            return "Error: usage qb key <token>";
+        } else if (sub == "ins") {
+            std::string addrStr;
+            uint16_t addr = _qbHost.getCurrentAddress();
+            if (iss >> addrStr) {
+                addr = static_cast<uint16_t>(std::stoul(addrStr, nullptr, 16));
+            }
+            if (_qbHost.insertByte(addr)) {
+                return "Inserted 0x00 at 0x" + (addrStr.empty() ? std::string("curr") : addrStr);
+            }
+            return "Error: Insert failed";
+        } else if (sub == "del") {
+            std::string addrStr;
+            uint16_t addr = _qbHost.getCurrentAddress();
+            if (iss >> addrStr) {
+                addr = static_cast<uint16_t>(std::stoul(addrStr, nullptr, 16));
+            }
+            if (_qbHost.deleteByte(addr)) {
+                return "Deleted byte at 0x" + (addrStr.empty() ? std::string("curr") : addrStr);
+            }
+            return "Error: Delete failed";
+        } else if (sub == "save") {
+            std::string fname, sStr, eStr;
+            if (iss >> fname >> sStr >> eStr) {
+                uint16_t sAddr = static_cast<uint16_t>(std::stoul(sStr, nullptr, 16));
+                uint16_t eAddr = static_cast<uint16_t>(std::stoul(eStr, nullptr, 16));
+                std::string err;
+                if (_qbHost.saveProgramAbc(fname, sAddr, eAddr, err)) {
+                    return _qbHost.getStatusMessage();
+                }
+                return "Error: " + err;
+            }
+            return "Error: usage qb save <file.abc> <startHex> <endHex>";
+        } else if (sub == "load") {
+            std::string fname;
+            if (iss >> fname) {
+                uint16_t startAddr = 0;
+                size_t bytes = 0;
+                std::string err;
+                if (_qbHost.loadProgramAbc(fname, startAddr, bytes, err)) {
+                    return _qbHost.getStatusMessage();
+                }
+                return "Error: " + err;
+            }
+            return "Error: usage qb load <file.abc>";
+        } else if (sub == "screen") {
+            return _qbHost.getScreen().getFullText();
+        }
+        return "Usage: qb <connect|key|ins|del|save|load|screen>";
     } else if (cmd == "help" || cmd == "?") {
         return "Commands: step (s), run (c) [tstates], break (b) <hex>, delete (d) <hex>,\n"
                "          clear, reg, disp, peek <hex> [len], poke <hex> <val>, key (k) <c>,\n"
-               "          dis [addr] [count], reset, quit (q)";
+               "          dis [addr] [count], qb <subcmd>, reset, quit (q)";
     } else if (cmd == "quit" || cmd == "q" || cmd == "exit") {
         return "QUIT";
     }

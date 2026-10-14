@@ -8,6 +8,7 @@
 #define ABC80_CLI_HXX
 
 #include <abc80/Abc80Board.hxx>
+#include <abc80/Abc80QbHost.hxx>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -23,6 +24,8 @@ public:
 
     Abc80Board& getBoard() noexcept { return _board; }
     const Abc80Board& getBoard() const noexcept { return _board; }
+    Abc80QbHost& getQbHost() noexcept { return _qbHost; }
+    const Abc80QbHost& getQbHost() const noexcept { return _qbHost; }
 
     // Breakpoint Management
     void addBreakpoint(uint16_t addr);
@@ -57,6 +60,7 @@ public:
 
 private:
     Abc80Board& _board;
+    Abc80QbHost _qbHost;
     std::unordered_set<uint16_t> _breakpoints;
     bool _running;
 

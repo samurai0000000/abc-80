@@ -268,6 +268,64 @@ ClientMessage parseClientMessage(const std::string &text)
         return m;
     }
 
+    if (type == "qb_connect") {
+        m.type = ClientMessage::Type::QbConnect;
+        return m;
+    }
+
+    if (type == "qb_status") {
+        m.type = ClientMessage::Type::QbStatus;
+        return m;
+    }
+
+    if (type == "qb_key") {
+        const auto keyIt = j.find("key");
+        if (keyIt == j.end() || !keyIt->is_string() || keyIt->get<std::string>().empty() ||
+            keyIt->get<std::string>().size() > 32) {
+            return invalid("qb_key needs non-empty string 'key' (1..32 chars)");
+        }
+        m.qbKey = keyIt->get<std::string>();
+        m.type = ClientMessage::Type::QbKey;
+        return m;
+    }
+
+    if (type == "qb_save") {
+        const auto fnIt = j.find("filename");
+        const auto startIt = j.find("startAddr");
+        const auto endIt = j.find("endAddr");
+        std::string cleanName;
+        if (fnIt == j.end() || !fnIt->is_string() ||
+            !Abc80QbHost::sanitizeAbcFilename(fnIt->get<std::string>(), cleanName)) {
+            return invalid("qb_save needs valid 'filename'");
+        }
+        if (startIt == j.end() || !startIt->is_number_unsigned() || startIt->get<uint64_t>() > 0xFFFF ||
+            endIt == j.end() || !endIt->is_number_unsigned() || endIt->get<uint64_t>() > 0xFFFF) {
+            return invalid("qb_save needs 'startAddr' and 'endAddr' in range 0..65535");
+        }
+        uint16_t sAddr = static_cast<uint16_t>(startIt->get<uint64_t>());
+        uint16_t eAddr = static_cast<uint16_t>(endIt->get<uint64_t>());
+        if (sAddr > eAddr) {
+            return invalid("qb_save requires startAddr <= endAddr");
+        }
+        m.qbFilename = cleanName;
+        m.qbStartAddr = sAddr;
+        m.qbEndAddr = eAddr;
+        m.type = ClientMessage::Type::QbSave;
+        return m;
+    }
+
+    if (type == "qb_load") {
+        const auto fnIt = j.find("filename");
+        std::string cleanName;
+        if (fnIt == j.end() || !fnIt->is_string() ||
+            !Abc80QbHost::sanitizeAbcFilename(fnIt->get<std::string>(), cleanName)) {
+            return invalid("qb_load needs valid 'filename'");
+        }
+        m.qbFilename = cleanName;
+        m.type = ClientMessage::Type::QbLoad;
+        return m;
+    }
+
     return invalid("unknown message type");
 }
 
@@ -366,6 +424,39 @@ std::string buildTapeListJson(const std::vector<TapeFileInfo> &tapes)
         item["valid"] = t.hasValidProgram;
         j["tapes"].push_back(std::move(item));
     }
+    return j.dump();
+}
+
+std::string buildQbStateJson(Abc80QbHost &qbHost)
+{
+    json j;
+    j["type"] = "qb_state";
+    j["connected"] = qbHost.isConnected();
+    j["linkReady"] = qbHost.isLinkServerPolling();
+    j["mode"] = qbHost.getModeName();
+    j["currentAddress"] = qbHost.getCurrentAddress();
+    j["highlightedKey"] = qbHost.getHighlightedKey();
+    j["statusMessage"] = qbHost.getStatusMessage();
+
+    const Cp437Screen &scr = qbHost.getScreen();
+    j["rows"] = json::array();
+    j["attrs"] = json::array();
+    for (int r = 1; r <= Cp437Screen::HEIGHT; ++r) {
+        j["rows"].push_back(scr.getRowText(r));
+        j["attrs"].push_back(scr.getRowAttrHex(r));
+    }
+
+    j["audioEvents"] = json::array();
+    for (const auto &ev : qbHost.consumeAudioEvents()) {
+        json item;
+        item["kind"] = ev.kind;
+        item["freqHz"] = ev.freqHz;
+        item["durationSec"] = ev.durationSec;
+        item["mml"] = ev.mml;
+        j["audioEvents"].push_back(std::move(item));
+    }
+
+    j["programs"] = qbHost.listPrograms();
     return j.dump();
 }
 

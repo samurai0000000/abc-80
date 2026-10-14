@@ -11,6 +11,7 @@
 #define ABC80_WEB_PROTOCOL_HXX
 
 #include <abc80/Abc80Board.hxx>
+#include <abc80/Abc80QbHost.hxx>
 #include <abc80/Abc80Rom.hxx>
 #include <array>
 #include <cstddef>
@@ -38,7 +39,12 @@ struct ClientMessage {
         TapeList,
         TapeSelect,
         TapeAnnotate,
-        TapeTransport
+        TapeTransport,
+        QbConnect,
+        QbKey,
+        QbSave,
+        QbLoad,
+        QbStatus
     };
 
     Type type{Type::Invalid};
@@ -55,6 +61,10 @@ struct ClientMessage {
     std::string tapeAnnotation; // TapeAnnotate, TapeTransport
     bool hasTapeAnnotation{false};
     std::string tapeAction; // TapeTransport: "play" | "record" | "rewind" | "stop"
+    std::string qbKey;      // QbKey
+    std::string qbFilename; // QbSave, QbLoad
+    uint16_t qbStartAddr{0}; // QbSave
+    uint16_t qbEndAddr{0};   // QbSave
     std::string error;      // Invalid: why
 };
 
@@ -100,6 +110,7 @@ std::string buildMemDataJson(uint16_t addr, const std::vector<uint8_t> &data);
 std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines);
 std::string buildAiPunchJson(const std::string &key, bool down, size_t remaining);
 std::string buildTapeListJson(const std::vector<TapeFileInfo> &tapes);
+std::string buildQbStateJson(Abc80QbHost &qbHost);
 
 } // namespace abc80
 

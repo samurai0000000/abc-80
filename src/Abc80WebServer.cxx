@@ -64,6 +64,7 @@ struct Abc80WebServer::Impl {
         bool wasManuallyPausedBeforeAi{false}; // true if session was manually paused before AI wake
         Abc80Board board;
         std::unique_ptr<KeyQueue> keys;
+        std::unique_ptr<Abc80QbHost> qbHost;
         uint64_t frames{0};
         uint64_t cycles{0};
         std::vector<std::shared_ptr<FrameOutbox>> outboxes;  // multi-subscriber for resident
@@ -119,6 +120,18 @@ struct Abc80WebServer::Impl {
         return config.root + "/tapes";
     }
 
+    std::string resolvedProgramsDir() const
+    {
+        if (!config.programsDir.empty()) {
+            return config.programsDir;
+        }
+        const char *home = std::getenv("HOME");
+        if (home != nullptr && home[0] != '\0') {
+            return std::string(home) + "/.config/abc-80/programs";
+        }
+        return config.root + "/programs";
+    }
+
     // ---- session lifecycle ----
 
     // Power-cycles the board with the given ROM. Caller holds s.mtx.
@@ -136,6 +149,11 @@ struct Abc80WebServer::Impl {
             return false;
         }
         s.keys = std::make_unique<KeyQueue>(profile.keys);
+        if (!s.qbHost) {
+            s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+        }
+        s.qbHost->setProgramsDir(resolvedProgramsDir());
+        s.qbHost->disconnect();
         s.ready = true;
         s.paused = false;
         s.autoPaused = false;
@@ -337,6 +355,9 @@ struct Abc80WebServer::Impl {
                 }
                 s.board.reset();
                 s.keys->clear();
+                if (s.qbHost) {
+                    s.qbHost->disconnect();
+                }
                 s.paused = false;
                 s.autoPaused = false;
                 s.resumedForAiPunch = false;
@@ -522,6 +543,98 @@ struct Abc80WebServer::Impl {
                 for (auto &ob : s.outboxes) {
                     ob->post(frame);
                 }
+            }
+            break;
+        }
+        case ClientMessage::Type::QbConnect: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string qbReply;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.qbHost) {
+                    s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+                    s.qbHost->setProgramsDir(resolvedProgramsDir());
+                }
+                (void)s.qbHost->initialAbc();
+                qbReply = buildQbStateJson(*s.qbHost);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(qbReply);
+            }
+            break;
+        }
+        case ClientMessage::Type::QbStatus: {
+            std::string qbReply;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.qbHost) {
+                    s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+                    s.qbHost->setProgramsDir(resolvedProgramsDir());
+                }
+                if (s.qbHost->isConnected()) {
+                    s.qbHost->updateMemoryTable(s.qbHost->getCurrentAddress());
+                }
+                qbReply = buildQbStateJson(*s.qbHost);
+            }
+            outbox.post(qbReply);
+            break;
+        }
+        case ClientMessage::Type::QbKey: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string qbReply;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.qbHost) {
+                    s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+                    s.qbHost->setProgramsDir(resolvedProgramsDir());
+                }
+                (void)s.qbHost->pressKey(m.qbKey);
+                qbReply = buildQbStateJson(*s.qbHost);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(qbReply);
+            }
+            break;
+        }
+        case ClientMessage::Type::QbSave: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string qbReply;
+            std::string err;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.qbHost) {
+                    s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+                    s.qbHost->setProgramsDir(resolvedProgramsDir());
+                }
+                (void)s.qbHost->saveProgramAbc(m.qbFilename, m.qbStartAddr, m.qbEndAddr, err);
+                qbReply = buildQbStateJson(*s.qbHost);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(qbReply);
+            }
+            break;
+        }
+        case ClientMessage::Type::QbLoad: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string qbReply;
+            std::string err;
+            uint16_t loadedStart = 0;
+            size_t loadedBytes = 0;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (!s.qbHost) {
+                    s.qbHost = std::make_unique<Abc80QbHost>(s.board);
+                    s.qbHost->setProgramsDir(resolvedProgramsDir());
+                }
+                (void)s.qbHost->loadProgramAbc(m.qbFilename, loadedStart, loadedBytes, err);
+                qbReply = buildQbStateJson(*s.qbHost);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(qbReply);
             }
             break;
         }

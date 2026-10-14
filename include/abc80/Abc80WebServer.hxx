@@ -37,6 +37,7 @@ struct ServerConfig {
     unsigned sendTimeoutMs{200};        // socket write timeout; a stalled client never blocks others
     double litDutyMin{0.05};            // share of a frame a segment must be on to count as lit
     std::string tapesDir;               // empty = default ~/.config/abc-80/tapes
+    std::string programsDir;            // empty = default ~/.config/abc-80/programs
 };
 
 class Abc80WebServer {

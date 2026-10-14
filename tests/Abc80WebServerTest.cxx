@@ -1047,6 +1047,101 @@ TEST(Abc80WebServer, CassetteTapeDeckWebSocketTransportAndLibrarySeeding)
     std::filesystem::remove_all(tapesDir);
 }
 
+TEST(Abc80WebServer, QuickBasicHostWebSocketSessionAnd1993RomIntegration)
+{
+    const std::string progsDir = "/tmp/abc80_server_qb_progs_test_dir";
+    std::filesystem::remove_all(progsDir);
+
+    ServerConfig cfg = testConfig();
+    cfg.programsDir = progsDir;
+    Abc80WebServer server(cfg);
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("qb_session_1993", "1993");
+
+    // 1. Verify A11/A12 preserved before qb_connect: 1993 ROM sits at 0x0B04..0x0B0A with dark display
+    json firstTel;
+    CHECK(tab.anyTelemetry(4000, &firstTel));
+    STRCMP_EQUAL("1993", firstTel.value("rom", "").c_str());
+    for (int d = 0; d < 6; ++d) {
+        LONGS_EQUAL(0, firstTel["displayMasks"][d].get<int>());
+    }
+
+    // 2. Request qb_status -> disconnected initially
+    tab.send({ { "type", "qb_status" } });
+    json statusReply;
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return !j.value("connected", true);
+    }, 4000, &statusReply));
+    CHECK(statusReply.value("linkReady", false));
+
+    // 3. Send qb_connect -> runs InitialABC, uploads 0x1700..0x1760 helpers, strobes 7-seg display
+    tab.send({ { "type", "qb_connect" } });
+    json connReply;
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return j.value("connected", false);
+    }, 4000, &connReply));
+    LONGS_EQUAL(0x1000, connReply.value("currentAddress", 0));
+
+    // 4. Enter DataInput ("END") and write 0x42 at 0x1000 via qb_key
+    tab.send({ { "type", "qb_key" }, { "key", "END" } });
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return j.value("mode", "") == "data";
+    }, 4000));
+    tab.send({ { "type", "qb_key" }, { "key", "4" } });
+    CHECK(tab.waitFor("qb_state", [](const json &) { return true; }, 4000));
+    tab.send({ { "type", "qb_key" }, { "key", "2" } });
+    json afterWrite;
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return j.value("highlightedKey", 0) == 3;
+    }, 4000, &afterWrite));
+
+    // Verify 0x1000 holds 0x42 via readMem
+    tab.readMem(0x1000, 1);
+    json memReply;
+    CHECK(tab.waitFor("memData", [](const json &j) {
+        return j.value("addr", 0) == 0x1000;
+    }, 4000, &memReply));
+    BYTES_EQUAL(0x42, memReply["data"][0].get<int>());
+
+    // 5. Save and Load .abc program over WebSocket
+    tab.send({
+        { "type", "qb_save" },
+        { "filename", "ws_test.abc" },
+        { "startAddr", 0x1000 },
+        { "endAddr", 0x1002 }
+    });
+    json saveReply;
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return j.value("statusMessage", "").find("Saved") != std::string::npos;
+    }, 4000, &saveReply));
+    CHECK(std::filesystem::exists(progsDir + "/ws_test.abc"));
+
+    // Overwrite 0x1000 with 0x99, then reload ws_test.abc and verify 0x42 is restored
+    tab.send({ { "type", "qb_key" }, { "key", "9" } });
+    CHECK(tab.waitFor("qb_state", [](const json &) { return true; }, 4000));
+    tab.send({ { "type", "qb_key" }, { "key", "9" } });
+    CHECK(tab.waitFor("qb_state", [](const json &) { return true; }, 4000));
+
+    tab.send({
+        { "type", "qb_load" },
+        { "filename", "ws_test.abc" }
+    });
+    CHECK(tab.waitFor("qb_state", [](const json &j) {
+        return j.value("statusMessage", "").find("Loaded") != std::string::npos;
+    }, 4000));
+
+    tab.readMem(0x1000, 1);
+    CHECK(tab.waitFor("memData", [](const json &j) {
+        return j.value("addr", 0) == 0x1000;
+    }, 4000, &memReply));
+    BYTES_EQUAL(0x42, memReply["data"][0].get<int>());
+
+    std::filesystem::remove_all(progsDir);
+}
+
 /*
  * Local variables:
  * mode: C++
