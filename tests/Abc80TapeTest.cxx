@@ -5,24 +5,31 @@
  */
 
 #include <abc80/Abc80Tape.hxx>
+#include <abc80/Abc80Board.hxx>
 #include <CppUTest/TestHarness.h>
+#include <rapidcheck.h>
 #include <vector>
 #include <cstdio>
+#include <filesystem>
 
 using namespace abc80;
 
 TEST_GROUP(Abc80Tape)
 {
     Abc80Tape tape;
+    std::string tempDir{"/tmp/abc80_tapes_test_dir"};
 
     void setup() override
     {
+        std::filesystem::remove_all(tempDir);
+        std::filesystem::create_directories(tempDir);
     }
 
     void teardown() override
     {
         std::remove("/tmp/abc80_tape_test.wav");
         std::remove("/tmp/abc80_tape_test.cas");
+        std::filesystem::remove_all(tempDir);
     }
 };
 
@@ -162,6 +169,234 @@ TEST(Abc80Tape, ZeroCrossingToleranceUnderAmplitudeVariations)
     }
 }
 
+TEST(Abc80Tape, FileIdFormattingParsingAnd32CharAnnotationContainer)
+{
+    STRCMP_EQUAL("0000", Abc80Tape::formatFileId(0x0000).c_str());
+    STRCMP_EQUAL("0042", Abc80Tape::formatFileId(0x0042).c_str());
+    STRCMP_EQUAL("abcd", Abc80Tape::formatFileId(0xABCD).c_str());
+    STRCMP_EQUAL("ffff", Abc80Tape::formatFileId(0xFFFF).c_str());
+
+    uint16_t parsed = 0;
+    CHECK_TRUE(Abc80Tape::parseFileId("0001", parsed));
+    LONGS_EQUAL(0x0001, parsed);
+    CHECK_TRUE(Abc80Tape::parseFileId("CAFE", parsed));
+    LONGS_EQUAL(0xCAFE, parsed);
+    CHECK_TRUE(Abc80Tape::parseFileId("cafe", parsed));
+    LONGS_EQUAL(0xCAFE, parsed);
+    CHECK_FALSE(Abc80Tape::parseFileId("123", parsed));
+    CHECK_FALSE(Abc80Tape::parseFileId("12345", parsed));
+    CHECK_FALSE(Abc80Tape::parseFileId("123G", parsed));
+
+    // 32-character annotation clamping and persistence in .tape file
+    const std::string longLabel = "0123456789ABCDEF0123456789ABCDEF_EXTRA_IGNORED";
+    const std::string clamped = Abc80Tape::sanitizeAnnotation(longLabel);
+    LONGS_EQUAL(32, clamped.size());
+    STRCMP_EQUAL("0123456789ABCDEF0123456789ABCDEF", clamped.c_str());
+
+    const uint8_t prog[] = { 0x3E, 0x42, 0x76 };
+    std::vector<TapePulseRun> runs;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(Abc80Tape::encodeProgramToRuns(0x00A5, 0x1000, prog, sizeof(prog), runs)));
+
+    const std::string tapeFile = tempDir + "/00a5.tape";
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(Abc80Tape::saveTapeFile(tapeFile, 0x00A5, longLabel, runs)));
+
+    uint16_t loadedId = 0;
+    std::string loadedLabel;
+    std::vector<TapePulseRun> loadedRuns;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(Abc80Tape::loadTapeFile(tapeFile, loadedId, loadedLabel, loadedRuns)));
+    LONGS_EQUAL(0x00A5, loadedId);
+    STRCMP_EQUAL("0123456789ABCDEF0123456789ABCDEF", loadedLabel.c_str());
+    LONGS_EQUAL(runs.size(), loadedRuns.size());
+}
+
+TEST(Abc80Tape, RapidCheckRomPulseCodecRoundTripAndCorruptInputSafety)
+{
+    const bool ok = rc::check("arbitrary ABC-80 program round-trips through ROM pulse runs", []() {
+        const uint16_t fileId = *rc::gen::arbitrary<uint16_t>();
+        const uint16_t startAddr = *rc::gen::inRange<uint16_t>(0x1000, 0x1700);
+        const auto payload = *rc::gen::container<std::vector<uint8_t>>(
+            *rc::gen::inRange<size_t>(1, 64),
+            rc::gen::arbitrary<uint8_t>());
+
+        std::vector<TapePulseRun> runs;
+        RC_ASSERT(Abc80Tape::encodeProgramToRuns(fileId, startAddr, payload.data(), payload.size(), runs) ==
+                  Abc80Status::OK);
+
+        uint16_t outId = 0;
+        uint16_t outStart = 0;
+        uint16_t outEnd = 0;
+        std::vector<uint8_t> outData;
+        RC_ASSERT(Abc80Tape::decodeProgramFromRuns(runs, outId, outStart, outEnd, outData) ==
+                  Abc80Status::OK);
+        RC_ASSERT(outId == fileId);
+        RC_ASSERT(outStart == startAddr);
+        RC_ASSERT(outEnd == static_cast<uint16_t>(startAddr + payload.size() - 1));
+        RC_ASSERT(outData == payload);
+    });
+    CHECK_TRUE(ok);
+
+    // Empty / truncated / noise pulse runs must safely fail without crashing
+    uint16_t id = 0, s = 0, e = 0;
+    std::vector<uint8_t> data;
+    std::vector<TapePulseRun> emptyRuns;
+    CHECK_TRUE(Abc80Tape::decodeProgramFromRuns(emptyRuns, id, s, e, data) != Abc80Status::OK);
+
+    std::vector<TapePulseRun> shortRuns = { { 889, 2000 }, { 447, 100 } };
+    CHECK_TRUE(Abc80Tape::decodeProgramFromRuns(shortRuns, id, s, e, data) != Abc80Status::OK);
+}
+
+TEST(Abc80Tape, AuthenticZ80CpuToTapeAndFromTapeLoopbackVia8255Ports)
+{
+    Abc80Board board;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(board.powerOnRom(RomId::Monitor, ".")));
+    // Configure primary 8255 PPI as Monitor begin (0x0070) does: PA=in, PB=out, PC=out (0x90), PC=0xFF
+    board.getPpi().writePort(0x83, 0x90);
+    board.getPpi().writePort(0x82, 0xFF);
+    board.finishInstruction();
+
+    CassetteDeck& deck = board.getCassetteDeck();
+    deck.setTapesDir(tempDir);
+
+    // Write a test machine-code program into RAM at 0x1000..0x1007
+    const uint8_t program[] = { 0x3E, 0xAA, 0x32, 0x50, 0x10, 0x76, 0xC9, 0x5A };
+    for (size_t i = 0; i < sizeof(program); ++i) {
+        board.getBus().writeByte(static_cast<uint16_t>(0x1000 + i), program[i]);
+    }
+
+    // Populate stepbf (0x17BF..0x17C4) as the keypad TO TAPE parameter entry does:
+    // File ID = 0x04D2 ("04d2.tape"), Start = 0x1000, End = 0x1007
+    board.getBus().writeByte(0x17BF, 0xD2);
+    board.getBus().writeByte(0x17C0, 0x04);
+    board.getBus().writeByte(0x17C1, 0x00);
+    board.getBus().writeByte(0x17C2, 0x10);
+    board.getBus().writeByte(0x17C3, 0x07);
+    board.getBus().writeByte(0x17C4, 0x10);
+
+    // Arm CassetteDeck in RECORD mode with a 32-char annotation, then invoke ROM EWT (0x0193)
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(deck.record("Z80 EWT Authentic Test")));
+    CHECK_TRUE(deck.state() == TapeDeckState::Recording);
+
+    // Call 0x0193 (ewt) with return address 0x009B (Monitor main loop) pushed onto stack
+    board.getCpu().setIX(0x17C6);
+    uint16_t sp = 0x17BD;
+    board.getBus().writeByte(sp, 0x9B);
+    board.getBus().writeByte(static_cast<uint16_t>(sp + 1), 0x00);
+    board.getCpu().setSP(sp);
+    board.getCpu().setPC(0x0193);
+    board.stepInstruction();
+
+    // Step until ewt returns to 0x009B (Monitor main loop) and auto-stop finalizes recording
+    uint64_t elapsed = 0;
+    while (elapsed < 30000000ULL && board.lastFetchAddress() != 0x009B) {
+        elapsed += board.stepInstruction();
+    }
+    CHECK_TRUE(board.lastFetchAddress() == 0x009B);
+
+    // Step 100,000 T-states in main loop so CassetteDeck detects end-of-trailer silence and auto-saves
+    board.stepTStates(100000);
+    CHECK_TRUE(deck.state() == TapeDeckState::Stopped);
+
+    // Verify that the file ID entered (04d2) was demodulated from PC7 audio and saved on demand!
+    LONGS_EQUAL(0x04D2, deck.selectedFileId());
+    STRCMP_EQUAL("04d2", deck.selectedFileIdHex().c_str());
+    STRCMP_EQUAL("Z80 EWT Authentic Test", deck.annotation().c_str());
+    CHECK_TRUE(std::filesystem::exists(tempDir + "/04d2.tape"));
+
+    // Wipe RAM at 0x1000..0x1007 and corrupt stepbf start/end so only FROM TAPE can restore it
+    for (size_t i = 0; i < sizeof(program); ++i) {
+        board.getBus().writeByte(static_cast<uint16_t>(0x1000 + i), 0x00);
+    }
+    board.getBus().writeByte(0x17C1, 0x00);
+    board.getBus().writeByte(0x17C2, 0x00);
+    board.getBus().writeByte(0x17C3, 0x00);
+    board.getBus().writeByte(0x17C4, 0x00);
+
+    // Set requested File ID = 0x04D2 in stepbf (0x17BF..0x17C0), start PLAY, and invoke ROM ERT (0x01CE)
+    board.getBus().writeByte(0x17BF, 0xD2);
+    board.getBus().writeByte(0x17C0, 0x04);
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK), static_cast<int>(deck.play()));
+    CHECK_TRUE(deck.state() == TapeDeckState::Playing);
+
+    board.finishInstruction();
+    board.getCpu().setIX(0x17C6);
+    sp = 0x17BD;
+    board.getBus().writeByte(sp, 0x9B);
+    board.getBus().writeByte(static_cast<uint16_t>(sp + 1), 0x00);
+    board.getCpu().setSP(sp);
+    board.getCpu().setPC(0x01CE);
+    board.stepInstruction();
+
+    elapsed = 0;
+    while (elapsed < 35000000ULL && board.lastFetchAddress() != 0x009B) {
+        elapsed += board.stepInstruction();
+    }
+    CHECK_TRUE(board.lastFetchAddress() == 0x009B);
+
+    // Verify no error flag was set in test (0x17F6 bit 7 == 0) and adsave (0x17EE) == 0x1007
+    BYTES_EQUAL(0x00, board.getBus().readByte(0x17F6) & 0x80);
+    LONGS_EQUAL(0x1007, board.getBus().readWord(0x17EE));
+
+    // Verify every single byte in RAM 0x1000..0x1007 was restored via PA7 audio tones!
+    for (size_t i = 0; i < sizeof(program); ++i) {
+        BYTES_EQUAL(program[i], board.getBus().readByte(static_cast<uint16_t>(0x1000 + i)));
+    }
+}
+
+TEST(Abc80Tape, AuthenticFromTapeAfterProlongedIdlePlayBeforeGo)
+{
+    Abc80Board board;
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(board.powerOnRom(RomId::Monitor, ".")));
+    board.bootTurbo(RomId::Monitor, 400000000ULL);
+
+    CassetteDeck& deck = board.getCassetteDeck();
+    deck.setTapesDir(tempDir);
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(deck.seedDefaultTapesIfEmpty()));
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
+                static_cast<int>(deck.selectTape(0x0004)));
+
+    // User presses PLAY on the cassette deck first
+    LONGS_EQUAL(static_cast<int>(Abc80Status::OK), static_cast<int>(deck.play()));
+    CHECK_TRUE(deck.state() == TapeDeckState::Playing);
+
+    // Emulate 3.5 seconds of the Monitor scanning keypad/display before the user finishes typing
+    // FROM TAPE -> 0 -> 0 -> 0 -> 4 -> GO (~210 frames at 60 Hz)
+    for (int f = 0; f < 210; ++f) {
+        board.stepFrame();
+    }
+
+    // Tape deck MUST still be playing the sustained leader tone, NOT prematurely finished!
+    CHECK_TRUE(deck.state() == TapeDeckState::Playing);
+
+    // Now execute ROM ERT (0x01CE) for File ID 0x0004
+    board.finishInstruction();
+    board.getBus().writeByte(0x17BF, 0x04);
+    board.getBus().writeByte(0x17C0, 0x00);
+    board.getCpu().setIX(0x17C6);
+    const uint16_t sp = 0x17BD;
+    board.getBus().writeByte(sp, 0x9B);
+    board.getBus().writeByte(static_cast<uint16_t>(sp + 1), 0x00);
+    board.getCpu().setSP(sp);
+    board.getCpu().setPC(0x01CE);
+    board.stepInstruction();
+
+    uint64_t elapsed = 0;
+    while (elapsed < 40000000ULL && board.lastFetchAddress() != 0x009B) {
+        elapsed += board.stepInstruction();
+    }
+    CHECK_TRUE(board.lastFetchAddress() == 0x009B);
+    BYTES_EQUAL(0x00, board.getBus().readByte(0x17F6) & 0x80);
+    LONGS_EQUAL(0x1012, board.getBus().readWord(0x17EE));
+    BYTES_EQUAL(0x21, board.getBus().readByte(0x1000));
+    BYTES_EQUAL(0x76, board.getBus().readByte(0x1012));
+}
+
 /*
  * Local variables:
  * mode: C++
@@ -171,3 +406,4 @@ TEST(Abc80Tape, ZeroCrossingToleranceUnderAmplitudeVariations)
  * indent-tabs-mode: nil
  * End:
  */
+

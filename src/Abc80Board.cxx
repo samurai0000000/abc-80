@@ -49,8 +49,10 @@ Abc80Board::Abc80Board()
     : _bus()
     , _ppi()
     , _cpu(_bus, &_ppi)
+    , _cassetteDeck(&_ppi)
 {
     _ppi.setClockSource(_cpu.cyclesPtr());
+    _ppi.setCassetteDeck(&_cassetteDeck);
     _ppi.beginFrame();
 }
 
@@ -107,6 +109,9 @@ constexpr Glyph kGlyphs[] = {
 
 void Abc80Board::tickTracked()
 {
+    if (_cassetteDeck.isActive()) {
+        _cassetteDeck.step(*_cpu.cyclesPtr());
+    }
     const uint64_t pins = _cpu.tick();
     if ((pins & Z80_M1) && (pins & Z80_MREQ) && (pins & Z80_RD)) {
         const uint16_t addr = Z80_GET_ADDR(pins);
@@ -200,7 +205,13 @@ double Abc80Board::speakerLedFraction() const noexcept
 
 uint64_t Abc80Board::stepTStates(uint64_t tstates)
 {
-    return _cpu.stepTStates(tstates);
+    if (!_cassetteDeck.isActive()) {
+        return _cpu.stepTStates(tstates);
+    }
+    for (uint64_t i = 0; i < tstates; ++i) {
+        tickTracked();
+    }
+    return tstates;
 }
 
 uint32_t Abc80Board::stepInstruction()

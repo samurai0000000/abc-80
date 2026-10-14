@@ -16,6 +16,8 @@
 
 namespace abc80 {
 
+class CassetteDeck;
+
 class Abc80Ppi {
 public:
     Abc80Ppi();
@@ -58,6 +60,7 @@ public:
     };
 
     void setClockSource(const uint64_t *tstates) noexcept { _clock = tstates; }
+    void setCassetteDeck(CassetteDeck *deck) noexcept { _cassetteDeck = deck; }
     void beginFrame() noexcept;   // zero the accumulators and mark the frame start
     void endFrame() noexcept;     // account the time up to now; freezes frameElapsedTStates()
     const FrameAudio &frameAudio() const noexcept { return _audio; }
@@ -106,8 +109,10 @@ private:
 
     // Audio & Keypad state
     const uint64_t *_clock{nullptr};
+    CassetteDeck *_cassetteDeck{nullptr};
     uint64_t _frameStart{0};
     uint64_t _lastEvent{0};
+    uint64_t _lastPc7ToggleTStates{0};
     uint32_t _frameElapsed{0};
     std::array<std::array<uint32_t, 8>, 6> _segOn{};
     FrameAudio _audio;

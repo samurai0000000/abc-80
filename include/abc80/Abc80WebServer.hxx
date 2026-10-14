@@ -36,6 +36,7 @@ struct ServerConfig {
     unsigned sessionGraceSeconds{300};  // a detached board is kept this long
     unsigned sendTimeoutMs{200};        // socket write timeout; a stalled client never blocks others
     double litDutyMin{0.05};            // share of a frame a segment must be on to count as lit
+    std::string tapesDir;               // empty = default ~/.config/abc-80/tapes
 };
 
 class Abc80WebServer {

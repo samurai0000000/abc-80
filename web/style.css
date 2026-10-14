@@ -5896,3 +5896,559 @@ button[data-key="RST"] .key-label {
     margin-top: -6px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
+
+/* ==========================================================================
+   Vintage Cassette Data Recorder GUI & Spinning Reel Animation (EAR PA7 / MIC PC7)
+   ========================================================================== */
+
+@keyframes cassette-reel-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+}
+
+@keyframes oxide-ribbon-shimmer {
+    0%   { background-position: 0 0; }
+    100% { background-position: 24px 0; }
+}
+
+#tab-tape {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+#tab-tape.active {
+    display: flex;
+}
+
+.cassette-deck-box {
+    background: linear-gradient(180deg, #1b222c 0%, #12171f 100%);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cassette-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding-bottom: 6px;
+}
+
+.cassette-brand-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tape-status-badge {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+
+.tape-status-badge.stopped {
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+}
+
+.tape-status-badge.playing {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+}
+
+.tape-status-badge.recording {
+    background: rgba(239, 68, 68, 0.22);
+    color: #f87171;
+    border: 1px solid #ef4444;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+.cassette-meters-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tape-tone-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #0b0f17;
+    border: 1px solid #263244;
+    border-radius: 4px;
+    padding: 2px 7px;
+}
+
+.tape-tone-led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    transition: background 0.08s ease, box-shadow 0.08s ease;
+}
+
+.tape-tone-led.tone-1khz {
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+}
+
+.tape-tone-led.tone-2khz {
+    background: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+.tape-tone-label {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: #cbd5e1;
+    min-width: 44px;
+    text-align: right;
+}
+
+.tape-counter-bezel {
+    background: #070a0f;
+    border: 1.5px solid #334155;
+    border-radius: 4px;
+    padding: 2px 6px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.tape-counter-digits {
+    font-family: 'Orbitron', var(--font-mono), monospace;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #f8fafc;
+}
+
+/* Cassette Well & Shell */
+.cassette-well {
+    background: radial-gradient(circle at 50% 50%, #0d121a 0%, #06090e 100%);
+    border: 2px solid #1e293b;
+    border-radius: 7px;
+    padding: 8px;
+    box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.9);
+}
+
+.cassette-shell {
+    background: linear-gradient(180deg, #27303f 0%, #1c2430 65%, #151b24 100%);
+    border: 1.5px solid #3b495e;
+    border-radius: 6px;
+    padding: 7px 9px 5px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+}
+
+.cassette-label-strip {
+    background: linear-gradient(180deg, #f5ebd6 0%, #ead8b3 75%, #d97706 75%, #b45309 100%);
+    border-radius: 4px;
+    padding: 4px 7px 5px 7px;
+    border: 1px solid #92400e;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cassette-label-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-mono), monospace;
+    font-size: 9px;
+    font-weight: 800;
+    color: #451a03;
+}
+
+.cassette-file-badge {
+    background: #1c1917;
+    color: #fde68a;
+    padding: 0 5px;
+    border-radius: 2px;
+    font-size: 9.5px;
+}
+
+.cassette-label-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.tape-annotation-input {
+    flex: 1;
+    background: rgba(255, 252, 240, 0.92);
+    border: 1px solid #78350f;
+    border-radius: 3px;
+    color: #1c1917;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    height: 22px;
+    box-sizing: border-box;
+}
+
+.tape-annotation-input:focus {
+    outline: none;
+    border-color: #0284c7;
+    background: #ffffff;
+}
+
+.tape-save-btn {
+    background: #1c1917 !important;
+    color: #fef3c7 !important;
+    border: 1px solid #451a03 !important;
+    height: 22px;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    cursor: pointer;
+}
+
+.tape-save-btn:hover {
+    background: #292524 !important;
+    color: #ffffff !important;
+}
+
+/* Smoked Acrylic Reel Window */
+.cassette-window {
+    background: linear-gradient(180deg, #070b10 0%, #101722 50%, #070b10 100%);
+    border: 1.5px solid #334155;
+    border-radius: 28px;
+    height: 76px;
+    margin: 0 8px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95);
+}
+
+.cassette-reel-assembly {
+    position: relative;
+    width: 62px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cassette-tape-pack {
+    position: absolute;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #1c120c 35%, #3f271b 65%, #261710 92%, #140c08 100%);
+    border: 1px solid rgba(180, 110, 70, 0.35);
+    transform: scale(var(--pack-scale, 0.85));
+    transition: transform 0.25s linear;
+}
+
+#tape-pack-left  { --pack-scale: 0.92; }
+#tape-pack-right { --pack-scale: 0.48; }
+
+.cassette-reel {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#cassette-deck.deck-playing .cassette-reel,
+#cassette-deck.deck-recording .cassette-reel {
+    animation: cassette-reel-spin 1.6s linear infinite;
+}
+
+.reel-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.reel-flange {
+    fill: none;
+    stroke: rgba(226, 232, 240, 0.28);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+}
+
+.reel-hub {
+    fill: #e2e8f0;
+    stroke: #94a3b8;
+    stroke-width: 2;
+}
+
+.reel-spokes line {
+    stroke: #0f172a;
+    stroke-width: 3.2;
+    stroke-linecap: round;
+}
+
+.reel-spindle {
+    fill: #090d14;
+    stroke: #475569;
+    stroke-width: 1.5;
+}
+
+.cassette-window-scale {
+    flex: 1;
+    margin: 0 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 2;
+}
+
+.scale-ticks {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono), monospace;
+    font-size: 8px;
+    color: #94a3b8;
+}
+
+.tape-progress-track {
+    width: 100%;
+    height: 5px;
+    background: #1e293b;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid #334155;
+}
+
+.tape-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f59e0b 0%, #10b981 100%);
+    transition: width 0.15s linear;
+}
+
+/* Bottom Trapezoid & Oxide Tape Ribbon */
+.cassette-head-trapezoid {
+    height: 16px;
+    margin: 0 22px;
+    background: #0b0f17;
+    border: 1px solid #283548;
+    border-radius: 3px 3px 6px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    position: relative;
+}
+
+.guide-roller {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #94a3b8;
+    border: 1px solid #334155;
+    z-index: 2;
+}
+
+.oxide-tape-ribbon {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 6px;
+    height: 4px;
+    background: repeating-linear-gradient(90deg, #5c341d 0px, #5c341d 6px, #7c4728 6px, #7c4728 12px);
+    opacity: 0.85;
+}
+
+#cassette-deck.deck-playing .oxide-tape-ribbon,
+#cassette-deck.deck-recording .oxide-tape-ribbon {
+    animation: oxide-ribbon-shimmer 0.45s linear infinite;
+}
+
+.magnetic-head-block {
+    width: 18px;
+    height: 10px;
+    background: #64748b;
+    border: 1px solid #94a3b8;
+    border-radius: 2px;
+    z-index: 2;
+    transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+#cassette-deck.deck-playing .magnetic-head-block {
+    background: #34d399;
+    box-shadow: 0 0 8px #10b981;
+}
+
+#cassette-deck.deck-recording .magnetic-head-block {
+    background: #f87171;
+    box-shadow: 0 0 8px #ef4444;
+}
+
+/* Mechanical Piano-Key Transport Controls */
+.piano-keys-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.piano-key {
+    background: linear-gradient(180deg, #334155 0%, #1e293b 65%, #0f172a 100%);
+    border: 1px solid #475569;
+    border-bottom: 3px solid #090d14;
+    border-radius: 4px;
+    color: #f1f5f9;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
+}
+
+.piano-key:hover:not(:disabled) {
+    background: linear-gradient(180deg, #475569 0%, #273549 65%, #1e293b 100%);
+}
+
+.piano-key:active:not(:disabled),
+.piano-key.active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+}
+
+.piano-key.key-rec .rec-dot {
+    color: #ef4444;
+}
+
+.piano-key.key-rec.active {
+    background: linear-gradient(180deg, #991b1b 0%, #7f1d1d 100%);
+    border-color: #ef4444;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.piano-key.key-play.active {
+    background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
+    border-color: #10b981;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+/* Program Tape Library Box */
+.tape-library-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-height: 150px;
+}
+
+.tape-slot-selector {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.tape-id-input {
+    width: 48px !important;
+    text-align: center;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+.tape-library-hint {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid #1e293b;
+    border-radius: 4px;
+    padding: 5px 7px;
+}
+
+.tape-library-hint code {
+    color: #38bdf8;
+    font-family: var(--font-mono), monospace;
+    font-weight: 700;
+}
+
+.tape-library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.tape-lib-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.tape-lib-row:hover {
+    background: #1e293b;
+    border-color: #38bdf8;
+}
+
+.tape-lib-row.selected {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: #38bdf8;
+}
+
+.tape-lib-id {
+    background: #1e293b;
+    color: #38bdf8;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.tape-lib-ann {
+    flex: 1;
+    color: #e2e8f0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tape-lib-meta {
+    color: #64748b;
+    font-size: 10px;
+    white-space: nowrap;
+}
+

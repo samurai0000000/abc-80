@@ -312,6 +312,71 @@ TEST(Abc80WebProtocol, TelemetryJsonCarriesIxAndIyAndKeepsTheOldRegisters)
     LONGS_EQUAL(8, static_cast<long>(r.size()));
 }
 
+TEST(Abc80WebProtocol, TapeClientMessagesAndTelemetrySerialization)
+{
+    const ClientMessage listMsg = parseClientMessage(R"({"type":"tape_list"})");
+    CHECK(listMsg.type == ClientMessage::Type::TapeList);
+
+    const ClientMessage selMsg = parseClientMessage(R"({"type":"tape_select","fileId":"04aF"})");
+    CHECK(selMsg.type == ClientMessage::Type::TapeSelect);
+    CHECK(selMsg.hasTapeFileId);
+    LONGS_EQUAL(0x04AF, selMsg.tapeFileId);
+
+    CHECK(parseClientMessage(R"({"type":"tape_select","fileId":"123"})").type == ClientMessage::Type::Invalid);
+    CHECK(parseClientMessage(R"({"type":"tape_select","fileId":"ZZZZ"})").type == ClientMessage::Type::Invalid);
+
+    const ClientMessage annMsg = parseClientMessage(
+        R"({"type":"tape_annotate","fileId":"0002","annotation":"0123456789ABCDEF0123456789ABCDEF_OVERFLOW"})");
+    CHECK(annMsg.type == ClientMessage::Type::TapeAnnotate);
+    LONGS_EQUAL(0x0002, annMsg.tapeFileId);
+    STRCMP_EQUAL("0123456789ABCDEF0123456789ABCDEF", annMsg.tapeAnnotation.c_str());
+
+    const ClientMessage playMsg = parseClientMessage(R"({"type":"tape_transport","action":"play","fileId":"0001"})");
+    CHECK(playMsg.type == ClientMessage::Type::TapeTransport);
+    STRCMP_EQUAL("play", playMsg.tapeAction.c_str());
+    CHECK(playMsg.hasTapeFileId);
+    LONGS_EQUAL(0x0001, playMsg.tapeFileId);
+
+    const ClientMessage recMsg = parseClientMessage(
+        R"({"type":"tape_transport","action":"record","annotation":"My Cassette Tape"})");
+    CHECK(recMsg.type == ClientMessage::Type::TapeTransport);
+    STRCMP_EQUAL("record", recMsg.tapeAction.c_str());
+    CHECK(recMsg.hasTapeAnnotation);
+    STRCMP_EQUAL("My Cassette Tape", recMsg.tapeAnnotation.c_str());
+
+    CHECK(parseClientMessage(R"({"type":"tape_transport","action":"eject"})").type == ClientMessage::Type::Invalid);
+
+    TelemetryFrame tf;
+    tf.rom = "monitor";
+    tf.tapeState = "playing";
+    tf.tapeFileId = "0003";
+    tf.tapeAnnotation = "Dual-Tone Chime (1000H)";
+    tf.tapeCounter = 123;
+    tf.tapeProgress = 0.5;
+    tf.tapeToneHz = 1000;
+    const json tj = json::parse(buildTelemetryJson(tf));
+    CHECK(tj.contains("tape"));
+    STRCMP_EQUAL("playing", tj["tape"].value("state", "").c_str());
+    STRCMP_EQUAL("0003", tj["tape"].value("fileId", "").c_str());
+    STRCMP_EQUAL("Dual-Tone Chime (1000H)", tj["tape"].value("annotation", "").c_str());
+    LONGS_EQUAL(123, tj["tape"].value("counter", 0));
+    LONGS_EQUAL(1000, tj["tape"].value("toneHz", 0));
+
+    TapeFileInfo info;
+    info.fileId = 0x0001;
+    info.annotation = "BCD Up-Counter (1000H)";
+    info.startAddr = 0x1000;
+    info.endAddr = 0x1018;
+    info.payloadBytes = 25;
+    info.durationSec = 11.5;
+    info.hasValidProgram = true;
+    const json lj = json::parse(buildTapeListJson({ info }));
+    STRCMP_EQUAL("tape_list", lj.value("type", "").c_str());
+    LONGS_EQUAL(1, static_cast<long>(lj.at("tapes").size()));
+    STRCMP_EQUAL("0001", lj["tapes"][0].value("fileId", "").c_str());
+    STRCMP_EQUAL("BCD Up-Counter (1000H)", lj["tapes"][0].value("annotation", "").c_str());
+}
+
 // ---- FrameOutbox: latest frame wins; a slow consumer never blocks the producer ----
 
 TEST_GROUP(Abc80FrameOutbox)

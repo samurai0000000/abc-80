@@ -23,7 +23,23 @@ namespace abc80 {
 constexpr size_t kMaxClientMessageBytes = 4096;
 
 struct ClientMessage {
-    enum class Type { Invalid, Hello, SetRom, Key, Reset, Run, Pause, Step, ReadMem, ReadDisasm, CancelAiPunch };
+    enum class Type {
+        Invalid,
+        Hello,
+        SetRom,
+        Key,
+        Reset,
+        Run,
+        Pause,
+        Step,
+        ReadMem,
+        ReadDisasm,
+        CancelAiPunch,
+        TapeList,
+        TapeSelect,
+        TapeAnnotate,
+        TapeTransport
+    };
 
     Type type{Type::Invalid};
     std::string token;      // Hello
@@ -34,6 +50,11 @@ struct ClientMessage {
     uint64_t seq{0};        // Key (optional)
     uint16_t memAddr{0};    // ReadMem, ReadDisasm
     uint16_t memCount{0};   // ReadMem, ReadDisasm
+    uint16_t tapeFileId{0}; // TapeSelect, TapeAnnotate, TapeTransport
+    bool hasTapeFileId{false};
+    std::string tapeAnnotation; // TapeAnnotate, TapeTransport
+    bool hasTapeAnnotation{false};
+    std::string tapeAction; // TapeTransport: "play" | "record" | "rewind" | "stop"
     std::string error;      // Invalid: why
 };
 
@@ -65,6 +86,12 @@ struct TelemetryFrame {
     std::vector<uint32_t> speakerEdges;
     bool speakerOverflow{false};
     uint16_t pc{0}, sp{0}, af{0}, bc{0}, de{0}, hl{0}, ix{0}, iy{0};
+    std::string tapeState{"stopped"};
+    std::string tapeFileId{"0001"};
+    std::string tapeAnnotation;
+    uint32_t tapeCounter{0};
+    double tapeProgress{0.0};
+    uint32_t tapeToneHz{0};
 };
 
 std::string buildTelemetryJson(const TelemetryFrame &frame);
@@ -72,6 +99,7 @@ std::string buildErrorJson(const std::string &reason);
 std::string buildMemDataJson(uint16_t addr, const std::vector<uint8_t> &data);
 std::string buildDisasmJson(uint16_t addr, const std::vector<DisasmLine> &lines);
 std::string buildAiPunchJson(const std::string &key, bool down, size_t remaining);
+std::string buildTapeListJson(const std::vector<TapeFileInfo> &tapes);
 
 } // namespace abc80
 

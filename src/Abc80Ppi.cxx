@@ -7,6 +7,7 @@
 #define CHIPS_IMPL
 #include <chips/i8255.h>
 #include <abc80/Abc80Ppi.hxx>
+#include <abc80/Abc80Tape.hxx>
 #include <algorithm>
 
 namespace abc80 {
@@ -70,6 +71,7 @@ void Abc80Ppi::reset()
     _digitSegments.fill(0x00);
     _tapeInputLevel = false;
     _speakerBit = false;
+    _lastPc7ToggleTStates = 0;
     _matrixKeys.fill(false);
     _hostLinkPortBIn = 0x00;
     _hostLinkPortCOut = 0x00;
@@ -109,10 +111,14 @@ void Abc80Ppi::updateDigitSegments(uint8_t digitStrobe, uint8_t segmentMask)
     // Port C bit 7 is the speaker. Record every toggle with its T-state offset in the frame.
     const bool newLevel = (digitStrobe & 0x80) != 0;
     if (_clock != nullptr && newLevel != oldLevel) {
+        _lastPc7ToggleTStates = *_clock;
         if (_audio.edgeCount < FrameAudio::kMaxEdges) {
             _audio.offsets[_audio.edgeCount++] = static_cast<uint32_t>(*_clock - _frameStart);
         } else {
             _audio.overflow = true;
+        }
+        if (_cassetteDeck != nullptr && _cassetteDeck->isActive()) {
+            _cassetteDeck->onSpeakerEdge(*_clock, newLevel);
         }
     }
     _speakerBit = newLevel;
@@ -196,6 +202,9 @@ uint8_t Abc80Ppi::readPort(uint8_t port)
         if (reg & 2) pins |= I8255_A1;
 
         if (reg == 0) { // Port A (Keypad / TapeIn)
+            if (_clock != nullptr && _cassetteDeck != nullptr && _cassetteDeck->isActive()) {
+                _cassetteDeck->onTapeInputSampled(*_clock);
+            }
             uint8_t paData = computeKeypadRowInputs();
             I8255_SET_PA(pins, paData);
         }
@@ -311,6 +320,17 @@ uint8_t Abc80Ppi::getDigitSegment(uint8_t digitIndex) const
 
 void Abc80Ppi::setTapeInput(bool level)
 {
+    if (_clock != nullptr && level != _tapeInputLevel) {
+        // When the Z80 ROM is not actively echoing PA7 onto PC7 (e.g. before GO or during filedp),
+        // mirror incoming cassette audio edges into FrameAudio so the browser speaker plays continuous tape tones.
+        if (*_clock - _lastPc7ToggleTStates > 2000) {
+            if (_audio.edgeCount < FrameAudio::kMaxEdges) {
+                _audio.offsets[_audio.edgeCount++] = static_cast<uint32_t>(*_clock - _frameStart);
+            } else {
+                _audio.overflow = true;
+            }
+        }
+    }
     _tapeInputLevel = level;
 }
 

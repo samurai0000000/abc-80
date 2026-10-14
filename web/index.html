@@ -1599,19 +1599,140 @@
                         </div>
                     </div>
 
-                    <!-- Tab 3: Cassette Tape FSK -->
+                    <!-- Tab 3: Vintage Cassette Data Recorder (EAR PA7 / MIC PC7) -->
                     <div class="tab-pane" id="tab-tape">
-                        <div class="inspector-box">
-                            <div class="box-title">FSK CASSETTE AUDIO INTERFACE (PC6 / PC7)</div>
-                            <div class="tape-controls-row">
-                                <button class="tape-btn" id="btn-tape-play">▶ PLAY</button>
-                                <button class="tape-btn" id="btn-tape-rec">⏺ RECORD</button>
-                                <button class="tape-btn" id="btn-tape-stop">■ STOP</button>
-                                <button class="tape-btn" id="btn-tape-rew">⏪ REW</button>
+                        <div class="inspector-box cassette-deck-box" id="cassette-deck">
+                            <div class="box-title-bar cassette-header-bar">
+                                <div class="cassette-brand-group">
+                                    <span class="box-title">DATA RECORDER • EAR PA7 / MIC PC7</span>
+                                    <span class="tape-status-badge stopped" id="tape-status-badge">STOPPED</span>
+                                </div>
+                                <div class="cassette-meters-group">
+                                    <div class="tape-tone-indicator" title="Live 8255 Audio Tone Frequency (1kHz / 2kHz)">
+                                        <span class="tape-tone-led" id="tape-tone-led"></span>
+                                        <span class="tape-tone-label" id="tape-tone-label">IDLE</span>
+                                    </div>
+                                    <div class="tape-counter-bezel" title="3-Digit Mechanical Tape Counter">
+                                        <span class="tape-counter-digits" id="tape-counter">000</span>
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- Vintage Compact Cassette Shell & Transparent Reel Window -->
+                            <div class="cassette-well" id="cassette-well">
+                                <div class="cassette-shell">
+                                    <!-- Cream/Amber Top Label Strip with File ID & 32-Char Annotation -->
+                                    <div class="cassette-label-strip">
+                                        <div class="cassette-label-top">
+                                            <span class="cassette-type-tag">C-60 HI-OUTPUT</span>
+                                            <span class="cassette-file-badge" id="cassette-label-id">FILE 0001</span>
+                                            <span class="cassette-side-tag">SIDE A</span>
+                                        </div>
+                                        <div class="cassette-label-edit-row">
+                                            <input type="text" id="tape-annotation-input" class="tape-annotation-input" maxlength="32" spellcheck="false" placeholder="32-char program annotation..." value="BCD Up-Counter (1000H)">
+                                            <button class="mini-btn tape-save-btn" id="btn-tape-save-label" title="Save 32-character annotation to .tape file">Save</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Smoked Acrylic Window with Spinning Supply & Take-Up Reels -->
+                                    <div class="cassette-window">
+                                        <div class="cassette-reel-assembly reel-supply">
+                                            <div class="cassette-tape-pack" id="tape-pack-left"></div>
+                                            <div class="cassette-reel" id="tape-reel-left">
+                                                <svg viewBox="0 0 64 64" class="reel-svg">
+                                                    <circle cx="32" cy="32" r="27" class="reel-flange"/>
+                                                    <circle cx="32" cy="32" r="14" class="reel-hub"/>
+                                                    <g class="reel-spokes">
+                                                        <line x1="32" y1="6" x2="32" y2="18"/>
+                                                        <line x1="32" y1="46" x2="32" y2="58"/>
+                                                        <line x1="9.5" y1="19" x2="19.9" y2="25"/>
+                                                        <line x1="44.1" y1="39" x2="54.5" y2="45"/>
+                                                        <line x1="9.5" y1="45" x2="19.9" y2="39"/>
+                                                        <line x1="44.1" y1="25" x2="54.5" y2="19"/>
+                                                    </g>
+                                                    <circle cx="32" cy="32" r="6" class="reel-spindle"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+
+                                        <div class="cassette-window-scale">
+                                            <div class="scale-ticks"><span>100</span><span>50</span><span>0</span></div>
+                                            <div class="tape-progress-track">
+                                                <div class="tape-progress-fill" id="tape-progress-fill"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="cassette-reel-assembly reel-takeup">
+                                            <div class="cassette-tape-pack" id="tape-pack-right"></div>
+                                            <div class="cassette-reel" id="tape-reel-right">
+                                                <svg viewBox="0 0 64 64" class="reel-svg">
+                                                    <circle cx="32" cy="32" r="27" class="reel-flange"/>
+                                                    <circle cx="32" cy="32" r="14" class="reel-hub"/>
+                                                    <g class="reel-spokes">
+                                                        <line x1="32" y1="6" x2="32" y2="18"/>
+                                                        <line x1="32" y1="46" x2="32" y2="58"/>
+                                                        <line x1="9.5" y1="19" x2="19.9" y2="25"/>
+                                                        <line x1="44.1" y1="39" x2="54.5" y2="45"/>
+                                                        <line x1="9.5" y1="45" x2="19.9" y2="39"/>
+                                                        <line x1="44.1" y1="25" x2="54.5" y2="19"/>
+                                                    </g>
+                                                    <circle cx="32" cy="32" r="6" class="reel-spindle"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bottom Trapezoid Head Shield & Oxide Tape Ribbon -->
+                                    <div class="cassette-head-trapezoid">
+                                        <span class="guide-roller roller-left"></span>
+                                        <div class="oxide-tape-ribbon" id="oxide-tape-ribbon"></div>
+                                        <div class="magnetic-head-block" id="tape-head-glow" title="Magnetic Read/Write Audio Head"></div>
+                                        <span class="guide-roller roller-right"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mechanical Piano-Key Transport Controls -->
+                            <div class="tape-controls-row piano-keys-row">
+                                <button class="tape-btn piano-key key-rec" id="btn-tape-rec" title="Arm Recording (captures TO TAPE audio from 8255 PC7)">
+                                    <span class="piano-icon rec-dot">●</span>
+                                    <span class="piano-label">REC</span>
+                                </button>
+                                <button class="tape-btn piano-key key-play" id="btn-tape-play" title="Play Selected Tape (feeds FROM TAPE audio into 8255 PA7)">
+                                    <span class="piano-icon">▶</span>
+                                    <span class="piano-label">PLAY</span>
+                                </button>
+                                <button class="tape-btn piano-key key-rew" id="btn-tape-rew" title="Rewind Tape to 000">
+                                    <span class="piano-icon">⏪</span>
+                                    <span class="piano-label">REW</span>
+                                </button>
+                                <button class="tape-btn piano-key key-stop" id="btn-tape-stop" title="Stop Tape Transport & Save Recording">
+                                    <span class="piano-icon">■</span>
+                                    <span class="piano-label">STOP</span>
+                                </button>
+                            </div>
+
+                            <!-- Live Audio Tone Waveform Oscilloscope -->
                             <div class="oscilloscope-container">
-                                <canvas id="tape-scope-canvas" width="360" height="85"></canvas>
+                                <canvas id="tape-scope-canvas" width="360" height="58"></canvas>
                             </div>
+                        </div>
+
+                        <!-- Program Slot Selector ([0-F]{4}) & ~/.config/abc-80/tapes/xxxx.tape Library -->
+                        <div class="inspector-box tape-library-box">
+                            <div class="box-title-bar">
+                                <span class="box-title">PROGRAM TAPE LIBRARY (0000–FFFF)</span>
+                                <div class="tape-slot-selector">
+                                    <span class="mem-label">FILE ID:</span>
+                                    <input type="text" id="tape-file-id-input" class="mem-input tape-id-input" value="0001" maxlength="4" size="4" spellcheck="false" placeholder="0001">
+                                    <button class="mini-btn" id="btn-tape-select" title="Select any [0-F][0-F][0-F][0-F] tape slot">Load Slot</button>
+                                </div>
+                            </div>
+                            <div class="tape-library-hint">
+                                <span><b>FROM TAPE:</b> Press <code>▶ PLAY</code>, then key <code>FROM TAPE</code> + <code>XXXX</code> + <code>GO EXEC</code></span>
+                                <span><b>TO TAPE:</b> Press <code>● REC</code>, then key <code>TO TAPE</code> + <code>XXXX</code> + <code>ADRS</code> <code>SSSS</code> + <code>ADRS</code> <code>EEEE</code> + <code>GO EXEC</code></span>
+                            </div>
+                            <div class="tape-library-list" id="tape-library-list"></div>
                         </div>
                     </div>
                 </div>

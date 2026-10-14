@@ -54,7 +54,17 @@
             flags: { s: 0, z: 0, h: 0, pv: 0, n: 0, c: 0 }
         },
         cycles: 0,
-        tapeState: 'STOPPED'
+        tapeState: 'STOPPED',
+        tape: {
+            state: 'stopped',
+            fileId: '0001',
+            annotation: 'BCD Up-Counter (1000H)',
+            counter: 0,
+            progress: 0.0,
+            toneHz: 0,
+            library: [],
+            listRequested: false
+        }
     };
 
     let isCalibrating = false;
@@ -152,6 +162,7 @@
         }
         ws.onopen = function () {
             state.wsConnected = true;
+            state.tape.listRequested = false;
             reconnectDelayMs = 1000;
             updateHostStatus();
             updateExecutionControls();
@@ -164,6 +175,7 @@
             if (msg.type === 'telemetry') applyTelemetry(msg);
             else if (msg.type === 'disasm') handleDisasmResponse(msg);
             else if (msg.type === 'memData') handleMemDataResponse(msg);
+            else if (msg.type === 'tape_list') handleTapeListResponse(msg);
             else if (msg.type === 'aiPunch') handleAiPunch(msg);
             else if (msg.type === 'error') console.warn('[ABC-80 host] ' + msg.reason);
         };
@@ -242,6 +254,24 @@
             Object.assign(state.registers, msg.registers);
         }
         if (msg.cycles !== undefined) state.cycles = msg.cycles;
+        if (msg.tape) {
+            const prevTapeState = state.tape.state;
+            state.tape.state = msg.tape.state || 'stopped';
+            state.tape.fileId = msg.tape.fileId || '0001';
+            state.tape.annotation = msg.tape.annotation !== undefined ? msg.tape.annotation : state.tape.annotation;
+            state.tape.counter = msg.tape.counter || 0;
+            state.tape.progress = msg.tape.progress || 0;
+            state.tape.toneHz = msg.tape.toneHz || 0;
+            state.tapeState = state.tape.state.toUpperCase();
+            updateCassetteDeckUI();
+            if (prevTapeState === 'recording' && state.tape.state === 'stopped') {
+                sendHostCommand({ type: 'tape_list' });
+            }
+        }
+        if (!state.tape.listRequested && state.mem.pendingAddr === null) {
+            state.tape.listRequested = true;
+            sendHostCommand({ type: 'tape_list' });
+        }
         updateInspector();
         updateExecutionControls();
         updateDisassembly(state.registers.pc, state.paused);
@@ -549,21 +579,226 @@
         scopeCtx.moveTo(0, h / 2); scopeCtx.lineTo(w, h / 2);
         scopeCtx.stroke();
 
-        scopeCtx.strokeStyle = state.tapeState === 'PLAYING' ? '#38bdf8' : (state.tapeState === 'RECORDING' ? '#ef4444' : '#1e293b');
-        scopeCtx.lineWidth = 1.5;
+        const isPlaying = state.tape.state === 'playing';
+        const isRecording = state.tape.state === 'recording';
+        const toneHz = state.tape.toneHz || (isPlaying ? 1000 : 0);
+        scopeCtx.strokeStyle = isPlaying ? '#10b981' : (isRecording ? '#ef4444' : '#1e293b');
+        scopeCtx.lineWidth = 1.6;
         scopeCtx.beginPath();
-        const freq = state.tapeState === 'PLAYING' ? 0.15 : (state.tapeState === 'RECORDING' ? 0.3 : 0.02);
-        const amp = state.tapeState === 'STOPPED' ? 2 : (h / 2 - 8);
 
-        for (let x = 0; x < w; x++) {
-            const y = h / 2 + Math.sin(x * freq + scopePhase) * amp;
-            if (x === 0) scopeCtx.moveTo(x, y);
-            else scopeCtx.lineTo(x, y);
+        if (!isPlaying && !isRecording) {
+            for (let x = 0; x < w; x++) {
+                const y = h / 2 + Math.sin(x * 0.03 + scopePhase) * 1.5;
+                if (x === 0) scopeCtx.moveTo(x, y);
+                else scopeCtx.lineTo(x, y);
+            }
+            scopePhase += 0.02;
+        } else {
+            const halfWavePx = (toneHz >= 1800) ? 11 : 22;
+            const amp = (h / 2 - 10);
+            for (let x = 0; x < w; x++) {
+                const sq = Math.sin((x / halfWavePx) * Math.PI + scopePhase) >= 0 ? -amp : amp;
+                const y = h / 2 + sq;
+                if (x === 0) scopeCtx.moveTo(x, y);
+                else scopeCtx.lineTo(x, y);
+            }
+            scopePhase += (toneHz >= 1800) ? 0.42 : 0.21;
         }
         scopeCtx.stroke();
-
-        scopePhase += state.tapeState === 'STOPPED' ? 0.02 : 0.25;
         requestAnimationFrame(drawScope);
+    }
+
+    function normalizeHexFileId(raw) {
+        if (typeof raw !== 'string') return null;
+        let s = raw.trim().toUpperCase();
+        if (s.startsWith('0X')) s = s.substring(2);
+        if (s.endsWith('H')) s = s.substring(0, s.length - 1);
+        if (!/^[0-9A-F]{1,4}$/.test(s)) return null;
+        return s.padStart(4, '0');
+    }
+
+    function updateCassetteDeckUI() {
+        const deck = document.getElementById('cassette-deck');
+        const statusBadge = document.getElementById('tape-status-badge');
+        const toneLed = document.getElementById('tape-tone-led');
+        const toneLabel = document.getElementById('tape-tone-label');
+        const counterEl = document.getElementById('tape-counter');
+        const labelIdEl = document.getElementById('cassette-label-id');
+        const annInput = document.getElementById('tape-annotation-input');
+        const idInput = document.getElementById('tape-file-id-input');
+        const progFill = document.getElementById('tape-progress-fill');
+        const packLeft = document.getElementById('tape-pack-left');
+        const packRight = document.getElementById('tape-pack-right');
+        const btnPlay = document.getElementById('btn-tape-play');
+        const btnRec = document.getElementById('btn-tape-rec');
+
+        const st = state.tape.state || 'stopped';
+        if (deck) {
+            deck.classList.toggle('deck-playing', st === 'playing');
+            deck.classList.toggle('deck-recording', st === 'recording');
+        }
+        if (statusBadge) {
+            statusBadge.textContent = st.toUpperCase();
+            statusBadge.className = 'tape-status-badge ' + st;
+        }
+        if (btnPlay) btnPlay.classList.toggle('active', st === 'playing');
+        if (btnRec) btnRec.classList.toggle('active', st === 'recording');
+
+        const hz = state.tape.toneHz || 0;
+        if (toneLed) {
+            toneLed.classList.toggle('tone-1khz', hz > 0 && hz < 1500);
+            toneLed.classList.toggle('tone-2khz', hz >= 1500);
+        }
+        if (toneLabel) {
+            toneLabel.textContent = hz > 0 ? (hz + ' Hz') : (st === 'stopped' ? 'IDLE' : 'WAIT');
+        }
+        if (counterEl) {
+            counterEl.textContent = String((state.tape.counter || 0) % 1000).padStart(3, '0');
+        }
+        if (labelIdEl) {
+            labelIdEl.textContent = 'FILE ' + (state.tape.fileId || '0001');
+        }
+        if (idInput && document.activeElement !== idInput) {
+            idInput.value = state.tape.fileId || '0001';
+        }
+        if (annInput && document.activeElement !== annInput && state.tape.annotation !== undefined) {
+            annInput.value = state.tape.annotation;
+        }
+        const p = Math.max(0, Math.min(1, Number(state.tape.progress) || 0));
+        if (progFill) {
+            progFill.style.width = Math.round(p * 100) + '%';
+        }
+        if (packLeft) {
+            packLeft.style.setProperty('--pack-scale', (0.92 - 0.44 * p).toFixed(3));
+        }
+        if (packRight) {
+            packRight.style.setProperty('--pack-scale', (0.48 + 0.44 * p).toFixed(3));
+        }
+        document.querySelectorAll('#tape-library-list .tape-lib-row').forEach(row => {
+            row.classList.toggle('selected', row.getAttribute('data-file-id') === state.tape.fileId);
+        });
+    }
+
+    function handleTapeListResponse(msg) {
+        if (!msg || !Array.isArray(msg.tapes)) return;
+        state.tape.library = msg.tapes;
+        renderTapeLibrary();
+    }
+
+    function renderTapeLibrary() {
+        const listEl = document.getElementById('tape-library-list');
+        if (!listEl) return;
+        if (!state.tape.library || state.tape.library.length === 0) {
+            listEl.innerHTML = '<div class="disasm-placeholder">No saved .tape files in ~/.config/abc-80/tapes/</div>';
+            return;
+        }
+        listEl.innerHTML = state.tape.library.map(item => {
+            const fid = item.fileId || '0000';
+            const ann = item.annotation || '(Untitled Tape)';
+            const isSel = (fid === state.tape.fileId);
+            let meta = 'EMPTY';
+            if (item.valid && item.bytes > 0) {
+                const sHex = (item.startAddr || 0).toString(16).toUpperCase().padStart(4, '0');
+                const eHex = (item.endAddr || 0).toString(16).toUpperCase().padStart(4, '0');
+                meta = `${sHex}H–${eHex}H (${item.bytes}B)`;
+            }
+            return `<div class="tape-lib-row${isSel ? ' selected' : ''}" data-file-id="${fid}">` +
+                   `<span class="tape-lib-id">${fid}</span>` +
+                   `<span class="tape-lib-ann">${ann}</span>` +
+                   `<span class="tape-lib-meta">${meta}</span>` +
+                   `</div>`;
+        }).join('');
+
+        listEl.querySelectorAll('.tape-lib-row').forEach(row => {
+            row.addEventListener('click', () => {
+                const fid = row.getAttribute('data-file-id');
+                if (!fid) return;
+                const idInput = document.getElementById('tape-file-id-input');
+                if (idInput) idInput.value = fid;
+                sendHostCommand({ type: 'tape_select', fileId: fid });
+            });
+        });
+    }
+
+    function initCassetteDeck() {
+        const btnPlay = document.getElementById('btn-tape-play');
+        const btnRec = document.getElementById('btn-tape-rec');
+        const btnRew = document.getElementById('btn-tape-rew');
+        const btnStop = document.getElementById('btn-tape-stop');
+        const btnSelect = document.getElementById('btn-tape-select');
+        const idInput = document.getElementById('tape-file-id-input');
+        const btnSaveLabel = document.getElementById('btn-tape-save-label');
+        const annInput = document.getElementById('tape-annotation-input');
+
+        function currentSlotHex() {
+            const fromInput = idInput ? normalizeHexFileId(idInput.value) : null;
+            return fromInput || state.tape.fileId || '0001';
+        }
+
+        function doSelectSlot() {
+            const hex4 = currentSlotHex();
+            if (idInput) idInput.value = hex4;
+            state.tape.fileId = hex4;
+            sendHostCommand({ type: 'tape_select', fileId: hex4 });
+        }
+
+        function doSaveLabel() {
+            const hex4 = currentSlotHex();
+            const ann = annInput ? annInput.value.slice(0, 32) : '';
+            state.tape.fileId = hex4;
+            state.tape.annotation = ann;
+            sendHostCommand({ type: 'tape_annotate', fileId: hex4, annotation: ann });
+            sendHostCommand({ type: 'tape_select', fileId: hex4 });
+        }
+
+        if (btnPlay) {
+            btnPlay.disabled = false;
+            btnPlay.addEventListener('click', () => {
+                initAudio();
+                const hex4 = currentSlotHex();
+                sendHostCommand({ type: 'tape_transport', action: 'play', fileId: hex4 });
+            });
+        }
+        if (btnRec) {
+            btnRec.disabled = false;
+            btnRec.addEventListener('click', () => {
+                initAudio();
+                const ann = annInput ? annInput.value.slice(0, 32) : '';
+                sendHostCommand({ type: 'tape_transport', action: 'record', annotation: ann });
+            });
+        }
+        if (btnRew) {
+            btnRew.disabled = false;
+            btnRew.addEventListener('click', () => {
+                sendHostCommand({ type: 'tape_transport', action: 'rewind' });
+            });
+        }
+        if (btnStop) {
+            btnStop.disabled = false;
+            btnStop.addEventListener('click', () => {
+                sendHostCommand({ type: 'tape_transport', action: 'stop' });
+                setTimeout(() => sendHostCommand({ type: 'tape_list' }), 40);
+            });
+        }
+        if (btnSelect) btnSelect.addEventListener('click', doSelectSlot);
+        if (idInput) {
+            idInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doSelectSlot();
+                }
+            });
+        }
+        if (btnSaveLabel) btnSaveLabel.addEventListener('click', doSaveLabel);
+        if (annInput) {
+            annInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doSaveLabel();
+                }
+            });
+        }
+        updateCassetteDeckUI();
     }
 
     function initInspector() {
@@ -584,6 +819,9 @@
                         fetchStack(state.registers.sp);
                     }
                     updateStackView(state.registers.sp, state.stack.stackBytes, state.stack.baseAddr, state.paused);
+                } else if (targetId === 'tab-tape') {
+                    sendHostCommand({ type: 'tape_list' });
+                    updateCassetteDeckUI();
                 }
             });
         });
@@ -1612,14 +1850,7 @@
             });
         }
 
-        // Cassette tape is not supported by this front panel.
-        ['btn-tape-play', 'btn-tape-rec', 'btn-tape-stop', 'btn-tape-rew'].forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) {
-                btn.disabled = true;
-                btn.title = 'Cassette tape is not supported';
-            }
-        });
+        initCassetteDeck();
 
         const helpBtn = document.getElementById('btn-help');
         const helpModal = document.getElementById('help-modal');

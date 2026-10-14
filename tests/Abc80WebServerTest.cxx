@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <filesystem>
 #include <sys/resource.h>
 #include <httplib.h>
 #include <nlohmann/json.hpp>
@@ -972,6 +973,78 @@ TEST(Abc80WebServer, GatewayClientSendsRegisterAndUnregisterOnShutdown)
     STRCMP_EQUAL("gateway/unregister", unregMsg.value("method", "").c_str());
     STRCMP_EQUAL("abc80", unregMsg["params"].value("subsystem", "").c_str());
     LONGS_EQUAL(server.port(), unregMsg["params"].value("web_port", 0));
+}
+
+TEST(Abc80WebServer, CassetteTapeDeckWebSocketTransportAndLibrarySeeding)
+{
+    const std::string tapesDir = "/tmp/abc80_server_tape_test_dir";
+    std::filesystem::remove_all(tapesDir);
+
+    ServerConfig cfg = testConfig();
+    cfg.tapesDir = tapesDir;
+    Abc80WebServer server(cfg);
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("tape_session_01");
+
+    json firstTel;
+    CHECK(tab.anyTelemetry(4000, &firstTel));
+    CHECK(firstTel.contains("tape"));
+    STRCMP_EQUAL("stopped", firstTel["tape"].value("state", "").c_str());
+    STRCMP_EQUAL("0001", firstTel["tape"].value("fileId", "").c_str());
+    STRCMP_EQUAL("BCD Up-Counter (1000H)", firstTel["tape"].value("annotation", "").c_str());
+
+    // Request tape_list and verify 4 seeded default tapes exist (0001..0004)
+    tab.send({ { "type", "tape_list" } });
+    json listMsg;
+    CHECK(tab.waitFor("tape_list", [](const json &j) {
+        return j.contains("tapes") && j["tapes"].size() >= 4;
+    }, 4000, &listMsg));
+
+    // Annotate an on-demand slot 0042 and select it
+    tab.send({
+        { "type", "tape_annotate" },
+        { "fileId", "0042" },
+        { "annotation", "Custom Tape Label 0042" }
+    });
+    tab.send({
+        { "type", "tape_select" },
+        { "fileId", "0042" }
+    });
+
+    json selTel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("tape") && j["tape"].value("fileId", "") == "0042" &&
+               j["tape"].value("annotation", "") == "Custom Tape Label 0042";
+    }, 4000, &selTel));
+    CHECK(std::filesystem::exists(tapesDir + "/0042.tape"));
+
+    // Select seeded tape 0001 and press PLAY -> state becomes "playing" with 1000 Hz leader tone
+    tab.send({
+        { "type", "tape_transport" },
+        { "action", "play" },
+        { "fileId", "0001" }
+    });
+
+    json playTel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("tape") && j["tape"].value("state", "") == "playing" &&
+               j["tape"].value("fileId", "") == "0001";
+    }, 4000, &playTel));
+    LONGS_EQUAL(1000, playTel["tape"].value("toneHz", 0));
+
+    // Press STOP -> state returns to "stopped"
+    tab.send({
+        { "type", "tape_transport" },
+        { "action", "stop" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("tape") && j["tape"].value("state", "") == "stopped";
+    }, 4000));
+
+    std::filesystem::remove_all(tapesDir);
 }
 
 /*

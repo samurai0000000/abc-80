@@ -206,6 +206,68 @@ ClientMessage parseClientMessage(const std::string &text)
         return m;
     }
 
+    if (type == "tape_list") {
+        m.type = ClientMessage::Type::TapeList;
+        return m;
+    }
+
+    if (type == "tape_select") {
+        const auto fidIt = j.find("fileId");
+        if (fidIt == j.end() || !fidIt->is_string() ||
+            !Abc80Tape::parseFileId(fidIt->get<std::string>(), m.tapeFileId)) {
+            return invalid("tape_select needs 4-digit hex 'fileId' [0-F]{4}");
+        }
+        m.hasTapeFileId = true;
+        m.type = ClientMessage::Type::TapeSelect;
+        return m;
+    }
+
+    if (type == "tape_annotate") {
+        const auto fidIt = j.find("fileId");
+        const auto annIt = j.find("annotation");
+        if (fidIt == j.end() || !fidIt->is_string() ||
+            !Abc80Tape::parseFileId(fidIt->get<std::string>(), m.tapeFileId)) {
+            return invalid("tape_annotate needs 4-digit hex 'fileId' [0-F]{4}");
+        }
+        if (annIt == j.end() || !annIt->is_string()) {
+            return invalid("tape_annotate needs string 'annotation'");
+        }
+        m.hasTapeFileId = true;
+        m.hasTapeAnnotation = true;
+        m.tapeAnnotation = Abc80Tape::sanitizeAnnotation(annIt->get<std::string>());
+        m.type = ClientMessage::Type::TapeAnnotate;
+        return m;
+    }
+
+    if (type == "tape_transport") {
+        const auto actIt = j.find("action");
+        if (actIt == j.end() || !actIt->is_string()) {
+            return invalid("tape_transport needs string 'action'");
+        }
+        const std::string action = actIt->get<std::string>();
+        if (action != "play" && action != "record" && action != "rewind" && action != "stop") {
+            return invalid("tape_transport 'action' must be play, record, rewind, or stop");
+        }
+        const auto fidIt = j.find("fileId");
+        if (fidIt != j.end()) {
+            if (!fidIt->is_string() || !Abc80Tape::parseFileId(fidIt->get<std::string>(), m.tapeFileId)) {
+                return invalid("tape_transport optional 'fileId' must be 4-digit hex [0-F]{4}");
+            }
+            m.hasTapeFileId = true;
+        }
+        const auto annIt = j.find("annotation");
+        if (annIt != j.end()) {
+            if (!annIt->is_string()) {
+                return invalid("tape_transport optional 'annotation' must be string");
+            }
+            m.hasTapeAnnotation = true;
+            m.tapeAnnotation = Abc80Tape::sanitizeAnnotation(annIt->get<std::string>());
+        }
+        m.type = ClientMessage::Type::TapeTransport;
+        m.tapeAction = action;
+        return m;
+    }
+
     return invalid("unknown message type");
 }
 
@@ -234,6 +296,14 @@ std::string buildTelemetryJson(const TelemetryFrame &f)
                        { "ix", f.ix }, { "iy", f.iy } };
     j["stackBaseAddr"] = f.stackBaseAddr;
     j["stackBytes"] = f.stackBytes;
+    j["tape"] = {
+        { "state", f.tapeState },
+        { "fileId", f.tapeFileId },
+        { "annotation", f.tapeAnnotation },
+        { "counter", f.tapeCounter },
+        { "progress", f.tapeProgress },
+        { "toneHz", f.tapeToneHz }
+    };
     return j.dump();
 }
 
@@ -277,6 +347,25 @@ std::string buildAiPunchJson(const std::string &key, bool down, size_t remaining
     j["key"] = key;
     j["down"] = down;
     j["remaining"] = remaining;
+    return j.dump();
+}
+
+std::string buildTapeListJson(const std::vector<TapeFileInfo> &tapes)
+{
+    json j;
+    j["type"] = "tape_list";
+    j["tapes"] = json::array();
+    for (const auto &t : tapes) {
+        json item;
+        item["fileId"] = Abc80Tape::formatFileId(t.fileId);
+        item["annotation"] = t.annotation;
+        item["startAddr"] = t.startAddr;
+        item["endAddr"] = t.endAddr;
+        item["bytes"] = t.payloadBytes;
+        item["durationSec"] = t.durationSec;
+        item["valid"] = t.hasValidProgram;
+        j["tapes"].push_back(std::move(item));
+    }
     return j.dump();
 }
 

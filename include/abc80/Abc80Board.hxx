@@ -12,6 +12,7 @@
 #include <abc80/Abc80Ppi.hxx>
 #include <abc80/Abc80Cpu.hxx>
 #include <abc80/Abc80Rom.hxx>
+#include <abc80/Abc80Tape.hxx>
 #include <array>
 #include <functional>
 #include <string>
@@ -103,6 +104,9 @@ public:
     Abc80Ppi& getPpi() noexcept { return _ppi; }
     const Abc80Ppi& getPpi() const noexcept { return _ppi; }
 
+    CassetteDeck& getCassetteDeck() noexcept { return _cassetteDeck; }
+    const CassetteDeck& getCassetteDeck() const noexcept { return _cassetteDeck; }
+
     // Single-step hardware trap
     void setSingleStep(bool enable) noexcept { _cpu.setSingleStepTrap(enable); }
     bool isSingleStepEnabled() const noexcept { return _cpu.isSingleStepTrapEnabled(); }
@@ -116,6 +120,7 @@ private:
     Abc80Bus _bus;
     Abc80Ppi _ppi;
     Abc80Cpu _cpu;
+    CassetteDeck _cassetteDeck;
     bool _readySeen[2]{ false, false };  // indexed by RomId
     uint16_t _lastFetch{0};
     void tickTracked();

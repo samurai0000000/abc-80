@@ -107,6 +107,18 @@ struct Abc80WebServer::Impl {
         return residentSession->aiPunching || residentSession->resumedForAiPunch;
     }
 
+    std::string resolvedTapesDir() const
+    {
+        if (!config.tapesDir.empty()) {
+            return config.tapesDir;
+        }
+        const char *home = std::getenv("HOME");
+        if (home != nullptr && home[0] != '\0') {
+            return std::string(home) + "/.config/abc-80/tapes";
+        }
+        return config.root + "/tapes";
+    }
+
     // ---- session lifecycle ----
 
     // Power-cycles the board with the given ROM. Caller holds s.mtx.
@@ -135,6 +147,10 @@ struct Abc80WebServer::Impl {
         if (config.bootTurbo) {
             s.board.bootTurbo(rom, kBootMaxTStates);
         }
+        CassetteDeck &deck = s.board.getCassetteDeck();
+        deck.setTapesDir(resolvedTapesDir());
+        deck.seedDefaultTapesIfEmpty();
+        deck.selectTape(0x0001);
         return true;
     }
 
@@ -432,8 +448,8 @@ struct Abc80WebServer::Impl {
                 std::lock_guard<std::mutex> lock(s.mtx);
                 std::vector<uint8_t> data = s.board.readMemoryBlock(m.memAddr, m.memCount);
                 reply = buildMemDataJson(m.memAddr, data);
+                outbox.post(reply);
             }
-            outbox.post(reply);
             break;
         }
         case ClientMessage::Type::ReadDisasm: {
@@ -442,8 +458,8 @@ struct Abc80WebServer::Impl {
                 std::lock_guard<std::mutex> lock(s.mtx);
                 std::vector<DisasmLine> lines = s.board.disassemble(m.memAddr, m.memCount);
                 reply = buildDisasmJson(m.memAddr, lines);
+                outbox.post(reply);
             }
-            outbox.post(reply);
             break;
         }
         case ClientMessage::Type::CancelAiPunch: {
@@ -454,6 +470,58 @@ struct Abc80WebServer::Impl {
             }
             if (cb) {
                 cb();
+            }
+            break;
+        }
+        case ClientMessage::Type::TapeList: {
+            std::lock_guard<std::mutex> lock(s.mtx);
+            const std::string reply = buildTapeListJson(s.board.getCassetteDeck().listTapes());
+            outbox.post(reply);
+            break;
+        }
+        case ClientMessage::Type::TapeSelect: {
+            std::lock_guard<std::mutex> lock(s.mtx);
+            s.board.getCassetteDeck().selectTape(m.tapeFileId);
+            if (s.paused) {
+                const std::string frame = telemetryFor(s, false);
+                for (auto &ob : s.outboxes) {
+                    ob->post(frame);
+                }
+            }
+            break;
+        }
+        case ClientMessage::Type::TapeAnnotate: {
+            std::lock_guard<std::mutex> lock(s.mtx);
+            s.board.getCassetteDeck().setAnnotation(m.tapeFileId, m.tapeAnnotation);
+            const std::string reply = buildTapeListJson(s.board.getCassetteDeck().listTapes());
+            for (auto &ob : s.outboxes) {
+                ob->post(reply);
+            }
+            break;
+        }
+        case ClientMessage::Type::TapeTransport: {
+            std::lock_guard<std::mutex> lock(s.mtx);
+            CassetteDeck &deck = s.board.getCassetteDeck();
+            if (m.hasTapeFileId) {
+                deck.selectTape(m.tapeFileId);
+            }
+            if (m.tapeAction == "play") {
+                if (deck.play() != Abc80Status::OK) {
+                    outbox.post(buildErrorJson("selected tape has no recorded audio"));
+                    break;
+                }
+            } else if (m.tapeAction == "record") {
+                deck.record(m.hasTapeAnnotation ? m.tapeAnnotation : "");
+            } else if (m.tapeAction == "rewind") {
+                deck.rewind();
+            } else if (m.tapeAction == "stop") {
+                deck.stop();
+            }
+            if (s.paused) {
+                const std::string frame = telemetryFor(s, false);
+                for (auto &ob : s.outboxes) {
+                    ob->post(frame);
+                }
             }
             break;
         }
@@ -502,6 +570,23 @@ struct Abc80WebServer::Impl {
         f.hl = s.board.getCpu().getHL();
         f.ix = s.board.getCpu().getIX();
         f.iy = s.board.getCpu().getIY();
+        const CassetteDeck &deck = s.board.getCassetteDeck();
+        switch (deck.state()) {
+        case TapeDeckState::Stopped:
+            f.tapeState = "stopped";
+            break;
+        case TapeDeckState::Playing:
+            f.tapeState = "playing";
+            break;
+        case TapeDeckState::Recording:
+            f.tapeState = "recording";
+            break;
+        }
+        f.tapeFileId = deck.selectedFileIdHex();
+        f.tapeAnnotation = deck.annotation();
+        f.tapeCounter = deck.counter();
+        f.tapeProgress = deck.progress();
+        f.tapeToneHz = deck.currentToneHz();
         return buildTelemetryJson(f);
     }
 
