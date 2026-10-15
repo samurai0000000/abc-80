@@ -428,6 +428,358 @@ TEST(Abc80WebProtocol, QuickBasicClientMessagesAndQbStateSerialization)
     STRCMP_EQUAL("play", qj["audioEvents"][0].value("kind", "").c_str());
 }
 
+TEST(Abc80WebProtocol, ExtCircuitClientMessageParsingAndValidation)
+{
+    const struct {
+        const char *name;
+        ExtCircuitId id;
+    } circuits[] = {
+        { "traffic_light", ExtCircuitId::TrafficLight },
+        { "led_chaser", ExtCircuitId::LedChaser },
+        { "oscilloscope", ExtCircuitId::Oscilloscope },
+        { "school_bell", ExtCircuitId::SchoolBell },
+        { "appliance_control", ExtCircuitId::ApplianceControl },
+        { "robotic_arm", ExtCircuitId::RoboticArm },
+    };
+
+    for (const auto &c : circuits) {
+        const std::string attachExplicit =
+            std::string(R"({"type":"ext_circuit","action":"attach","circuit":")") + c.name + "\"}";
+        const ClientMessage m1 = parseClientMessage(attachExplicit);
+        CHECK_TEXT(m1.type == ClientMessage::Type::ExtCircuit, c.name);
+        STRCMP_EQUAL("attach", m1.extCircuitAction.c_str());
+        CHECK(m1.extCircuitId == c.id);
+
+        // Omitted action with non-none circuit defaults to "attach"
+        const std::string attachImplicit =
+            std::string(R"({"type":"ext_circuit","circuit":")") + c.name + "\"}";
+        const ClientMessage m2 = parseClientMessage(attachImplicit);
+        CHECK_TEXT(m2.type == ClientMessage::Type::ExtCircuit, c.name);
+        STRCMP_EQUAL("attach", m2.extCircuitAction.c_str());
+        CHECK(m2.extCircuitId == c.id);
+    }
+
+    // Explicit detach
+    const ClientMessage detachMsg = parseClientMessage(R"({"type":"ext_circuit","action":"detach"})");
+    CHECK(detachMsg.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("detach", detachMsg.extCircuitAction.c_str());
+    CHECK(detachMsg.extCircuitId == ExtCircuitId::None);
+
+    // Implicit detach via circuit="none" or attach circuit="none"
+    const ClientMessage detachImplicit = parseClientMessage(R"({"type":"ext_circuit","circuit":"none"})");
+    CHECK(detachImplicit.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("detach", detachImplicit.extCircuitAction.c_str());
+    CHECK(detachImplicit.extCircuitId == ExtCircuitId::None);
+
+    const ClientMessage attachNone = parseClientMessage(R"({"type":"ext_circuit","action":"attach","circuit":"none"})");
+    CHECK(attachNone.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("detach", attachNone.extCircuitAction.c_str());
+    CHECK(attachNone.extCircuitId == ExtCircuitId::None);
+
+    // Reset & status
+    const ClientMessage resetMsg = parseClientMessage(R"({"type":"ext_circuit","action":"reset"})");
+    CHECK(resetMsg.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("reset", resetMsg.extCircuitAction.c_str());
+
+    const ClientMessage statusMsg = parseClientMessage(R"({"type":"ext_circuit","action":"status"})");
+    CHECK(statusMsg.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("status", statusMsg.extCircuitAction.c_str());
+
+    // set_clock with BCD bytes 0x07, 0x59, 0x58
+    const ClientMessage clockMsg = parseClientMessage(
+        R"({"type":"ext_circuit","action":"set_clock","hh":7,"mm":89,"ss":88})");
+    CHECK(clockMsg.type == ClientMessage::Type::ExtCircuit);
+    STRCMP_EQUAL("set_clock", clockMsg.extCircuitAction.c_str());
+    BYTES_EQUAL(0x07, clockMsg.clockHh);
+    BYTES_EQUAL(0x59, clockMsg.clockMm);
+    BYTES_EQUAL(0x58, clockMsg.clockSs);
+
+    // Invalid ext_circuit messages
+    const char *badExt[] = {
+        R"({"type":"ext_circuit"})",
+        R"({"type":"ext_circuit","action":123})",
+        R"({"type":"ext_circuit","action":"explode"})",
+        R"({"type":"ext_circuit","action":"attach"})",
+        R"({"type":"ext_circuit","action":"attach","circuit":42})",
+        R"({"type":"ext_circuit","action":"attach","circuit":"unknown_board"})",
+        R"({"type":"ext_circuit","circuit":"unknown_board"})",
+        R"({"type":"ext_circuit","action":"set_clock"})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":7,"mm":89})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":160,"mm":0,"ss":0})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":0,"mm":200,"ss":0})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":0,"mm":0,"ss":255})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":-1,"mm":0,"ss":0})",
+        R"({"type":"ext_circuit","action":"set_clock","hh":"07","mm":0,"ss":0})",
+    };
+    for (const char *bad : badExt) {
+        const ClientMessage m = parseClientMessage(bad);
+        CHECK_TEXT(m.type == ClientMessage::Type::Invalid, bad);
+        CHECK_TEXT(!m.error.empty(), bad);
+    }
+}
+
+TEST(Abc80WebProtocol, CaptureBoardExtTelemetryAndBuildTelemetryJsonForAllSixCircuits)
+{
+    Abc80Board board;
+    CHECK(board.powerOn("vintage/rom.abc") == Abc80Status::OK);
+
+    // 0. Detached (None)
+    {
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        CHECK(j.contains("ppi"));
+        CHECK(j["ppi"].contains("pa"));
+        CHECK(j["ppi"].contains("pb"));
+        CHECK(j["ppi"].contains("pc"));
+        CHECK(j["ppi"].contains("ctrl"));
+        CHECK(j["ppi"].contains("auxPa"));
+        CHECK(j["ppi"].contains("auxPb"));
+        CHECK(j["ppi"].contains("auxPc"));
+        CHECK(j["ppi"].contains("auxCtrl"));
+        CHECK(j["ppi"].contains("expPa"));
+        CHECK(j["ppi"].contains("expPb"));
+        CHECK(j["ppi"].contains("expPc"));
+        CHECK(j["ppi"].contains("expCtrl"));
+
+        CHECK(j.contains("extCircuit"));
+        STRCMP_EQUAL("none", j["extCircuit"].at("id").get<std::string>().c_str());
+        CHECK(!j["extCircuit"].at("attached").get<bool>());
+    }
+
+    // 1. Exercise 24: Traffic Light (Port 0x81)
+    {
+        board.attachCircuit(ExtCircuitId::TrafficLight);
+        board.getPpi().writePort(0x83, 0x80);
+        board.getPpi().writePort(0x81, 0x21); // Road B Green (PB5) + Road A Red (PB0)
+        board.stepTStates(1000);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("traffic_light", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(24, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0x21, ec.at("portB").get<int>());
+        CHECK(ec.at("roadA").at("red").get<bool>());
+        CHECK(!ec.at("roadA").at("yellow").get<bool>());
+        CHECK(!ec.at("roadA").at("green").get<bool>());
+        LONGS_EQUAL(3, static_cast<long>(ec.at("roadA").at("duty").size()));
+        CHECK(!ec.at("roadB").at("red").get<bool>());
+        CHECK(!ec.at("roadB").at("yellow").get<bool>());
+        CHECK(ec.at("roadB").at("green").get<bool>());
+        LONGS_EQUAL(3, static_cast<long>(ec.at("roadB").at("duty").size()));
+        LONGS_EQUAL(1, ec.at("transitions").get<long>());
+    }
+
+    // 2. Exercise 25: LED Chaser (Port 0x81 active-low via inverter)
+    {
+        board.attachCircuit(ExtCircuitId::LedChaser);
+        board.getPpi().writePort(0x83, 0x80);
+        board.getPpi().writePort(0x81, 0xFB); // ~0xFB = 0x04 -> LED 2 lit
+        board.stepTStates(1000);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("led_chaser", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(25, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0xFB, ec.at("rawPortB").get<int>());
+        LONGS_EQUAL(0x04, ec.at("activeMask").get<int>());
+        LONGS_EQUAL(2, ec.at("activeLed").get<int>());
+        LONGS_EQUAL(8, static_cast<long>(ec.at("leds").size()));
+        CHECK(ec.at("leds")[2].get<bool>());
+        CHECK(!ec.at("leds")[0].get<bool>());
+        LONGS_EQUAL(8, static_cast<long>(ec.at("duty").size()));
+        LONGS_EQUAL(1, ec.at("steps").get<long>());
+    }
+
+    // 3. Exercise 26: Oscilloscope (Port 0x81 X/Y DAC)
+    {
+        board.attachCircuit(ExtCircuitId::Oscilloscope);
+        board.getPpi().writePort(0x83, 0x80);
+        board.getPpi().writePort(0x81, 0xAF); // X = 15 (0x0F), Y = 10 (0x0A)
+        board.stepTStates(500);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("oscilloscope", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(26, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0xAF, ec.at("rawPortB").get<int>());
+        CHECK(ec.at("beamValid").get<bool>());
+        LONGS_EQUAL(15, ec.at("beamX").get<int>());
+        LONGS_EQUAL(10, ec.at("beamY").get<int>());
+        LONGS_EQUAL(1, ec.at("samples").get<long>());
+        LONGS_EQUAL(1, static_cast<long>(ec.at("points").size()));
+        LONGS_EQUAL(15, ec.at("points")[0].at("x").get<int>());
+        LONGS_EQUAL(10, ec.at("points")[0].at("y").get<int>());
+        CHECK(ec.at("points")[0].at("dwell").get<uint32_t>() >= 500u);
+    }
+
+    // 4. Exercise 27: School Bell (Port 0x82 PC6 + BCD clock 0x1200..0x1202)
+    {
+        board.attachCircuit(ExtCircuitId::SchoolBell);
+        auto *bell = board.attachedCircuitAs<Abc80SchoolBell>();
+        CHECK(bell != nullptr);
+        bell->setBcdTime(0x08, 0x00, 0x05);
+        board.getPpi().writePort(0x83, 0x80);
+        board.getPpi().writePort(0x82, 0x3F); // PC6 = 0 -> Bell Relay ON
+        bell->step(bell->currentTStates() + 1200);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("school_bell", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(27, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0x3F, ec.at("portC").get<int>());
+        CHECK(ec.at("bellRinging").get<bool>());
+        LONGS_EQUAL(1, ec.at("ringCount").get<long>());
+        CHECK(ec.at("totalRingTStates").get<uint64_t>() >= 1200ULL);
+        LONGS_EQUAL(0x08, ec.at("bcdHour").get<int>());
+        LONGS_EQUAL(0x00, ec.at("bcdMinute").get<int>());
+        LONGS_EQUAL(0x05, ec.at("bcdSecond").get<int>());
+    }
+
+    // 5. Exercise 28: Appliance Control (Aux Port 0x42 + BCD clock + 24-hour schedule)
+    {
+        board.attachCircuit(ExtCircuitId::ApplianceControl);
+        auto *app = board.attachedCircuitAs<Abc80ApplianceControl>();
+        CHECK(app != nullptr);
+        app->setBcdTime(0x18, 0x30, 0x00);
+        board.memory().writeByte(0x1118, 0xA5);
+        board.getPpi().writePort(0x43, 0x80);
+        board.getPpi().writePort(0x42, 0xA5);
+        app->step(app->currentTStates() + 900);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("appliance_control", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(28, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0x80, ec.at("auxControl").get<int>());
+        LONGS_EQUAL(0xA5, ec.at("relayMask").get<int>());
+        LONGS_EQUAL(8, static_cast<long>(ec.at("relays").size()));
+        CHECK(ec.at("relays")[0].get<bool>());
+        CHECK(!ec.at("relays")[1].get<bool>());
+        CHECK(ec.at("relays")[2].get<bool>());
+        CHECK(ec.at("relays")[7].get<bool>());
+        LONGS_EQUAL(8, static_cast<long>(ec.at("duty").size()));
+        LONGS_EQUAL(8, static_cast<long>(ec.at("onTStates").size()));
+        LONGS_EQUAL(1, ec.at("updates").get<long>());
+        LONGS_EQUAL(0x18, ec.at("bcdHour").get<int>());
+        LONGS_EQUAL(0x30, ec.at("bcdMinute").get<int>());
+        LONGS_EQUAL(0x00, ec.at("bcdSecond").get<int>());
+        LONGS_EQUAL(18, ec.at("activeHourIndex").get<int>());
+        LONGS_EQUAL(24, static_cast<long>(ec.at("scheduleMasks").size()));
+        LONGS_EQUAL(0xA5, ec.at("scheduleMasks")[18].get<int>());
+    }
+
+    // 6. Exercise 29: Robotic Arm (Expansion Ports 0x00..0x03)
+    {
+        board.attachCircuit(ExtCircuitId::RoboticArm);
+        auto *arm = board.attachedCircuitAs<Abc80RoboticArm>();
+        CHECK(arm != nullptr);
+        board.getPpi().writePort(0x03, 0x80);
+        board.getPpi().writePort(0x00, 0x00);
+        board.getPpi().writePort(0x00, 0x01); // Motor 1 +1 step
+        board.getPpi().writePort(0x01, 0x00);
+        board.getPpi().writePort(0x01, 0x22); // Motor 2 -1 step (0->2), Motor 3 -1 step (0->2)
+        board.getPpi().writePort(0x02, 0x01); // Electromagnet ON
+        arm->step(arm->currentTStates() + 750);
+
+        TelemetryFrame tf;
+        captureBoardExtTelemetry(board, tf);
+        const json j = json::parse(buildTelemetryJson(tf));
+        const json &ec = j.at("extCircuit");
+        STRCMP_EQUAL("robotic_arm", ec.at("id").get<std::string>().c_str());
+        CHECK(ec.at("attached").get<bool>());
+        LONGS_EQUAL(29, ec.at("exercise").get<int>());
+        LONGS_EQUAL(0x80, ec.at("expControl").get<int>());
+        LONGS_EQUAL(0x01, ec.at("portA").get<int>());
+        LONGS_EQUAL(0x22, ec.at("portB").get<int>());
+        LONGS_EQUAL(0x01, ec.at("portC").get<int>());
+        CHECK(ec.at("electromagnet").get<bool>());
+        CHECK(ec.at("magnetOnTStates").get<uint64_t>() >= 750ULL);
+        LONGS_EQUAL(3, static_cast<long>(ec.at("motors").size()));
+        LONGS_EQUAL(1, ec.at("motors")[0].at("steps").get<int>());
+        LONGS_EQUAL(1, ec.at("motors")[0].at("totalSteps").get<int>());
+        LONGS_EQUAL(-1, ec.at("motors")[1].at("steps").get<int>());
+        LONGS_EQUAL(-1, ec.at("motors")[2].at("steps").get<int>());
+    }
+}
+
+TEST(Abc80WebProtocol, PropertyExtCircuitFuzzAndRoundTrip)
+{
+    const bool ok = rc::check("ext_circuit fuzz and round-trip", [](uint8_t idx, uint8_t hh, uint8_t mm, uint8_t ss, const std::string &noise) {
+        const ExtCircuitId ids[] = {
+            ExtCircuitId::None,
+            ExtCircuitId::TrafficLight,
+            ExtCircuitId::LedChaser,
+            ExtCircuitId::Oscilloscope,
+            ExtCircuitId::SchoolBell,
+            ExtCircuitId::ApplianceControl,
+            ExtCircuitId::RoboticArm
+        };
+        const ExtCircuitId cid = ids[idx % 7];
+        const std::string cname = extCircuitIdName(cid);
+        const json jAttach = {
+            { "type", "ext_circuit" },
+            { "action", "attach" },
+            { "circuit", cname }
+        };
+        const ClientMessage mAttach = parseClientMessage(jAttach.dump());
+        RC_ASSERT(mAttach.type == ClientMessage::Type::ExtCircuit);
+        if (cid == ExtCircuitId::None) {
+            RC_ASSERT(mAttach.extCircuitAction == "detach");
+            RC_ASSERT(mAttach.extCircuitId == ExtCircuitId::None);
+        } else {
+            RC_ASSERT(mAttach.extCircuitAction == "attach");
+            RC_ASSERT(mAttach.extCircuitId == cid);
+        }
+
+        const uint8_t validHh = static_cast<uint8_t>(hh % 0x9A);
+        const uint8_t validMm = static_cast<uint8_t>(mm % 0x9A);
+        const uint8_t validSs = static_cast<uint8_t>(ss % 0x9A);
+        const json jClock = {
+            { "type", "ext_circuit" },
+            { "action", "set_clock" },
+            { "hh", validHh },
+            { "mm", validMm },
+            { "ss", validSs }
+        };
+        const ClientMessage mClock = parseClientMessage(jClock.dump());
+        RC_ASSERT(mClock.type == ClientMessage::Type::ExtCircuit);
+        RC_ASSERT(mClock.extCircuitAction == "set_clock");
+        RC_ASSERT(mClock.clockHh == validHh);
+        RC_ASSERT(mClock.clockMm == validMm);
+        RC_ASSERT(mClock.clockSs == validSs);
+
+        const json jNoise = {
+            { "type", "ext_circuit" },
+            { "action", noise },
+            { "circuit", noise }
+        };
+        const ClientMessage mNoise = parseClientMessage(
+            jNoise.dump(-1, ' ', false, json::error_handler_t::replace));
+        if (mNoise.type != ClientMessage::Type::Invalid) {
+            RC_ASSERT(mNoise.type == ClientMessage::Type::ExtCircuit);
+        } else {
+            RC_ASSERT(!mNoise.error.empty());
+        }
+    });
+    CHECK(ok);
+}
+
 // ---- FrameOutbox: latest frame wins; a slow consumer never blocks the producer ----
 
 TEST_GROUP(Abc80FrameOutbox)

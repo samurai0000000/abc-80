@@ -13,8 +13,10 @@
 #include <abc80/Abc80Cpu.hxx>
 #include <abc80/Abc80Rom.hxx>
 #include <abc80/Abc80Tape.hxx>
+#include <abc80/Abc80ExtCircuit.hxx>
 #include <array>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,7 +31,7 @@ struct DisasmLine {
 class Abc80Board {
 public:
     Abc80Board();
-    ~Abc80Board() = default;
+    ~Abc80Board();
 
     // Power on the ABC-80 board, initializing bus, loading ROM, and resetting CPU/PPI
     Abc80Status powerOn(const std::string& romPath = "vintage/rom.abc");
@@ -100,12 +102,36 @@ public:
 
     Abc80Bus& getBus() noexcept { return _bus; }
     const Abc80Bus& getBus() const noexcept { return _bus; }
+    Abc80Bus& memory() noexcept { return _bus; }
+    const Abc80Bus& memory() const noexcept { return _bus; }
 
     Abc80Ppi& getPpi() noexcept { return _ppi; }
     const Abc80Ppi& getPpi() const noexcept { return _ppi; }
 
     CassetteDeck& getCassetteDeck() noexcept { return _cassetteDeck; }
     const CassetteDeck& getCassetteDeck() const noexcept { return _cassetteDeck; }
+
+    // Mutually-exclusive external I/O circuit attachment (Exercises 24-29)
+    void attachCircuit(Abc80ExtCircuit *circuit) noexcept;
+    Abc80ExtCircuit *attachCircuit(std::unique_ptr<Abc80ExtCircuit> circuit) noexcept;
+    Abc80ExtCircuit *attachCircuit(ExtCircuitId id);
+    void detachCircuit() noexcept;
+
+    Abc80ExtCircuit *attachedCircuit() noexcept { return _extCircuit; }
+    const Abc80ExtCircuit *attachedCircuit() const noexcept { return _extCircuit; }
+    ExtCircuitId attachedCircuitId() const noexcept;
+
+    template <typename T>
+    T *attachedCircuitAs() noexcept
+    {
+        return dynamic_cast<T *>(_extCircuit);
+    }
+
+    template <typename T>
+    const T *attachedCircuitAs() const noexcept
+    {
+        return dynamic_cast<const T *>(_extCircuit);
+    }
 
     // Single-step hardware trap
     void setSingleStep(bool enable) noexcept { _cpu.setSingleStepTrap(enable); }
@@ -121,6 +147,8 @@ private:
     Abc80Ppi _ppi;
     Abc80Cpu _cpu;
     CassetteDeck _cassetteDeck;
+    std::unique_ptr<Abc80ExtCircuit> _ownedCircuit;
+    Abc80ExtCircuit *_extCircuit{nullptr};
     bool _readySeen[2]{ false, false };  // indexed by RomId
     uint16_t _lastFetch{0};
     void tickTracked();

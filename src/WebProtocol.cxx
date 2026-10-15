@@ -326,7 +326,180 @@ ClientMessage parseClientMessage(const std::string &text)
         return m;
     }
 
+    if (type == "ext_circuit") {
+        const auto actIt = j.find("action");
+        const auto cirIt = j.find("circuit");
+        std::string action;
+        if (actIt != j.end()) {
+            if (!actIt->is_string()) {
+                return invalid("ext_circuit 'action' must be string");
+            }
+            action = actIt->get<std::string>();
+        }
+
+        ExtCircuitId cid = ExtCircuitId::None;
+        bool hasCircuit = false;
+        if (cirIt != j.end()) {
+            if (!cirIt->is_string() || !parseExtCircuitId(cirIt->get<std::string>(), cid)) {
+                return invalid("ext_circuit needs valid 'circuit' name");
+            }
+            hasCircuit = true;
+        }
+
+        if (action.empty()) {
+            if (!hasCircuit) {
+                return invalid("ext_circuit needs 'action' or 'circuit'");
+            }
+            action = (cid == ExtCircuitId::None) ? "detach" : "attach";
+        }
+
+        if (action == "attach") {
+            if (!hasCircuit) {
+                return invalid("ext_circuit 'attach' needs 'circuit'");
+            }
+            if (cid == ExtCircuitId::None) {
+                m.extCircuitAction = "detach";
+                m.extCircuitId = ExtCircuitId::None;
+            } else {
+                m.extCircuitAction = "attach";
+                m.extCircuitId = cid;
+            }
+            m.type = ClientMessage::Type::ExtCircuit;
+            return m;
+        }
+
+        if (action == "detach" || action == "reset" || action == "status") {
+            m.extCircuitAction = action;
+            m.extCircuitId = ExtCircuitId::None;
+            m.type = ClientMessage::Type::ExtCircuit;
+            return m;
+        }
+
+        if (action == "set_clock") {
+            const auto hhIt = j.find("hh");
+            const auto mmIt = j.find("mm");
+            const auto ssIt = j.find("ss");
+            if (hhIt == j.end() || !hhIt->is_number_unsigned() || hhIt->get<uint64_t>() > 0x99 ||
+                mmIt == j.end() || !mmIt->is_number_unsigned() || mmIt->get<uint64_t>() > 0x99 ||
+                ssIt == j.end() || !ssIt->is_number_unsigned() || ssIt->get<uint64_t>() > 0x99) {
+                return invalid("ext_circuit 'set_clock' needs 'hh', 'mm', 'ss' in 0x00..0x99");
+            }
+            m.extCircuitAction = "set_clock";
+            m.clockHh = static_cast<uint8_t>(hhIt->get<uint64_t>());
+            m.clockMm = static_cast<uint8_t>(mmIt->get<uint64_t>());
+            m.clockSs = static_cast<uint8_t>(ssIt->get<uint64_t>());
+            m.type = ClientMessage::Type::ExtCircuit;
+            return m;
+        }
+
+        return invalid("ext_circuit 'action' must be attach, detach, reset, status, or set_clock");
+    }
+
     return invalid("unknown message type");
+}
+
+void captureBoardExtTelemetry(const Abc80Board &board, TelemetryFrame &frame) noexcept
+{
+    const Abc80Ppi &ppi = board.getPpi();
+    frame.ppi.pa = 0x7F;
+    frame.ppi.pb = ppi.getSegmentOutput();
+    frame.ppi.pc = ppi.getDigitStrobe();
+    frame.ppi.ctrl = ppi.getPrimaryControl();
+    frame.ppi.auxPa = ppi.auxPortAOutput();
+    frame.ppi.auxPb = ppi.auxPortBOutput();
+    frame.ppi.auxPc = ppi.auxPortCOutput();
+    frame.ppi.auxCtrl = ppi.getAuxControl();
+    frame.ppi.expPa = ppi.expPortAOutput();
+    frame.ppi.expPb = ppi.expPortBOutput();
+    frame.ppi.expPc = ppi.expPortCOutput();
+    frame.ppi.expCtrl = ppi.getExpControl();
+
+    ExtCircuitTelemetry &ec = frame.extCircuit;
+    ec = ExtCircuitTelemetry{};
+    const Abc80ExtCircuit *circuit = board.attachedCircuit();
+    if (circuit == nullptr || circuit->id() == ExtCircuitId::None) {
+        ec.id = ExtCircuitId::None;
+        ec.attached = false;
+        return;
+    }
+
+    ec.id = circuit->id();
+    ec.attached = true;
+    ec.exercise = circuit->exerciseNumber();
+    ec.clockTStates = circuit->currentTStates();
+
+    switch (circuit->id()) {
+    case ExtCircuitId::None:
+        ec.attached = false;
+        break;
+    case ExtCircuitId::TrafficLight:
+        if (const auto *tl = board.attachedCircuitAs<Abc80TrafficLight>()) {
+            ec.trafficPortB = tl->portB();
+            ec.trafficLampDuty = tl->lampDuty();
+            ec.trafficTransitions = tl->transitionCount();
+        }
+        break;
+    case ExtCircuitId::LedChaser:
+        if (const auto *lc = board.attachedCircuitAs<Abc80LedChaser>()) {
+            ec.chaserRawPortB = lc->rawPortB();
+            ec.chaserActiveMask = lc->activeMask();
+            ec.chaserActiveLed = lc->activeLedIndex();
+            ec.chaserLedDuty = lc->ledDuty();
+            ec.chaserStepCount = lc->stepCount();
+        }
+        break;
+    case ExtCircuitId::Oscilloscope:
+        if (const auto *osc = board.attachedCircuitAs<Abc80Oscilloscope>()) {
+            ec.scopeRawPortB = osc->rawPortB();
+            ec.scopeBeamValid = osc->isBeamValid();
+            ec.scopeBeamX = osc->beamX();
+            ec.scopeBeamY = osc->beamY();
+            ec.scopeSampleCount = osc->sampleCount();
+            ec.scopeTrace = osc->trace();
+        }
+        break;
+    case ExtCircuitId::SchoolBell:
+        if (const auto *bell = board.attachedCircuitAs<Abc80SchoolBell>()) {
+            ec.bellPortC = bell->portC();
+            ec.bellRinging = bell->isBellRinging();
+            ec.bellDuty = bell->bellDuty();
+            ec.bellRingCount = bell->ringCount();
+            ec.bellTotalRingTStates = bell->totalRingTStates();
+            ec.bellSpeakerEdges = bell->speakerEdges();
+            ec.bcdHour = bell->bcdHour();
+            ec.bcdMinute = bell->bcdMinute();
+            ec.bcdSecond = bell->bcdSecond();
+        }
+        break;
+    case ExtCircuitId::ApplianceControl:
+        if (const auto *app = board.attachedCircuitAs<Abc80ApplianceControl>()) {
+            ec.applianceAuxControl = app->auxControl();
+            ec.applianceRelayMask = app->relayMask();
+            ec.applianceRelayDuty = app->relayDuty();
+            ec.applianceTotalOnTStates = app->totalOnTStates();
+            ec.applianceUpdateCount = app->updateCount();
+            ec.bcdHour = app->bcdHour();
+            ec.bcdMinute = app->bcdMinute();
+            ec.bcdSecond = app->bcdSecond();
+            ec.applianceActiveHourIndex = app->activeHourIndex();
+            ec.applianceScheduleMasks = app->scheduleMasks();
+        }
+        break;
+    case ExtCircuitId::RoboticArm:
+        if (const auto *arm = board.attachedCircuitAs<Abc80RoboticArm>()) {
+            ec.armExpControl = arm->expControl();
+            ec.armPortA = arm->portA();
+            ec.armPortB = arm->portB();
+            ec.armPortC = arm->portC();
+            ec.armElectromagnet = arm->isElectromagnetOn();
+            ec.armMagnetOnTStates = arm->magnetOnTStates();
+            ec.armLastStepTStates = arm->lastStepTStates();
+            for (size_t i = 0; i < 3; ++i) {
+                ec.armMotors[i] = arm->motor(i);
+            }
+        }
+        break;
+    }
 }
 
 std::string buildTelemetryJson(const TelemetryFrame &f)
@@ -362,6 +535,131 @@ std::string buildTelemetryJson(const TelemetryFrame &f)
         { "progress", f.tapeProgress },
         { "toneHz", f.tapeToneHz }
     };
+    j["ppi"] = {
+        { "pa", f.ppi.pa },
+        { "pb", f.ppi.pb },
+        { "pc", f.ppi.pc },
+        { "ctrl", f.ppi.ctrl },
+        { "auxPa", f.ppi.auxPa },
+        { "auxPb", f.ppi.auxPb },
+        { "auxPc", f.ppi.auxPc },
+        { "auxCtrl", f.ppi.auxCtrl },
+        { "expPa", f.ppi.expPa },
+        { "expPb", f.ppi.expPb },
+        { "expPc", f.ppi.expPc },
+        { "expCtrl", f.ppi.expCtrl }
+    };
+
+    const ExtCircuitTelemetry &ec = f.extCircuit;
+    json jec;
+    jec["id"] = extCircuitIdName(ec.id);
+    jec["attached"] = ec.attached;
+    if (ec.attached && ec.id != ExtCircuitId::None) {
+        jec["exercise"] = ec.exercise;
+        jec["clockTStates"] = ec.clockTStates;
+        switch (ec.id) {
+        case ExtCircuitId::None:
+            break;
+        case ExtCircuitId::TrafficLight:
+            jec["portB"] = ec.trafficPortB;
+            jec["roadA"] = {
+                { "red", (ec.trafficPortB & 0x01) != 0 },
+                { "yellow", (ec.trafficPortB & 0x02) != 0 },
+                { "green", (ec.trafficPortB & 0x04) != 0 },
+                { "duty", { ec.trafficLampDuty[0], ec.trafficLampDuty[1], ec.trafficLampDuty[2] } }
+            };
+            jec["roadB"] = {
+                { "red", (ec.trafficPortB & 0x08) != 0 },
+                { "yellow", (ec.trafficPortB & 0x10) != 0 },
+                { "green", (ec.trafficPortB & 0x20) != 0 },
+                { "duty", { ec.trafficLampDuty[3], ec.trafficLampDuty[4], ec.trafficLampDuty[5] } }
+            };
+            jec["transitions"] = ec.trafficTransitions;
+            break;
+        case ExtCircuitId::LedChaser: {
+            jec["rawPortB"] = ec.chaserRawPortB;
+            jec["activeMask"] = ec.chaserActiveMask;
+            jec["activeLed"] = ec.chaserActiveLed;
+            json leds = json::array();
+            json duty = json::array();
+            for (size_t i = 0; i < 8; ++i) {
+                leds.push_back((ec.chaserActiveMask & (1u << i)) != 0);
+                duty.push_back(ec.chaserLedDuty[i]);
+            }
+            jec["leds"] = std::move(leds);
+            jec["duty"] = std::move(duty);
+            jec["steps"] = ec.chaserStepCount;
+            break;
+        }
+        case ExtCircuitId::Oscilloscope: {
+            jec["rawPortB"] = ec.scopeRawPortB;
+            jec["beamValid"] = ec.scopeBeamValid;
+            jec["beamX"] = ec.scopeBeamX;
+            jec["beamY"] = ec.scopeBeamY;
+            jec["samples"] = ec.scopeSampleCount;
+            json pts = json::array();
+            for (const auto &pt : ec.scopeTrace) {
+                pts.push_back({ { "x", pt.x }, { "y", pt.y }, { "dwell", pt.dwellTStates } });
+            }
+            jec["points"] = std::move(pts);
+            break;
+        }
+        case ExtCircuitId::SchoolBell:
+            jec["portC"] = ec.bellPortC;
+            jec["bellRinging"] = ec.bellRinging;
+            jec["bellDuty"] = ec.bellDuty;
+            jec["ringCount"] = ec.bellRingCount;
+            jec["totalRingTStates"] = ec.bellTotalRingTStates;
+            jec["speakerEdges"] = ec.bellSpeakerEdges;
+            jec["bcdHour"] = ec.bcdHour;
+            jec["bcdMinute"] = ec.bcdMinute;
+            jec["bcdSecond"] = ec.bcdSecond;
+            break;
+        case ExtCircuitId::ApplianceControl: {
+            jec["auxControl"] = ec.applianceAuxControl;
+            jec["relayMask"] = ec.applianceRelayMask;
+            json relays = json::array();
+            json duty = json::array();
+            json onT = json::array();
+            for (size_t i = 0; i < 8; ++i) {
+                relays.push_back((ec.applianceRelayMask & (1u << i)) != 0);
+                duty.push_back(ec.applianceRelayDuty[i]);
+                onT.push_back(ec.applianceTotalOnTStates[i]);
+            }
+            jec["relays"] = std::move(relays);
+            jec["duty"] = std::move(duty);
+            jec["onTStates"] = std::move(onT);
+            jec["updates"] = ec.applianceUpdateCount;
+            jec["bcdHour"] = ec.bcdHour;
+            jec["bcdMinute"] = ec.bcdMinute;
+            jec["bcdSecond"] = ec.bcdSecond;
+            jec["activeHourIndex"] = ec.applianceActiveHourIndex;
+            jec["scheduleMasks"] = ec.applianceScheduleMasks;
+            break;
+        }
+        case ExtCircuitId::RoboticArm: {
+            jec["expControl"] = ec.armExpControl;
+            jec["portA"] = ec.armPortA;
+            jec["portB"] = ec.armPortB;
+            jec["portC"] = ec.armPortC;
+            jec["electromagnet"] = ec.armElectromagnet;
+            jec["magnetOnTStates"] = ec.armMagnetOnTStates;
+            jec["lastStepTStates"] = ec.armLastStepTStates;
+            json motors = json::array();
+            for (size_t i = 0; i < 3; ++i) {
+                motors.push_back({
+                    { "phase", ec.armMotors[i].phase },
+                    { "coils", ec.armMotors[i].coils },
+                    { "steps", ec.armMotors[i].steps },
+                    { "totalSteps", ec.armMotors[i].totalSteps }
+                });
+            }
+            jec["motors"] = std::move(motors);
+            break;
+        }
+        }
+    }
+    j["extCircuit"] = std::move(jec);
     return j.dump();
 }
 

@@ -638,6 +638,35 @@ struct Abc80WebServer::Impl {
             }
             break;
         }
+        case ClientMessage::Type::ExtCircuit: {
+            std::vector<std::shared_ptr<FrameOutbox>> targets;
+            std::string frame;
+            {
+                std::lock_guard<std::mutex> lock(s.mtx);
+                if (s.isResident && s.aiPunching) {
+                    break;
+                }
+                if (m.extCircuitAction == "attach") {
+                    s.board.attachCircuit(m.extCircuitId);
+                } else if (m.extCircuitAction == "detach") {
+                    s.board.detachCircuit();
+                } else if (m.extCircuitAction == "reset") {
+                    if (s.board.attachedCircuit() != nullptr) {
+                        s.board.attachedCircuit()->reset();
+                    }
+                } else if (m.extCircuitAction == "set_clock") {
+                    s.board.memory().writeByte(0x1200, m.clockSs);
+                    s.board.memory().writeByte(0x1201, m.clockMm);
+                    s.board.memory().writeByte(0x1202, m.clockHh);
+                }
+                frame = telemetryFor(s, false);
+                targets = s.outboxes;
+            }
+            for (auto &ob : targets) {
+                ob->post(frame);
+            }
+            break;
+        }
         }
     }
 
@@ -700,6 +729,7 @@ struct Abc80WebServer::Impl {
         f.tapeCounter = deck.counter();
         f.tapeProgress = deck.progress();
         f.tapeToneHz = deck.currentToneHz();
+        captureBoardExtTelemetry(s.board, f);
         return buildTelemetryJson(f);
     }
 

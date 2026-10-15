@@ -59,6 +59,7 @@ add_library(abc80_core STATIC
     src/Abc80Tape.cxx
     src/Abc80Cli.cxx
     src/Abc80QbHost.cxx
+    src/Abc80ExtCircuit.cxx
 )
 find_package(Threads REQUIRED)
 target_include_directories(abc80_core PUBLIC
@@ -127,6 +128,7 @@ add_executable(abc80_tests
     tests/Abc80ConfigTest.cxx
     tests/Abc80AiKeySequencerTest.cxx
     tests/Abc80ExercisesTest.cxx
+    tests/Abc80ExtCircuitTest.cxx
 )
 # Property tests need RapidCheck, installed system-wide (as aimon uses it).
 find_library(RAPIDCHECK_LIBRARY rapidcheck)

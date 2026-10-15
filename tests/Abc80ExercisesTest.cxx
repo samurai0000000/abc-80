@@ -5,7 +5,9 @@
  */
 
 #include <abc80/Abc80Board.hxx>
+#include <abc80/Abc80ExtCircuit.hxx>
 #include <abc80/Abc80Tape.hxx>
+#include <abc80/WebProtocol.hxx>
 #include <CppUTest/TestHarness.h>
 #include <algorithm>
 #include <array>
@@ -457,6 +459,8 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
     // Lab 24: Traffic Light Controller on Port B (0x81)
     {
         Abc80Board board;
+        auto *tl = dynamic_cast<Abc80TrafficLight *>(board.attachCircuit(ExtCircuitId::TrafficLight));
+        CHECK_TRUE(tl != nullptr);
         initBoardAndLoadTape(board, "tapes/0024.tape");
         // Patch DELAY at 1049H (LD DE, 8000H -> LD DE, 0001H) for fast full-cycle verification
         board.getBus().writeByte(0x104A, 0x01);
@@ -465,6 +469,10 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
         std::vector<uint8_t> observedPortB;
         uint8_t lastVal = 0xFF;
         uint64_t steps = 0;
+        bool verified0C = false;
+        bool verified0A = false;
+        bool verified21 = false;
+        bool verified11 = false;
         while (steps < 200000 && observedPortB.size() < 14) {
             board.stepInstruction();
             steps++;
@@ -472,6 +480,19 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
             if (pb != 0x00 && pb != lastVal) {
                 observedPortB.push_back(pb);
                 lastVal = pb;
+                if (pb == 0x0C) {
+                    CHECK_TRUE(tl->roadAGreen() && tl->roadBRed());
+                    verified0C = true;
+                } else if (pb == 0x0A) {
+                    CHECK_TRUE(tl->roadAYellow() && tl->roadBRed());
+                    verified0A = true;
+                } else if (pb == 0x21) {
+                    CHECK_TRUE(tl->roadARed() && tl->roadBGreen());
+                    verified21 = true;
+                } else if (pb == 0x11) {
+                    CHECK_TRUE(tl->roadARed() && tl->roadBYellow());
+                    verified11 = true;
+                }
             }
         }
         // Must visit 0x0C (A Green/B Red), 0x0A/0x08 (A Yellow blink), 0x21 (A Red/B Green), 0x11/0x01 (B Yellow blink)
@@ -481,11 +502,24 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
         CHECK_TRUE(std::find(observedPortB.begin(), observedPortB.end(), 0x21) != observedPortB.end());
         CHECK_TRUE(std::find(observedPortB.begin(), observedPortB.end(), 0x11) != observedPortB.end());
         CHECK_TRUE(std::find(observedPortB.begin(), observedPortB.end(), 0x01) != observedPortB.end());
+        CHECK_TRUE(verified0C);
+        CHECK_TRUE(verified0A);
+        CHECK_TRUE(verified21);
+        CHECK_TRUE(verified11);
+        CHECK_TRUE(tl->transitionCount() >= 14);
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"traffic_light\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":24") != std::string::npos);
     }
 
     // Lab 25: 8-LED Sequential Chaser on Port B (0x81)
     {
         Abc80Board board;
+        auto *chaser = dynamic_cast<Abc80LedChaser *>(board.attachCircuit(ExtCircuitId::LedChaser));
+        CHECK_TRUE(chaser != nullptr);
         initBoardAndLoadTape(board, "tapes/0025.tape");
         // Clamp initial HL delay seed at 1009H (LD HL, FFFEH) so each step takes 2 iterations
         board.getBus().writeByte(0x100A, 0xFE);
@@ -495,13 +529,32 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
         for (int i = 0; i < 8; ++i) {
             stepUntilFetch(board, 0x1008);
             BYTES_EQUAL(expectedChaser[i], board.getPpi().getSegmentOutput());
+            BYTES_EQUAL(expectedChaser[i], chaser->rawPortB());
+            BYTES_EQUAL(static_cast<uint8_t>(1u << i), chaser->activeMask());
+            LONGS_EQUAL(i, chaser->activeLedIndex());
+            for (int bit = 0; bit < 8; ++bit) {
+                if (bit == i) {
+                    CHECK_TRUE(chaser->isLedOn(static_cast<uint8_t>(bit)));
+                } else {
+                    CHECK_FALSE(chaser->isLedOn(static_cast<uint8_t>(bit)));
+                }
+            }
             board.stepInstruction();
         }
+        CHECK_TRUE(chaser->stepCount() >= 8);
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"led_chaser\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":25") != std::string::npos);
     }
 
     // Lab 26: Oscilloscope X-Y Pattern Generator on Port B (0x81)
     {
         Abc80Board board;
+        auto *scope = dynamic_cast<Abc80Oscilloscope *>(board.attachCircuit(ExtCircuitId::Oscilloscope));
+        CHECK_TRUE(scope != nullptr);
         initBoardAndLoadTape(board, "tapes/0026.tape");
         // Clamp DELAY C counter at 1016H (LD C, 01H) to capture all 37 coordinates rapidly
         board.getBus().writeByte(0x1017, 0x01);
@@ -514,52 +567,171 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
             }
             if (board.lastFetchAddress() == 0x100F) {
                 coords.push_back(board.getPpi().getSegmentOutput());
+                CHECK_TRUE(scope->isBeamValid());
+                BYTES_EQUAL(coords.back(), scope->rawPortB());
+                BYTES_EQUAL(static_cast<uint8_t>(coords.back() & 0x0F), scope->beamX());
+                BYTES_EQUAL(static_cast<uint8_t>((coords.back() >> 4) & 0x0F), scope->beamY());
             }
             board.stepInstruction();
         }
         BYTES_EQUAL(0x92, coords.front());
         BYTES_EQUAL(0x6D, coords.back());
+        CHECK_TRUE(scope->isBeamValid());
+        BYTES_EQUAL(coords.back(), scope->rawPortB());
+        BYTES_EQUAL(static_cast<uint8_t>(coords.back() & 0x0F), scope->beamX());
+        BYTES_EQUAL(static_cast<uint8_t>((coords.back() >> 4) & 0x0F), scope->beamY());
+        CHECK_TRUE(scope->sampleCount() >= 37);
+        CHECK_TRUE(scope->tracePoints().size() > 0);
+        CHECK_TRUE(scope->gridDwell(2, 9) > 0);
+        CHECK_TRUE(scope->gridDwell(13, 6) > 0);
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"oscilloscope\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":26") != std::string::npos);
+        CHECK_TRUE(json.find("\"points\":[") != std::string::npos);
     }
 
-    // Lab 27: Automated School Bell Clock (seed 07:59:59 -> triggers BALL at 08:00:00)
+    // Lab 27: Automated School Bell Clock (seed 07:59:59 -> triggers BALL at 08:00:00, then 08:09:59 -> 08:10:00)
     {
         Abc80Board board;
+        auto *bell = dynamic_cast<Abc80SchoolBell *>(board.attachCircuit(ExtCircuitId::SchoolBell));
+        CHECK_TRUE(bell != nullptr);
         initBoardAndLoadTape(board, "tapes/0027.tape");
-        board.getBus().writeByte(0x1200, 0x59);
-        board.getBus().writeByte(0x1201, 0x59);
-        board.getBus().writeByte(0x1202, 0x07);
+
+        bell->setBcdTime(0x07, 0x59, 0x59);
+        BYTES_EQUAL(0x07, bell->bcdHour());
+        BYTES_EQUAL(0x59, bell->bcdMinute());
+        BYTES_EQUAL(0x59, bell->bcdSecond());
+        CHECK_FALSE(bell->isBellRinging());
 
         stepUntilFetch(board, 0x1007);
         board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
         stepUntilFetch(board, 0x1012);
+        // Normal SCD&K1 display strobes (0xFE..0xDF) must not trigger the active-low PC6 bell relay
+        CHECK_FALSE(bell->isBellRinging());
+        BYTES_EQUAL(0x08, bell->bcdHour());
+        BYTES_EQUAL(0x00, bell->bcdMinute());
+        BYTES_EQUAL(0x00, bell->bcdSecond());
         board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
 
-        // Step into BALL (0x107B) and verify Port C bit 6 is pulled low (0x3F)
+        // Step into BALL (0x107B -> OUT (82H), 3FH) and verify Port C bit 6 is pulled low (0x3F)
         stepUntilFetch(board, 0x107F);
         BYTES_EQUAL(0x3F, board.getPpi().getDigitStrobe());
+        BYTES_EQUAL(0x3F, bell->portC());
+        CHECK_TRUE(bell->isBellRinging());
+        LONGS_EQUAL(1, bell->ringCount());
+
+        // Clamp first chime note HL cycle count at 1082H to 0002H and jump from 1088H to 10C9H (end of BALL)
+        board.getBus().writeByte(0x1083, 0x02);
+        board.getBus().writeByte(0x1084, 0x00);
+        board.getBus().writeByte(0x1088, 0xC3);
+        board.getBus().writeByte(0x1089, 0xC9);
+        board.getBus().writeByte(0x108A, 0x10);
+
+        // Step into Monitor ROM SOUND (047CH) and through to 10CEH (after OUT (82H), FFH at 10CAH)
+        stepUntilFetch(board, 0x047C);
+        stepUntilFetch(board, 0x10CE);
+        CHECK_TRUE(bell->totalRingTStates() > 0);
+        CHECK_TRUE(bell->speakerEdges() > 0);
+        BYTES_EQUAL(0xFF, bell->portC());
+        CHECK_FALSE(bell->isBellRinging());
+
+        // Step back to CLOCK loop (1005H), seed 08:09:59, and verify 08:10:00 triggers BALL a second time
+        stepUntilFetch(board, 0x1005);
+        bell->setBcdTime(0x08, 0x09, 0x59);
+        stepUntilFetch(board, 0x1007);
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+        stepUntilFetch(board, 0x1012);
+        BYTES_EQUAL(0x08, bell->bcdHour());
+        BYTES_EQUAL(0x10, bell->bcdMinute());
+        BYTES_EQUAL(0x00, bell->bcdSecond());
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+
+        stepUntilFetch(board, 0x107F);
+        BYTES_EQUAL(0x3F, bell->portC());
+        CHECK_TRUE(bell->isBellRinging());
+        LONGS_EQUAL(2, bell->ringCount());
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"school_bell\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":27") != std::string::npos);
+        CHECK_TRUE(json.find("\"ringCount\":2") != std::string::npos);
     }
 
     // Lab 28: Home Appliance Computerized Control on Auxiliary 8255 Port C (0x42)
     {
         Abc80Board board;
+        auto *app = dynamic_cast<Abc80ApplianceControl *>(board.attachCircuit(ExtCircuitId::ApplianceControl));
+        CHECK_TRUE(app != nullptr);
         initBoardAndLoadTape(board, "tapes/0028.tape");
+
         // Seed 05:59:59 so next tick rolls over to 06:00:00 (schedule table 1106H = 0xE1)
-        board.getBus().writeByte(0x1200, 0x59);
-        board.getBus().writeByte(0x1201, 0x59);
-        board.getBus().writeByte(0x1202, 0x05);
+        app->setBcdTime(0x05, 0x59, 0x59);
+        BYTES_EQUAL(0x05, app->bcdHour());
+        BYTES_EQUAL(0x59, app->bcdMinute());
+        BYTES_EQUAL(0x59, app->bcdSecond());
 
         stepUntilFetch(board, 0x100E);
+        BYTES_EQUAL(0x80, app->auxControl());
         board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
         stepUntilFetch(board, 0x1019);
         board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
         stepUntilFetch(board, 0x101F);
         BYTES_EQUAL(0x06, board.getBus().readByte(0x1202));
+        BYTES_EQUAL(0x06, app->bcdHour());
+        BYTES_EQUAL(0x00, app->bcdMinute());
+        BYTES_EQUAL(0x00, app->bcdSecond());
+        BYTES_EQUAL(6, app->activeHourIndex());
         BYTES_EQUAL(0xE1, board.getPpi().auxPortCOutput());
+        BYTES_EQUAL(0xE1, app->relayMask());
+        CHECK_TRUE(app->isRelayOn(0));
+        CHECK_FALSE(app->isRelayOn(1));
+        CHECK_FALSE(app->isRelayOn(2));
+        CHECK_FALSE(app->isRelayOn(3));
+        CHECK_FALSE(app->isRelayOn(4));
+        CHECK_TRUE(app->isRelayOn(5));
+        CHECK_TRUE(app->isRelayOn(6));
+        CHECK_TRUE(app->isRelayOn(7));
+
+        // Seed 07:59:59 -> rolls over to 08:00:00 (schedule table 1108H = 0xC4)
+        app->setBcdTime(0x07, 0x59, 0x59);
+        stepUntilFetch(board, 0x100E);
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+        stepUntilFetch(board, 0x1019);
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+        stepUntilFetch(board, 0x101F);
+        BYTES_EQUAL(8, app->activeHourIndex());
+        BYTES_EQUAL(0xC4, app->relayMask());
+
+        // Seed 18:59:59 -> rolls over to 19:00:00 (schedule table 1119H = 0xF2)
+        app->setBcdTime(0x18, 0x59, 0x59);
+        stepUntilFetch(board, 0x100E);
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+        stepUntilFetch(board, 0x1019);
+        board.getCpu().setBC(static_cast<uint16_t>((0x01 << 8) | (board.getCpu().getBC() & 0xFF)));
+        stepUntilFetch(board, 0x101F);
+        BYTES_EQUAL(19, app->activeHourIndex());
+        BYTES_EQUAL(0xF2, app->relayMask());
+        CHECK_TRUE(app->updateCount() >= 3);
+        BYTES_EQUAL(0xE1, app->scheduleMasks()[6]);
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"appliance_control\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":28") != std::string::npos);
+        CHECK_TRUE(json.find("\"relayMask\":242") != std::string::npos);
     }
 
     // Lab 29: 3-Axis Robotic Arm Stepper Controller on Expansion 8255 (0x00..0x03)
     {
         Abc80Board board;
+        auto *arm = dynamic_cast<Abc80RoboticArm *>(board.attachCircuit(ExtCircuitId::RoboticArm));
+        CHECK_TRUE(arm != nullptr);
         initBoardAndLoadTape(board, "tapes/0029.tape");
         // Patch DELAY at 115EH with RET (0xC9) so all trajectory commands complete rapidly
         board.getBus().writeByte(0x115E, 0xC9);
@@ -584,15 +756,36 @@ TEST(Abc80Exercises, Exercises24To29ExternalHardwarePeripherals)
             }
             if (board.getPpi().expPortCOutput() == 0x01) {
                 seenSolenoidUp = true;
+                CHECK_TRUE(arm->isElectromagnetOn());
             }
         }
         LONGS_EQUAL(0x1047, board.lastFetchAddress()); // Reached STOP: HALT at 1047H
         BYTES_EQUAL(0x80, board.getPpi().getExpControl());
+        BYTES_EQUAL(0x80, arm->expControl());
         CHECK_TRUE(seenMotor1);
         CHECK_TRUE(seenMotor2);
         CHECK_TRUE(seenMotor3);
         CHECK_TRUE(seenSolenoidUp);
         BYTES_EQUAL(0x00, board.getPpi().expPortCOutput()); // Released at end (DOWN = 00H)
+        CHECK_FALSE(arm->isElectromagnetOn());
+        CHECK_TRUE(arm->magnetOnTStates() > 0);
+        CHECK_TRUE(arm->lastStepTStates() > 0);
+
+        LONGS_EQUAL(-4, arm->motor(0).steps);
+        LONGS_EQUAL(24, arm->motor(0).totalSteps);
+        LONGS_EQUAL(16, arm->motor(1).steps);
+        LONGS_EQUAL(16, arm->motor(1).totalSteps);
+        LONGS_EQUAL(3, arm->motor(2).steps);
+        LONGS_EQUAL(19, arm->motor(2).totalSteps);
+
+        TelemetryFrame frame;
+        captureBoardExtTelemetry(board, frame);
+        const std::string json = buildTelemetryJson(frame);
+        CHECK_TRUE(json.find("\"id\":\"robotic_arm\"") != std::string::npos);
+        CHECK_TRUE(json.find("\"exercise\":29") != std::string::npos);
+        CHECK_TRUE(json.find("\"steps\":-4") != std::string::npos);
+        CHECK_TRUE(json.find("\"steps\":16") != std::string::npos);
+        CHECK_TRUE(json.find("\"steps\":3") != std::string::npos);
     }
 }
 

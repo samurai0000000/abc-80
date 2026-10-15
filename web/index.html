@@ -160,6 +160,17 @@
                         <option value="1993">Charles Chiou's ROM</option>
                     </select>
                 </label>
+                <label class="ext-io-picker" title="Attach or detach a mutually-exclusive external I/O circuit (Exercises 24–29).">EXT I/O
+                    <select id="ext-io-select">
+                        <option value="none" selected>None (Detached)</option>
+                        <option value="traffic_light">Ex 24: Traffic Light (81H)</option>
+                        <option value="led_chaser">Ex 25: LED Chaser (81H)</option>
+                        <option value="oscilloscope">Ex 26: X-Y Scope (81H)</option>
+                        <option value="school_bell">Ex 27: School Bell (82H)</option>
+                        <option value="appliance_control">Ex 28: Appliance Relays (42H)</option>
+                        <option value="robotic_arm">Ex 29: Robotic Arm (00H–02H)</option>
+                    </select>
+                </label>
                 <button id="cancel-ai-btn" class="btn-cancel-ai" disabled title="Cancel active AI key sequence">
                     Cancel AI
                 </button>
@@ -175,6 +186,10 @@
                 <button id="btn-toggle-qb-crt" class="header-btn" title="Toggle Early-'90s PC/AT Color VGA CRT Monitor (QuickBASIC 4.0)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     <span>PC/AT CRT</span>
+                </button>
+                <button id="btn-toggle-ext-io" class="header-btn" disabled title="Show/Hide Floating External I/O Peripheral Window">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="10" r="1.5"/><circle cx="12" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/><line x1="7" y1="15" x2="17" y2="15"/></svg>
+                    <span>Ext I/O</span>
                 </button>
                 <button id="btn-toggle-inspector" class="header-btn" title="Toggle Developer Inspector (F12)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
@@ -2071,6 +2086,435 @@
                         <span class="qb-power-led" id="qb-power-led"></span>
                         <span class="qb-power-label">POWER</span>
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating External I/O Peripheral Lab Board Window (Exercises 24–29) -->
+    <div id="ext-io-window" class="ext-io-window hidden" role="dialog" aria-label="External I/O Peripheral Lab Board">
+        <div class="ext-io-cabinet">
+            <!-- Top Instrument Bezel (Draggable Handle) -->
+            <div class="ext-io-top-bezel" id="ext-io-drag-handle">
+                <div class="ext-io-brand-plate">
+                    <span class="ext-io-brand-badge">EXT I/O LAB BOARD</span>
+                    <span class="ext-io-title" id="ext-io-title">EXERCISE 24 • CROSSROAD TRAFFIC LIGHT PCB (8255 PORT 81H)</span>
+                </div>
+                <div class="ext-io-header-right">
+                    <span class="ext-io-port-badge" id="ext-io-port-badge">PORT 81H: 00H</span>
+                    <span class="ext-io-clock-badge" id="ext-io-clock-badge">CLK: 0 T</span>
+                    <button id="btn-ext-io-close" class="ext-io-close-btn" title="Hide External I/O Window (Circuit Remains Attached)">&times;</button>
+                </div>
+            </div>
+
+            <!-- Center Exposed FR-4 Green Solder-Mask Daughterboard Viewport -->
+            <div class="ext-io-well" id="ext-io-well">
+                <span class="pcb-standoff standoff-tl" aria-hidden="true"></span>
+                <span class="pcb-standoff standoff-tr" aria-hidden="true"></span>
+                <span class="pcb-standoff standoff-bl" aria-hidden="true"></span>
+                <span class="pcb-standoff standoff-br" aria-hidden="true"></span>
+
+                <!-- Stage 1: Exercise 24 — Crossroad Traffic Light PCB (Port 81H PB0..PB5) -->
+                <div id="ext-stage-traffic_light" class="ext-io-stage" data-circuit="traffic_light">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-24 • 4-WAY TRAFFIC SIGNAL BOARD</span>
+                        <span class="ext-silk-sub">J1: PRIMARY 8255 PORT B (81H) • ACTIVE-HIGH PB0..PB5</span>
+                    </div>
+                    <div class="tl-pcb-layout">
+                        <div class="tl-driver-column">
+                            <div class="ext-dip-ic dip-16">
+                                <div class="ext-dip-notch"></div>
+                                <span class="ext-dip-label">U1 CD4050BE</span>
+                                <span class="ext-dip-sub">HEX BUFFER</span>
+                            </div>
+                            <div class="ext-resistor-bank">
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R1 330Ω (PB0)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R2 330Ω (PB1)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R3 330Ω (PB2)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R4 330Ω (PB3)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R5 330Ω (PB4)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R6 330Ω (PB5)</span><span class="ext-res-body"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i><i class="b-gld"></i></span></div>
+                            </div>
+                            <div class="ext-ceramic-cap"><span class="ext-cap-disc">104</span><span class="ext-silk-sm">C1 0.1µF</span></div>
+                        </div>
+
+                        <div class="tl-intersection-silk">
+                            <div class="tl-road-card" id="tl-road-a-card">
+                                <div class="tl-road-title">ROAD A (N–S) • PB0..PB2</div>
+                                <div class="tl-signal-head">
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-a-red" class="ext-led-5mm led-red" data-bit="0" title="Road A Red (PB0 / 01H)"></span>
+                                        <span class="tl-pin-label">PB0 • RED</span>
+                                    </div>
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-a-yellow" class="ext-led-5mm led-yellow" data-bit="1" title="Road A Yellow (PB1 / 02H)"></span>
+                                        <span class="tl-pin-label">PB1 • YEL</span>
+                                    </div>
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-a-green" class="ext-led-5mm led-green" data-bit="2" title="Road A Green (PB2 / 04H)"></span>
+                                        <span class="tl-pin-label">PB2 • GRN</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tl-crossroad-graphic" aria-hidden="true">
+                                <div class="tl-lane-ns"><span>ROAD A</span></div>
+                                <div class="tl-lane-ew"><span>ROAD B</span></div>
+                                <div class="tl-center-box">+</div>
+                            </div>
+
+                            <div class="tl-road-card" id="tl-road-b-card">
+                                <div class="tl-road-title">ROAD B (E–W) • PB3..PB5</div>
+                                <div class="tl-signal-head">
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-b-red" class="ext-led-5mm led-red" data-bit="3" title="Road B Red (PB3 / 08H)"></span>
+                                        <span class="tl-pin-label">PB3 • RED</span>
+                                    </div>
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-b-yellow" class="ext-led-5mm led-yellow" data-bit="4" title="Road B Yellow (PB4 / 10H)"></span>
+                                        <span class="tl-pin-label">PB4 • YEL</span>
+                                    </div>
+                                    <div class="tl-lamp-row">
+                                        <span id="tl-led-b-green" class="ext-led-5mm led-green" data-bit="5" title="Road B Green (PB5 / 20H)"></span>
+                                        <span class="tl-pin-label">PB5 • GRN</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">PORT B (81H): <strong id="tl-portb">0x00</strong></span>
+                        <span class="ext-metric-pill">PHASE: <strong id="tl-phase-summary">ALL OFF</strong></span>
+                        <span class="ext-metric-pill">TRANSITIONS: <strong id="tl-transitions">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Stage 2: Exercise 25 — Sequential 8-LED Chaser PCB (Port 81H ~PB0..PB7) -->
+                <div id="ext-stage-led_chaser" class="ext-io-stage" data-circuit="led_chaser">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-25 • SEQUENTIAL 8-LED CHASER BOARD</span>
+                        <span class="ext-silk-sub">U1: CD4009 / SN7404 INVERTER BUFFER • ACTIVE-LOW PB7..PB0 (81H)</span>
+                    </div>
+                    <div class="chaser-pcb-layout">
+                        <div class="chaser-ic-row">
+                            <div class="ext-dip-ic dip-16">
+                                <div class="ext-dip-notch"></div>
+                                <span class="ext-dip-label">U1 CD4009UBE / SN7404</span>
+                                <span class="ext-dip-sub">HEX INVERTER BUFFER (LED = ~PB)</span>
+                            </div>
+                            <span class="ext-silk-sm chaser-trace-silk">COPPER BUS: PB7..PB0 (81H) ──► U1 INVERTER ──► R1..R8 (330Ω) ──► LED7..LED0 (+5V RAIL)</span>
+                            <div class="ext-ceramic-cap"><span class="ext-cap-disc">104</span><span class="ext-silk-sm">C1 +5V</span></div>
+                        </div>
+                        <div class="chaser-leds-array" id="chaser-leds-array">
+                            <div class="chaser-channel" data-bit="7">
+                                <span id="chaser-led-7" class="ext-led-5mm led-red" data-led="7" title="LED 7 (PB7 / 7FH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R8 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED7<br><small>PB7</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="6">
+                                <span id="chaser-led-6" class="ext-led-5mm led-red" data-led="6" title="LED 6 (PB6 / BFH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R7 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED6<br><small>PB6</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="5">
+                                <span id="chaser-led-5" class="ext-led-5mm led-red" data-led="5" title="LED 5 (PB5 / DFH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R6 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED5<br><small>PB5</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="4">
+                                <span id="chaser-led-4" class="ext-led-5mm led-red" data-led="4" title="LED 4 (PB4 / EFH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R5 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED4<br><small>PB4</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="3">
+                                <span id="chaser-led-3" class="ext-led-5mm led-red" data-led="3" title="LED 3 (PB3 / F7H)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R4 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED3<br><small>PB3</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="2">
+                                <span id="chaser-led-2" class="ext-led-5mm led-red" data-led="2" title="LED 2 (PB2 / FBH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R3 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED2<br><small>PB2</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="1">
+                                <span id="chaser-led-1" class="ext-led-5mm led-red" data-led="1" title="LED 1 (PB1 / FDH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R2 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED1<br><small>PB1</small></span>
+                            </div>
+                            <div class="chaser-channel" data-bit="0">
+                                <span id="chaser-led-0" class="ext-led-5mm led-red" data-led="0" title="LED 0 (PB0 / FEH)"></span>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">R1 330Ω</span><span class="ext-res-body vert"><i class="b-org"></i><i class="b-org"></i><i class="b-brn"></i></span></div>
+                                <span class="chaser-silk">LED0<br><small>PB0</small></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">RAW PB (81H): <strong id="chaser-raw-pb">0xFF</strong></span>
+                        <span class="ext-metric-pill">ACTIVE MASK (~PB): <strong id="chaser-active-mask">0x00</strong></span>
+                        <span class="ext-metric-pill">ACTIVE LED: <strong id="chaser-active-led">NONE</strong></span>
+                        <span class="ext-metric-pill">STEPS: <strong id="chaser-steps">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Stage 3: Exercise 26 — Dual 4-Bit R-2R Ladder DAC & 16x16 X-Y Oscilloscope (Port 81H) -->
+                <div id="ext-stage-oscilloscope" class="ext-io-stage" data-circuit="oscilloscope">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-26 • DUAL 4-BIT R-2R DAC &amp; X-Y OSCILLOSCOPE</span>
+                        <span class="ext-silk-sub">PORT 81H: PB3..PB0 = X-DAC (0..15) • PB7..PB4 = Y-DAC (0..15)</span>
+                    </div>
+                    <div class="scope-pcb-layout">
+                        <div class="scope-dac-column">
+                            <div class="ext-dip-ic dip-16">
+                                <div class="ext-dip-notch"></div>
+                                <span class="ext-dip-label">U1 CD4050BE</span>
+                                <span class="ext-dip-sub">CMOS HEX BUFFER</span>
+                            </div>
+                            <div class="scope-r2r-box">
+                                <div class="ext-silk-sm">X-AXIS R-2R LADDER (PB0..PB3)</div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">10kΩ/20kΩ ×4</span><span class="ext-res-body"><i class="b-brn"></i><i class="b-blk"></i><i class="b-org"></i><i class="b-gld"></i></span></div>
+                                <div class="ext-silk-sm" style="margin-top:4px;">Y-AXIS R-2R LADDER (PB4..PB7)</div>
+                                <div class="ext-axial-res"><span class="ext-silk-sm">10kΩ/20kΩ ×4</span><span class="ext-res-body"><i class="b-red"></i><i class="b-blk"></i><i class="b-org"></i><i class="b-gld"></i></span></div>
+                            </div>
+                            <div class="scope-bnc-row">
+                                <span class="scope-bnc-jack">BNC CH-X</span>
+                                <span class="scope-bnc-jack">BNC CH-Y</span>
+                            </div>
+                        </div>
+
+                        <div class="scope-crt-bezel">
+                            <div class="scope-crt-label">P31 PHOSPHOR X-Y CRT (16×16 GRATICULE)</div>
+                            <canvas id="ext-scope-canvas" width="240" height="240"></canvas>
+                        </div>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">PORT B (81H): <strong id="scope-raw-pb">0x00</strong></span>
+                        <span class="ext-metric-pill">BEAM X (PB0..3): <strong id="scope-beam-x">0</strong></span>
+                        <span class="ext-metric-pill">BEAM Y (PB4..7): <strong id="scope-beam-y">0</strong></span>
+                        <span class="ext-metric-pill">SAMPLES: <strong id="scope-samples">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Stage 4: Exercise 27 — School Bell Relay & Clock PCB (Port 82H PC6 + PC7) -->
+                <div id="ext-stage-school_bell" class="ext-io-stage" data-circuit="school_bell">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-27 • AUTOMATED SCHOOL BELL RELAY BOARD</span>
+                        <span class="ext-silk-sub">PORT 82H: PC6 ACTIVE-LOW RELAY (3FH=ON, FFH=OFF) • PC7 CHIME</span>
+                    </div>
+                    <div class="bell-pcb-layout">
+                        <div class="bell-driver-col">
+                            <div class="ext-axial-res"><span class="ext-silk-sm">R1 10kΩ PC6 PULL-UP (+5V)</span><span class="ext-res-body"><i class="b-brn"></i><i class="b-blk"></i><i class="b-org"></i><i class="b-gld"></i></span></div>
+                            <div class="ext-dip-ic dip-14">
+                                <div class="ext-dip-notch"></div>
+                                <span class="ext-dip-label">U1 SN7404N</span>
+                                <span class="ext-dip-sub">PC6 INVERTER</span>
+                            </div>
+                            <div class="bell-discrete-row">
+                                <span class="ext-to92-badge">Q1 2SC1815 NPN</span>
+                                <span class="ext-diode-badge">D1 1N4001 FLYBACK</span>
+                            </div>
+                            <div id="bell-relay" class="bell-relay-box">
+                                <span class="relay-title">RY1 • OMRON G2R-1 12VDC</span>
+                                <span class="relay-contact-state" id="bell-relay-state">CONTACT: OPEN (PC6=1)</span>
+                            </div>
+                        </div>
+
+                        <div class="bell-dome-col">
+                            <div id="bell-dome" class="school-bell-dome">
+                                <div class="bell-chrome-shell">
+                                    <span class="bell-bolt"></span>
+                                    <span class="bell-engraving">SCHOOL BELL</span>
+                                </div>
+                                <div class="bell-clapper"></div>
+                            </div>
+                            <span id="bell-status-text" class="bell-status-badge">STANDBY (SILENT)</span>
+                        </div>
+                    </div>
+                    <div class="ext-preset-bar">
+                        <span class="ext-preset-label">BCD CLOCK PRESETS (1200H..1202H):</span>
+                        <button id="btn-bell-preset-0800" class="ext-io-preset-btn" title="Seed 1200H..1202H to 07:59:58 (triggers 08:00:00 End-of-Class Bell in 2 ticks)">Preset 07:59:58 (→ 08:00 Bell)</button>
+                        <button id="btn-bell-preset-0810" class="ext-io-preset-btn" title="Seed 1200H..1202H to 08:09:58 (triggers 08:10:00 Start-of-Class Bell in 2 ticks)">Preset 08:09:58 (→ 08:10 Bell)</button>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">BCD TIME: <strong id="bell-bcd-time">00:00:00</strong></span>
+                        <span class="ext-metric-pill">PORT C (82H): <strong id="bell-portc">0xFF</strong></span>
+                        <span class="ext-metric-pill">RING COUNT: <strong id="bell-ring-count">0</strong></span>
+                        <span class="ext-metric-pill">CHIME EDGES: <strong id="bell-speaker-edges">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Stage 5: Exercise 28 — Aux 8255 8-Channel Appliance Relay Bank PCB (Port 42H) -->
+                <div id="ext-stage-appliance_control" class="ext-io-stage" data-circuit="appliance_control">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-28 • 8-CHANNEL HOME APPLIANCE RELAY BOARD</span>
+                        <span class="ext-silk-sub">U1: AUX 8255 PPI (74LS139 PIN 11 • PORTS 40H–43H) • PORT C (42H)</span>
+                    </div>
+                    <div class="appliance-ic-banner">
+                        <div class="ext-dip-ic dip-40-compact">
+                            <div class="ext-dip-notch"></div>
+                            <span class="ext-dip-label">U1 NEC D8255AC-2 (AUX PPI • 40H–43H)</span>
+                        </div>
+                        <div class="ext-dip-ic dip-18-compact">
+                            <div class="ext-dip-notch"></div>
+                            <span class="ext-dip-label">U2 ULN2803A DARLINGTON</span>
+                        </div>
+                    </div>
+                    <div id="appliance-relays-grid" class="appliance-relays-grid">
+                        <div id="appliance-relay-0" class="appliance-card" data-bit="0">
+                            <div class="app-card-top"><span class="app-pin">PC0 • RY1</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Television (電視)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-1" class="appliance-card" data-bit="1">
+                            <div class="app-card-top"><span class="app-pin">PC1 • RY2</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Stereo (音響)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-2" class="appliance-card" data-bit="2">
+                            <div class="app-card-top"><span class="app-pin">PC2 • RY3</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Washer (洗衣機)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-3" class="appliance-card" data-bit="3">
+                            <div class="app-card-top"><span class="app-pin">PC3 • RY4</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Cooker (電鍋)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-4" class="appliance-card" data-bit="4">
+                            <div class="app-card-top"><span class="app-pin">PC4 • RY5</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">A/C Unit (冷氣機)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-5" class="appliance-card" data-bit="5">
+                            <div class="app-card-top"><span class="app-pin">PC5 • RY6</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Porch Lamp (玄關燈)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-6" class="appliance-card" data-bit="6">
+                            <div class="app-card-top"><span class="app-pin">PC6 • RY7</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Garden Light (庭園燈)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                        <div id="appliance-relay-7" class="appliance-card" data-bit="7">
+                            <div class="app-card-top"><span class="app-pin">PC7 • RY8</span><span class="app-pilot-lamp"></span></div>
+                            <div class="app-name">Door Lock (電鎖)</div>
+                            <div class="app-state-txt">OFF</div>
+                        </div>
+                    </div>
+                    <div class="ext-preset-bar">
+                        <span class="ext-preset-label">SCHEDULE PRESETS:</span>
+                        <button id="btn-app-preset-0600" class="ext-io-preset-btn" title="Seed 05:59:58 → 06:00 (Mask E1H)">05:59:58 (→06:00 E1H)</button>
+                        <button id="btn-app-preset-0800" class="ext-io-preset-btn" title="Seed 07:59:58 → 08:00 (Mask C4H)">07:59:58 (→08:00 C4H)</button>
+                        <button id="btn-app-preset-1000" class="ext-io-preset-btn" title="Seed 09:59:58 → 10:00 (Mask D0H)">09:59:58 (→10:00 D0H)</button>
+                        <button id="btn-app-preset-1900" class="ext-io-preset-btn" title="Seed 18:59:58 → 19:00 (Mask F2H)">18:59:58 (→19:00 F2H)</button>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">BCD TIME: <strong id="appliance-bcd-time">00:00:00</strong></span>
+                        <span class="ext-metric-pill">AUX PC (42H): <strong id="appliance-relay-mask">0x00</strong></span>
+                        <span class="ext-metric-pill">UPDATES: <strong id="appliance-updates">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Stage 6: Exercise 29 — Expansion 8255 3-Axis Stepper & Gripper PCB (Ports 00H–03H) -->
+                <div id="ext-stage-robotic_arm" class="ext-io-stage" data-circuit="robotic_arm">
+                    <div class="ext-pcb-header-row">
+                        <span class="ext-silk-title">ABC-80 EXP-29 • 3-AXIS STEPPER ROBOTIC ARM &amp; GRIPPER PCB</span>
+                        <span class="ext-silk-sub">U1: EXP 8255 PPI (74LS139 PIN 12 • PORTS 00H–03H) • U2: SN7404 (C=~A, D=~B)</span>
+                    </div>
+                    <div class="arm-pcb-layout">
+                        <div class="arm-motors-col">
+                            <div class="arm-ic-strip">
+                                <span class="ext-chip-tag">U1 NEC D8255AC-2 (00H–03H)</span>
+                                <span class="ext-chip-tag">U2 SN7404 INV</span>
+                                <span class="ext-chip-tag">Q1..Q12 2SD313</span>
+                            </div>
+
+                            <div id="arm-motor-0" class="arm-motor-card">
+                                <div class="arm-motor-hdr">
+                                    <span class="arm-motor-name">M1 • WAIST ROTATION (PA0..PA1)</span>
+                                    <span class="arm-phase-badge" id="arm-motor-0-phase">PH: 0</span>
+                                </div>
+                                <div class="arm-coils-row">
+                                    <span class="arm-coil-led" data-coil="0" title="Coil A (PA0)">A</span>
+                                    <span class="arm-coil-led" data-coil="1" title="Coil B (PA1)">B</span>
+                                    <span class="arm-coil-led active" data-coil="2" title="Coil C (~PA0)">C</span>
+                                    <span class="arm-coil-led active" data-coil="3" title="Coil D (~PA1)">D</span>
+                                    <span class="arm-step-readout">STEPS: <strong id="arm-motor-0-steps">0</strong> (<small id="arm-motor-0-total">0</small>)</span>
+                                </div>
+                            </div>
+
+                            <div id="arm-motor-1" class="arm-motor-card">
+                                <div class="arm-motor-hdr">
+                                    <span class="arm-motor-name">M2 • SHOULDER ELEVATION (PB0..PB1)</span>
+                                    <span class="arm-phase-badge" id="arm-motor-1-phase">PH: 0</span>
+                                </div>
+                                <div class="arm-coils-row">
+                                    <span class="arm-coil-led" data-coil="0" title="Coil A (PB0)">A</span>
+                                    <span class="arm-coil-led" data-coil="1" title="Coil B (PB1)">B</span>
+                                    <span class="arm-coil-led active" data-coil="2" title="Coil C (~PB0)">C</span>
+                                    <span class="arm-coil-led active" data-coil="3" title="Coil D (~PB1)">D</span>
+                                    <span class="arm-step-readout">STEPS: <strong id="arm-motor-1-steps">0</strong> (<small id="arm-motor-1-total">0</small>)</span>
+                                </div>
+                            </div>
+
+                            <div id="arm-motor-2" class="arm-motor-card">
+                                <div class="arm-motor-hdr">
+                                    <span class="arm-motor-name">M3 • ELBOW / WRIST PITCH (PB4..PB5)</span>
+                                    <span class="arm-phase-badge" id="arm-motor-2-phase">PH: 0</span>
+                                </div>
+                                <div class="arm-coils-row">
+                                    <span class="arm-coil-led" data-coil="0" title="Coil A (PB4)">A</span>
+                                    <span class="arm-coil-led" data-coil="1" title="Coil B (PB5)">B</span>
+                                    <span class="arm-coil-led active" data-coil="2" title="Coil C (~PB4)">C</span>
+                                    <span class="arm-coil-led active" data-coil="3" title="Coil D (~PB5)">D</span>
+                                    <span class="arm-step-readout">STEPS: <strong id="arm-motor-2-steps">0</strong> (<small id="arm-motor-2-total">0</small>)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="arm-kinematic-col">
+                            <svg id="ext-arm-svg" viewBox="0 0 220 190" class="ext-arm-svg" aria-label="3-Axis Robotic Arm Kinematic Diagram">
+                                <!-- Blueprint Grid -->
+                                <line x1="15" y1="165" x2="205" y2="165" stroke="#2e7d52" stroke-width="2"/>
+                                <!-- Base Pedestal & M1 Waist Turntable -->
+                                <g id="arm-joint-waist" transform="translate(85, 165)">
+                                    <rect x="-26" y="-14" width="52" height="14" rx="3" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+                                    <circle cx="0" cy="-14" r="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+                                    <!-- Shoulder Link (M2) -->
+                                    <g id="arm-joint-shoulder" transform="translate(0, -14) rotate(-35)">
+                                        <line x1="0" y1="0" x2="0" y2="-58" stroke="#cbd5e1" stroke-width="7" stroke-linecap="round"/>
+                                        <line x1="0" y1="0" x2="0" y2="-58" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+                                        <circle cx="0" cy="0" r="5" fill="#fbbf24"/>
+                                        <!-- Elbow / Forearm Link (M3) -->
+                                        <g id="arm-joint-elbow" transform="translate(0, -58) rotate(65)">
+                                            <line x1="0" y1="0" x2="0" y2="-50" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+                                            <circle cx="0" cy="0" r="4.5" fill="#fbbf24"/>
+                                            <!-- Electromagnet Gripper Head (PC0) -->
+                                            <g id="arm-gripper-claw" transform="translate(0, -50)">
+                                                <rect x="-9" y="-8" width="18" height="10" rx="2" fill="#334155" stroke="#e2e8f0" stroke-width="1.2"/>
+                                                <circle id="arm-payload-orb" cx="0" cy="-14" r="6" fill="#ef4444" opacity="0.18" stroke="#fca5a5" stroke-width="1"/>
+                                            </g>
+                                        </g>
+                                    </g>
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ext-stage-telemetry-strip">
+                        <span class="ext-metric-pill">PORTS (00–02H): <strong id="arm-ports-readout">PA=00 PB=00 PC=00</strong></span>
+                        <span class="ext-metric-pill">GRIPPER (PC0): <strong id="arm-magnet-badge">RELEASE (OFF)</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Control & Bus Pinout Apron -->
+            <div class="ext-io-apron" id="ext-io-apron">
+                <div class="ext-io-bus-readout">
+                    <span class="ext-bus-tag">40-PIN 8255 I/O RIBBON</span>
+                    <span class="ext-ppi-summary" id="ext-io-ppi-summary">PRI(80–83H) PA=7F PB=00 PC=FF CTRL=9B</span>
+                </div>
+                <div class="ext-io-apron-actions">
+                    <button id="btn-ext-io-reset" class="ext-apron-btn" title="Reset Attached External Circuit Counters &amp; Accumulators">Reset Circuit</button>
+                    <button id="btn-ext-io-detach" class="ext-apron-btn ext-btn-danger" title="Detach External Circuit from ABC-80 Board &amp; Close Window">Detach Circuit</button>
                 </div>
             </div>
         </div>

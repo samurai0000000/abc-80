@@ -359,14 +359,14 @@ TEST(Abc80Tape, AuthenticFromTapeAfterProlongedIdlePlayBeforeGo)
     LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
                 static_cast<int>(deck.seedDefaultTapesIfEmpty()));
     LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
-                static_cast<int>(deck.selectTape(0x0004)));
+                static_cast<int>(deck.selectTape(0x0103)));
 
     // User presses PLAY on the cassette deck first
     LONGS_EQUAL(static_cast<int>(Abc80Status::OK), static_cast<int>(deck.play()));
     CHECK_TRUE(deck.state() == TapeDeckState::Playing);
 
     // Emulate 3.5 seconds of the Monitor scanning keypad/display before the user finishes typing
-    // FROM TAPE -> 0 -> 0 -> 0 -> 4 -> GO (~210 frames at 60 Hz)
+    // FROM TAPE -> 0 -> 1 -> 0 -> 3 -> GO (~210 frames at 60 Hz)
     for (int f = 0; f < 210; ++f) {
         board.stepFrame();
     }
@@ -374,10 +374,10 @@ TEST(Abc80Tape, AuthenticFromTapeAfterProlongedIdlePlayBeforeGo)
     // Tape deck MUST still be playing the sustained leader tone, NOT prematurely finished!
     CHECK_TRUE(deck.state() == TapeDeckState::Playing);
 
-    // Now execute ROM ERT (0x01CE) for File ID 0x0004
+    // Now execute ROM ERT (0x01CE) for File ID 0x0103
     board.finishInstruction();
-    board.getBus().writeByte(0x17BF, 0x04);
-    board.getBus().writeByte(0x17C0, 0x00);
+    board.getBus().writeByte(0x17BF, 0x03);
+    board.getBus().writeByte(0x17C0, 0x01);
     board.getCpu().setIX(0x17C6);
     const uint16_t sp = 0x17BD;
     board.getBus().writeByte(sp, 0x9B);
@@ -396,16 +396,16 @@ TEST(Abc80Tape, AuthenticFromTapeAfterProlongedIdlePlayBeforeGo)
     BYTES_EQUAL(0x11, board.getBus().readByte(0x1000));
     BYTES_EQUAL(0xE2, board.getBus().readByte(0x1023));
 
-    // Also verify seeded 0003.tape ("Dual-Tone Chime (1000H)") loops cleanly to 0x1000 (JP 1000H)
+    // Also verify seeded 0102.tape ("Dual-Tone Chime (1000H)") loops cleanly to 0x1000 (JP 1000H)
     uint16_t id3 = 0, start3 = 0, end3 = 0;
     std::string annot3;
     std::vector<TapePulseRun> runs3;
     std::vector<uint8_t> code3;
     LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
-                static_cast<int>(Abc80Tape::loadTapeFile(tempDir + "/0003.tape", id3, annot3, runs3)));
+                static_cast<int>(Abc80Tape::loadTapeFile(tempDir + "/0102.tape", id3, annot3, runs3)));
     LONGS_EQUAL(static_cast<int>(Abc80Status::OK),
                 static_cast<int>(Abc80Tape::decodeProgramFromRuns(runs3, id3, start3, end3, code3)));
-    LONGS_EQUAL(0x0003, id3);
+    LONGS_EQUAL(0x0102, id3);
     LONGS_EQUAL(0x1000, start3);
     LONGS_EQUAL(0x100E, end3);
     LONGS_EQUAL(15, code3.size());

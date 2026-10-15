@@ -17,6 +17,7 @@
 namespace abc80 {
 
 class CassetteDeck;
+class Abc80ExtCircuit;
 
 class Abc80Ppi {
 public:
@@ -61,6 +62,7 @@ public:
 
     void setClockSource(const uint64_t *tstates) noexcept { _clock = tstates; }
     void setCassetteDeck(CassetteDeck *deck) noexcept { _cassetteDeck = deck; }
+    void setExtCircuit(Abc80ExtCircuit *circuit) noexcept { _extCircuit = circuit; }
     void beginFrame() noexcept;   // zero the accumulators and mark the frame start
     void endFrame() noexcept;     // account the time up to now; freezes frameElapsedTStates()
     const FrameAudio &frameAudio() const noexcept { return _audio; }
@@ -70,8 +72,11 @@ public:
     // segment (0=a .. 6=g, 7=dp) was driven lit. Port B is active-low, so a low bit is a lit segment.
     uint32_t digitSegmentOnTStates(uint8_t digit, uint8_t canonicalSegment) const noexcept;
 
-    // Latched Port C output of the auxiliary (EPROM programmer / appliance relay) 8255 (0x40 - 0x43).
+    // Latched outputs and control word of the auxiliary (EPROM programmer / appliance relay) 8255 (0x40 - 0x43).
+    uint8_t auxPortAOutput() const noexcept { return _ppiAux.pa.outp; }
+    uint8_t auxPortBOutput() const noexcept { return _ppiAux.pb.outp; }
     uint8_t auxPortCOutput() const noexcept { return _ppiAux.pc.outp; }
+    uint8_t getAuxControl() const noexcept { return _ppiAux.control; }
 
     // Latched outputs and control word of the expansion 8255 (0x00 - 0x03, 74LS139 pin 12).
     uint8_t expPortAOutput() const noexcept { return _ppiExp.pa.outp; }
@@ -118,6 +123,7 @@ private:
     // Audio & Keypad state
     const uint64_t *_clock{nullptr};
     CassetteDeck *_cassetteDeck{nullptr};
+    Abc80ExtCircuit *_extCircuit{nullptr};
     uint64_t _frameStart{0};
     uint64_t _lastEvent{0};
     uint64_t _lastPc7ToggleTStates{0};

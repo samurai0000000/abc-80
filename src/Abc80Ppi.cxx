@@ -8,6 +8,7 @@
 #include <chips/i8255.h>
 #include <abc80/Abc80Ppi.hxx>
 #include <abc80/Abc80Tape.hxx>
+#include <abc80/Abc80ExtCircuit.hxx>
 #include <algorithm>
 
 namespace abc80 {
@@ -308,6 +309,10 @@ void Abc80Ppi::writePort(uint8_t port, uint8_t val)
         I8255_SET_DATA(pins, val);
 
         i8255_tick(&_ppiExp, pins);
+    }
+
+    if (_extCircuit != nullptr) {
+        _extCircuit->onPortWrite(port, val, (_clock != nullptr) ? *_clock : 0);
     }
 }
 

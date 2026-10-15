@@ -56,6 +56,65 @@ Abc80Board::Abc80Board()
     _ppi.beginFrame();
 }
 
+Abc80Board::~Abc80Board()
+{
+    detachCircuit();
+}
+
+void Abc80Board::attachCircuit(Abc80ExtCircuit *circuit) noexcept
+{
+    if (circuit == nullptr) {
+        detachCircuit();
+        return;
+    }
+    if (_extCircuit == circuit) {
+        return;
+    }
+    detachCircuit();
+    _extCircuit = circuit;
+    _ppi.setExtCircuit(_extCircuit);
+    _extCircuit->bindBoard(this, _cpu.cyclesPtr());
+}
+
+Abc80ExtCircuit *Abc80Board::attachCircuit(std::unique_ptr<Abc80ExtCircuit> circuit) noexcept
+{
+    if (!circuit) {
+        detachCircuit();
+        return nullptr;
+    }
+    detachCircuit();
+    _ownedCircuit = std::move(circuit);
+    _extCircuit = _ownedCircuit.get();
+    _ppi.setExtCircuit(_extCircuit);
+    _extCircuit->bindBoard(this, _cpu.cyclesPtr());
+    return _extCircuit;
+}
+
+Abc80ExtCircuit *Abc80Board::attachCircuit(ExtCircuitId id)
+{
+    if (id == ExtCircuitId::None) {
+        detachCircuit();
+        return nullptr;
+    }
+    return attachCircuit(Abc80ExtCircuit::create(id));
+}
+
+void Abc80Board::detachCircuit() noexcept
+{
+    if (_extCircuit != nullptr) {
+        Abc80ExtCircuit *prev = _extCircuit;
+        _extCircuit = nullptr;
+        _ppi.setExtCircuit(nullptr);
+        prev->unbindBoard();
+    }
+    _ownedCircuit.reset();
+}
+
+ExtCircuitId Abc80Board::attachedCircuitId() const noexcept
+{
+    return _extCircuit != nullptr ? _extCircuit->id() : ExtCircuitId::None;
+}
+
 Abc80Status Abc80Board::powerOn(const std::string& romPath)
 {
     _bus.reset();
@@ -66,6 +125,9 @@ Abc80Status Abc80Board::powerOn(const std::string& romPath)
     }
     _cpu.reset();
     _ppi.beginFrame();
+    if (_extCircuit != nullptr) {
+        _extCircuit->onBoardReset(*_cpu.cyclesPtr());
+    }
     _readySeen[0] = false;
     _readySeen[1] = false;
     return Abc80Status::OK;
@@ -87,6 +149,9 @@ void Abc80Board::reset()
     _ppi.reset();
     _cpu.reset();
     _ppi.beginFrame();
+    if (_extCircuit != nullptr) {
+        _extCircuit->onBoardReset(*_cpu.cyclesPtr());
+    }
     _readySeen[0] = false;
     _readySeen[1] = false;
 }
@@ -113,6 +178,9 @@ void Abc80Board::tickTracked()
         _cassetteDeck.step(*_cpu.cyclesPtr());
     }
     const uint64_t pins = _cpu.tick();
+    if (_extCircuit != nullptr) {
+        _extCircuit->step(*_cpu.cyclesPtr());
+    }
     if ((pins & Z80_M1) && (pins & Z80_MREQ) && (pins & Z80_RD)) {
         const uint16_t addr = Z80_GET_ADDR(pins);
         _lastFetch = addr;
@@ -128,10 +196,16 @@ void Abc80Board::tickTracked()
 uint64_t Abc80Board::stepFrame()
 {
     _ppi.beginFrame();
+    if (_extCircuit != nullptr) {
+        _extCircuit->beginFrame(*_cpu.cyclesPtr());
+    }
     for (uint32_t t = 0; t < ABC80_FRAME_TSTATES; ++t) {
         tickTracked();
     }
     _ppi.endFrame();
+    if (_extCircuit != nullptr) {
+        _extCircuit->endFrame(*_cpu.cyclesPtr());
+    }
     return ABC80_FRAME_TSTATES;
 }
 
@@ -205,7 +279,7 @@ double Abc80Board::speakerLedFraction() const noexcept
 
 uint64_t Abc80Board::stepTStates(uint64_t tstates)
 {
-    if (!_cassetteDeck.isActive()) {
+    if (!_cassetteDeck.isActive() && _extCircuit == nullptr) {
         return _cpu.stepTStates(tstates);
     }
     for (uint64_t i = 0; i < tstates; ++i) {

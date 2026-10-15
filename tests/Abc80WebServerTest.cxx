@@ -1142,6 +1142,239 @@ TEST(Abc80WebServer, QuickBasicHostWebSocketSessionAnd1993RomIntegration)
     std::filesystem::remove_all(progsDir);
 }
 
+TEST(Abc80WebServer, ExtCircuitWebSocketAttachSwitchResetClockAndLiveTelemetry)
+{
+    const std::string tapesDir = "/tmp/abc80_server_ext_circuit_tapes";
+    std::filesystem::remove_all(tapesDir);
+
+    ServerConfig cfg = testConfig();
+    cfg.tapesDir = tapesDir;
+    Abc80WebServer server(cfg);
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("ext_circuit_ws_01");
+
+    // 1. Initially detached ("id": "none", "attached": false)
+    json tel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") && j.contains("ppi");
+    }, 5000, &tel));
+    STRCMP_EQUAL("none", tel["extCircuit"].value("id", "").c_str());
+    CHECK(!tel["extCircuit"].value("attached", true));
+
+    // 2. Attach all 6 circuits sequentially and verify strict mutual exclusivity
+    const char *circuitIds[] = {
+        "traffic_light",
+        "led_chaser",
+        "oscilloscope",
+        "school_bell",
+        "appliance_control",
+        "robotic_arm"
+    };
+    const int expectedEx[] = { 24, 25, 26, 27, 28, 29 };
+
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000));
+
+    for (size_t i = 0; i < 6; ++i) {
+        tab.send({
+            { "type", "ext_circuit" },
+            { "action", "attach" },
+            { "circuit", circuitIds[i] }
+        });
+        json attachedTel;
+        const std::string targetId = circuitIds[i];
+        CHECK_TEXT(tab.waitFor("telemetry", [&targetId](const json &j) {
+            return j.contains("extCircuit") &&
+                   j["extCircuit"].value("id", "") == targetId &&
+                   j["extCircuit"].value("attached", false);
+        }, 4000, &attachedTel), targetId.c_str());
+        LONGS_EQUAL(expectedEx[i], attachedTel["extCircuit"].value("exercise", 0));
+    }
+
+    // 3. Test set_clock over WebSocket while paused on school_bell
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "attach" },
+        { "circuit", "school_bell" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") && j["extCircuit"].value("id", "") == "school_bell";
+    }, 4000));
+
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "set_clock" },
+        { "hh", 0x07 },
+        { "mm", 0x59 },
+        { "ss", 0x58 }
+    });
+    json clockTel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "school_bell" &&
+               j["extCircuit"].value("bcdHour", -1) == 0x07 &&
+               j["extCircuit"].value("bcdMinute", -1) == 0x59 &&
+               j["extCircuit"].value("bcdSecond", -1) == 0x58;
+    }, 4000, &clockTel));
+
+    // Verify RAM 0x1200..0x1202 matches
+    tab.readMem(0x1200, 3);
+    json memReply;
+    CHECK(tab.waitFor("memData", [](const json &j) {
+        return j.value("addr", 0) == 0x1200;
+    }, 4000, &memReply));
+    BYTES_EQUAL(0x58, memReply["data"][0].get<int>());
+    BYTES_EQUAL(0x59, memReply["data"][1].get<int>());
+    BYTES_EQUAL(0x07, memReply["data"][2].get<int>());
+
+    // 4. Test real-time clocked state updates when Z80 executes OUT (81H), A
+    tab.run();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return !j.value("paused", true);
+    }, 4000));
+
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "attach" },
+        { "circuit", "traffic_light" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") && j["extCircuit"].value("id", "") == "traffic_light";
+    }, 4000));
+
+    // Punch a 6-byte Z80 loop at 0x1000 (Primary PPI is already configured as 0x80 by Monitor ROM):
+    // 1000: 3E 21    LD A, 21H   (Road B Green PB5 + Road A Red PB0)
+    // 1002: D3 81    OUT (81H), A
+    // 1004: 18 FC    JR 1002H
+    // Note: KeyQueue holds up to 64 events (32 taps, 8 frames per tap), so send in two 12-tap batches.
+    const char *progKeys1[] = {
+        "ADRS", "1", "0", "0", "0",
+        "DATA", "3", "E", "+",
+        "2", "1", "+"
+    };
+    for (const char *k : progKeys1) {
+        tab.tap(k);
+    }
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return digits(j).compare(0, 4, "1002") == 0;
+    }, 10000));
+
+    const char *progKeys2[] = {
+        "D", "3", "+",
+        "8", "1", "+",
+        "1", "8", "+",
+        "F", "C"
+    };
+    for (const char *k : progKeys2) {
+        tab.tap(k);
+    }
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return digits(j).compare(0, 4, "1005") == 0;
+    }, 10000));
+
+    const char *goKeys[] = {
+        "ADRS", "1", "0", "0", "0", "GO"
+    };
+    for (const char *k : goKeys) {
+        tab.tap(k);
+    }
+
+    json liveTel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "traffic_light" &&
+               j["extCircuit"].value("portB", 0) == 0x21 &&
+               j["extCircuit"]["roadA"].value("red", false) &&
+               j["extCircuit"]["roadB"].value("green", false) &&
+               j["extCircuit"].value("transitions", 0) >= 1;
+    }, 10000, &liveTel));
+
+    // 5. Reset circuit and status query
+    tab.pause();
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.value("paused", false);
+    }, 4000));
+
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "reset" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "traffic_light" &&
+               j["extCircuit"].value("transitions", -1) == 0;
+    }, 4000));
+
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "status" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "traffic_light";
+    }, 4000));
+
+    // 6. Detach back to "none"
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "detach" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "none" &&
+               !j["extCircuit"].value("attached", true);
+    }, 4000));
+
+    std::filesystem::remove_all(tapesDir);
+}
+
+TEST(Abc80WebServer, ExtCircuitLockedOutDuringResidentAiPunch)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    Tab tab(server.port());
+    CHECK(tab.connect());
+    tab.hello("resident");
+    CHECK(tab.anyTelemetry(8000));
+
+    // Lock resident session with AI punch
+    server.setResidentClockWakeForAi(true);
+
+    // Client tries to attach traffic_light while AI punch is active -> ignored
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "attach" },
+        { "circuit", "traffic_light" }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    json tel;
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit");
+    }, 4000, &tel));
+    STRCMP_EQUAL("none", tel["extCircuit"].value("id", "").c_str());
+    CHECK(!tel["extCircuit"].value("attached", true));
+
+    // End AI punch -> client can now attach traffic_light
+    server.setResidentClockWakeForAi(false);
+    tab.send({
+        { "type", "ext_circuit" },
+        { "action", "attach" },
+        { "circuit", "traffic_light" }
+    });
+    CHECK(tab.waitFor("telemetry", [](const json &j) {
+        return j.contains("extCircuit") &&
+               j["extCircuit"].value("id", "") == "traffic_light" &&
+               j["extCircuit"].value("attached", false);
+    }, 4000));
+}
+
 /*
  * Local variables:
  * mode: C++

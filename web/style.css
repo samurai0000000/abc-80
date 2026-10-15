@@ -6904,3 +6904,1221 @@ button[data-key="RST"] .key-label {
     letter-spacing: 0.5px;
 }
 
+/* ==========================================================================
+   External I/O Expansion Daughterboard Window (Ch.12 Exercises 24–29)
+   ========================================================================== */
+
+.ext-io-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #a7f3d0;
+    background: rgba(6, 78, 59, 0.45);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    border-radius: 4px;
+    padding: 3px 8px;
+    letter-spacing: 0.04em;
+}
+
+.ext-io-picker select {
+    background: #06281e;
+    color: #ecfdf5;
+    border: 1px solid #10b981;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    cursor: pointer;
+    outline: none;
+}
+
+.ext-io-picker select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#ext-io-window,
+.ext-io-window,
+.ext-io-floating-window {
+    position: fixed;
+    top: 64px;
+    left: 24px;
+    width: 580px;
+    max-width: calc(100vw - 32px);
+    z-index: 940;
+    user-select: none;
+    filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.78));
+}
+
+#ext-io-window.hidden,
+.ext-io-window.hidden,
+.ext-io-floating-window.hidden {
+    display: none !important;
+}
+
+.ext-io-cabinet {
+    position: relative;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(34, 197, 94, 0.09), transparent 55%),
+        repeating-linear-gradient(45deg, rgba(16, 185, 129, 0.04) 0px, rgba(16, 185, 129, 0.04) 2px, transparent 2px, transparent 8px),
+        linear-gradient(160deg, #124830 0%, #0d3b26 55%, #08291a 100%);
+    border: 3px solid #286646;
+    border-radius: 10px;
+    padding: 12px 14px 12px 14px;
+    box-shadow:
+        inset 0 0 0 1px rgba(236, 253, 245, 0.14),
+        inset 0 4px 14px rgba(0, 0, 0, 0.55);
+    color: #ecfdf5;
+    font-family: var(--font-mono);
+}
+
+/* 4 Brass Corner Standoffs */
+.pcb-standoff,
+.ext-io-standoff {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fef08a 0%, #eab308 45%, #854d0e 90%);
+    border: 1.5px solid #422006;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), inset 0 0 2px #1c1917;
+    pointer-events: none;
+    z-index: 3;
+}
+.pcb-standoff::after,
+.ext-io-standoff::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: #1f2937;
+    border: 1px solid #713f12;
+}
+.pcb-standoff.standoff-tl, .ext-io-standoff.standoff-tl { top: 6px; left: 6px; }
+.pcb-standoff.standoff-tr, .ext-io-standoff.standoff-tr { top: 6px; right: 6px; }
+.pcb-standoff.standoff-bl, .ext-io-standoff.standoff-bl { bottom: 6px; left: 6px; }
+.pcb-standoff.standoff-br, .ext-io-standoff.standoff-br { bottom: 6px; right: 6px; }
+
+/* Top Silkscreen Bezel & Drag Handle */
+.ext-io-top-bezel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 12px;
+    margin: 2px 6px 8px 6px;
+    background: rgba(4, 28, 18, 0.78);
+    border: 1px solid rgba(167, 243, 208, 0.32);
+    border-radius: 5px;
+    cursor: grab;
+}
+.ext-io-top-bezel:active {
+    cursor: grabbing;
+}
+
+.ext-io-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ext-io-badge {
+    background: #f59e0b;
+    color: #111827;
+    font-weight: 900;
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+}
+
+.ext-io-model {
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ext-io-bezel-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ext-io-port-badge {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #fde68a;
+    background: rgba(120, 53, 15, 0.55);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.ext-io-clock-badge {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #6ee7b7;
+    background: rgba(6, 78, 59, 0.7);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Gold Edge-Connector Header Bar */
+.ext-io-edge-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 6px 8px 6px;
+    padding: 3px 10px;
+    background: #071f14;
+    border: 1px solid rgba(234, 179, 8, 0.4);
+    border-radius: 4px;
+}
+
+.ext-io-edge-label {
+    font-size: 0.62rem;
+    color: #fde047;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+}
+
+.ext-io-gold-fingers {
+    display: flex;
+    gap: 3px;
+}
+.ext-io-gold-fingers span {
+    width: 5px;
+    height: 10px;
+    background: linear-gradient(180deg, #fef08a 0%, #ca8a04 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 2px rgba(250, 204, 21, 0.5);
+}
+
+/* Stage Well & Mutually-Exclusive Stage Panels */
+.ext-io-well {
+    margin: 0 6px 8px 6px;
+    padding: 10px 12px;
+    background:
+        radial-gradient(rgba(167, 243, 208, 0.12) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(6, 42, 27, 0.88) 0%, rgba(4, 29, 18, 0.94) 100%);
+    background-size: 10px 10px, 100% 100%;
+    border: 1.5px solid rgba(167, 243, 208, 0.28);
+    border-radius: 6px;
+    min-height: 250px;
+}
+
+.ext-io-stage {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ext-io-stage.active {
+    display: flex;
+}
+
+.ext-pcb-board-header,
+.ext-pcb-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px dashed rgba(167, 243, 208, 0.3);
+    padding-bottom: 4px;
+}
+
+.ext-pcb-silk-title,
+.ext-silk-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ecfdf5;
+    letter-spacing: 0.05em;
+}
+
+.ext-pcb-silk-ref,
+.ext-silk-sub {
+    font-size: 0.64rem;
+    color: #a7f3d0;
+    opacity: 0.85;
+}
+
+/* Authentic DIP ICs, Axial Resistors & Ceramic Caps on Daughterboard */
+.ext-pcb-ic-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 4px 8px;
+    background: rgba(2, 18, 11, 0.55);
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    border-radius: 4px;
+}
+
+.ext-pcb-dip,
+.ext-dip-ic {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+    border: 1.5px solid #4b5563;
+    border-radius: 3px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+.ext-pcb-dip.dip-24,
+.ext-dip-ic.dip-16 {
+    padding: 4px 12px;
+    border-color: #6b7280;
+}
+.ext-pcb-dip-notch,
+.ext-dip-notch {
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 8px;
+    border-radius: 0 4px 4px 0;
+    background: #374151;
+}
+.ext-pcb-dip-label,
+.ext-dip-label {
+    font-size: 0.64rem;
+    font-weight: 800;
+    color: #e5e7eb;
+    letter-spacing: 0.04em;
+}
+.ext-pcb-dip-sub,
+.ext-dip-sub {
+    font-size: 0.55rem;
+    color: #9ca3af;
+}
+
+.ext-pcb-resistor-bank,
+.ext-resistor-bank {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.ext-axial-res {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.ext-silk-sm {
+    font-size: 0.56rem;
+    font-weight: 700;
+    color: #a7f3d0;
+}
+
+.ext-pcb-axial-r,
+.ext-res-body {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #292524;
+    background: linear-gradient(90deg, #9ca3af 0%, #9ca3af 12%, #f5d0a9 12%, #e6b88a 88%, #9ca3af 88%, #9ca3af 100%);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #78350f;
+}
+
+.ext-res-body i {
+    display: inline-block;
+    width: 3px;
+    height: 7px;
+}
+
+.ext-ceramic-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ext-pcb-cap,
+.ext-cap-disc {
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #451a03;
+    background: radial-gradient(circle, #fbbf24 0%, #d97706 100%);
+    padding: 2px 5px;
+    border-radius: 50%;
+    border: 1px solid #78350f;
+}
+
+.ext-io-readout-strip,
+.ext-stage-telemetry-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 5px 8px;
+    background: rgba(2, 16, 10, 0.78);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+    font-size: 0.68rem;
+    color: #d1fae5;
+}
+.ext-io-readout-strip strong,
+.ext-stage-telemetry-strip strong {
+    color: #fde68a;
+}
+
+/* ---- Stage 24: Traffic Light Controller ---- */
+.tl-pcb-layout {
+    display: grid;
+    grid-template-columns: 165px 1fr;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.tl-driver-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 8px;
+    background: rgba(2, 18, 11, 0.58);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 5px;
+}
+
+.tl-intersection-pcb,
+.tl-intersection-silk {
+    position: relative;
+    min-height: 158px;
+    background: #0a2e1d;
+    border: 1px solid rgba(167, 243, 208, 0.35);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+}
+
+.tl-road-card {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.tl-road-title,
+.tl-head-title {
+    font-size: 0.60rem;
+    font-weight: 800;
+    color: #fde68a;
+    text-align: center;
+    letter-spacing: 0.04em;
+}
+
+.tl-crossroad-graphic {
+    position: relative;
+    width: 68px;
+    height: 112px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(251, 191, 36, 0.45);
+    border-radius: 4px;
+    background: rgba(17, 24, 39, 0.68);
+}
+
+.tl-lane-ns,
+.tl-lane-ew {
+    font-size: 0.52rem;
+    font-weight: 800;
+    color: #fde047;
+    letter-spacing: 0.04em;
+}
+
+.tl-lane-ns {
+    position: absolute;
+    top: 6px;
+}
+
+.tl-lane-ew {
+    position: absolute;
+    bottom: 6px;
+}
+
+.tl-center-box {
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: #fbbf24;
+}
+
+.tl-signal-head {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(180deg, #18181b 0%, #09090b 100%);
+    border: 2px solid #52525b;
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75);
+}
+
+.tl-lamps-row,
+.tl-lamp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tl-lamp-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.tl-lamp,
+.ext-led-5mm {
+    --led-level: 0;
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid #27272a;
+    background: #1f2937;
+    transition: background 0.06s linear, box-shadow 0.06s linear;
+}
+
+.tl-lamp.red,
+.ext-led-5mm.led-red {
+    background: radial-gradient(circle at 35% 35%, rgba(254, 202, 202, calc(0.15 + 0.85 * var(--led-level))), rgba(239, 68, 68, calc(0.2 + 0.8 * var(--led-level))) 60%, #450a0a 100%);
+}
+.tl-lamp.red.active,
+.tl-lamp.red.lit,
+.ext-led-5mm.led-red.active,
+.ext-led-5mm.led-red.lit {
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.95), 0 0 4px #fecaca;
+    border-color: #f87171;
+}
+
+.tl-lamp.yellow,
+.ext-led-5mm.led-yellow {
+    background: radial-gradient(circle at 35% 35%, rgba(254, 240, 138, calc(0.15 + 0.85 * var(--led-level))), rgba(234, 179, 8, calc(0.2 + 0.8 * var(--led-level))) 60%, #422006 100%);
+}
+.tl-lamp.yellow.active,
+.tl-lamp.yellow.lit,
+.ext-led-5mm.led-yellow.active,
+.ext-led-5mm.led-yellow.lit {
+    box-shadow: 0 0 14px rgba(250, 204, 21, 0.95), 0 0 4px #fef08a;
+    border-color: #facc15;
+}
+
+.tl-lamp.green,
+.ext-led-5mm.led-green {
+    background: radial-gradient(circle at 35% 35%, rgba(187, 247, 208, calc(0.15 + 0.85 * var(--led-level))), rgba(34, 197, 94, calc(0.2 + 0.8 * var(--led-level))) 60%, #052e16 100%);
+}
+.tl-lamp.green.active,
+.tl-lamp.green.lit,
+.ext-led-5mm.led-green.active,
+.ext-led-5mm.led-green.lit {
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.95), 0 0 4px #bbf7d0;
+    border-color: #4ade80;
+}
+
+.tl-bit-label,
+.tl-pin-label {
+    font-size: 0.56rem;
+    font-weight: 700;
+    color: #d4d4d8;
+}
+
+/* ---- Stage 25: 8-LED Chaser Bar ---- */
+.chaser-pcb-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chaser-ic-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 5px 8px;
+    background: rgba(2, 18, 11, 0.58);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 5px;
+}
+
+.chaser-trace-silk {
+    color: #fde68a;
+    letter-spacing: 0.03em;
+}
+
+.chaser-led-array,
+.chaser-leds-array {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    padding: 14px 10px;
+    background:
+        linear-gradient(180deg, transparent 48%, rgba(16, 185, 129, 0.22) 48%, rgba(16, 185, 129, 0.22) 52%, transparent 52%),
+        rgba(3, 22, 14, 0.72);
+    border: 1.5px solid rgba(167, 243, 208, 0.35);
+    border-radius: 6px;
+}
+
+.chaser-led-cell,
+.chaser-channel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 2px;
+    border-radius: 4px;
+    background: rgba(6, 42, 27, 0.45);
+    border: 1px dashed rgba(52, 211, 153, 0.22);
+}
+
+.chaser-channel .ext-axial-res {
+    flex-direction: column;
+    gap: 2px;
+}
+
+.chaser-silk-bit,
+.chaser-silk {
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #fde68a;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.chaser-silk small {
+    color: #a7f3d0;
+    font-weight: 700;
+}
+
+.chaser-dome-led {
+    --led-level: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #3f1d1d;
+    background: radial-gradient(circle at 35% 35%, rgba(254, 202, 202, calc(0.12 + 0.88 * var(--led-level))), rgba(239, 68, 68, calc(0.18 + 0.82 * var(--led-level))) 62%, #3b0808 100%);
+    transition: box-shadow 0.05s linear, transform 0.05s linear;
+}
+
+.chaser-dome-led.active,
+.chaser-dome-led.lit {
+    border-color: #fca5a5;
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.95), 0 0 6px #fecaca;
+    transform: scale(1.06);
+}
+
+.chaser-silk-ref {
+    font-size: 0.56rem;
+    color: #a7f3d0;
+}
+
+/* ---- Stage 26: Dual 4-Bit R-2R Ladder DAC & 16x16 X-Y Oscilloscope ---- */
+.scope-pcb-layout {
+    display: grid;
+    grid-template-columns: 185px 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.scope-dac-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(2, 18, 11, 0.58);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 5px;
+}
+
+.scope-r2r-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    background: rgba(6, 42, 27, 0.45);
+    border: 1px dashed rgba(52, 211, 153, 0.28);
+    border-radius: 4px;
+}
+
+.scope-bnc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.scope-bnc-jack {
+    flex: 1;
+    text-align: center;
+    font-size: 0.56rem;
+    font-weight: 800;
+    color: #e5e7eb;
+    padding: 3px 6px;
+    background: linear-gradient(180deg, #4b5563 0%, #1f2937 100%);
+    border: 1px solid #9ca3af;
+    border-radius: 10px;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.25);
+}
+
+.scope-crt-housing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 8px 12px;
+    background: #111827;
+    border: 2px solid #374151;
+    border-radius: 6px;
+}
+
+.scope-crt-bezel {
+    position: relative;
+    padding: 6px 10px 8px;
+    background: #030712;
+    border: 3px solid #4b5563;
+    border-radius: 8px;
+    box-shadow: inset 0 0 18px rgba(16, 185, 129, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.scope-crt-label {
+    text-align: center;
+    font-size: 0.56rem;
+    font-weight: 800;
+    color: #34d399;
+    letter-spacing: 0.05em;
+}
+
+#ext-scope-canvas {
+    display: block;
+    width: 200px;
+    height: 200px;
+    background: #02120a;
+    border: 1px solid #059669;
+    border-radius: 4px;
+}
+
+.scope-crt-graticule-label {
+    text-align: center;
+    font-size: 0.56rem;
+    color: #34d399;
+    margin-top: 3px;
+    letter-spacing: 0.05em;
+}
+
+.scope-controls-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.64rem;
+    color: #d1fae5;
+}
+
+.scope-knob-group {
+    padding: 5px 8px;
+    background: rgba(6, 78, 59, 0.45);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.scope-knob-label {
+    font-weight: 800;
+    color: #fde68a;
+}
+.scope-knob-val {
+    font-size: 0.58rem;
+    color: #a7f3d0;
+}
+
+/* ---- Stage 27: School Bell Controller ---- */
+.bell-stage-grid,
+.bell-pcb-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.bell-driver-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 7px;
+    padding: 8px 10px;
+    background: rgba(2, 18, 11, 0.58);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 5px;
+}
+
+.bell-discrete-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.ext-to92-badge,
+.ext-diode-badge {
+    flex: 1;
+    text-align: center;
+    font-size: 0.54rem;
+    font-weight: 800;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+.ext-to92-badge {
+    background: #111827;
+    color: #e5e7eb;
+    border: 1px solid #4b5563;
+    border-radius: 8px 8px 2px 2px;
+}
+
+.ext-diode-badge {
+    background: linear-gradient(90deg, #1f2937 0%, #1f2937 78%, #d1d5db 78%, #d1d5db 90%, #1f2937 90%);
+    color: #fde68a;
+    border: 1px solid #6b7280;
+}
+
+.bell-relay-box {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.92) 100%);
+    border: 1.5px solid #475569;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 5px;
+    transition: border-color 0.08s ease, box-shadow 0.08s ease;
+}
+.bell-relay-box.energized {
+    border-color: #f59e0b;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+}
+.bell-relay-title,
+.relay-title {
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #fde68a;
+}
+.bell-relay-coil {
+    font-size: 0.6rem;
+    color: #94a3b8;
+}
+.bell-relay-contact,
+.relay-contact-state {
+    font-size: 0.68rem;
+    font-weight: 900;
+    color: #cbd5e1;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    text-align: center;
+}
+.bell-relay-box.energized .bell-relay-contact,
+.bell-relay-box.energized .relay-contact-state {
+    color: #fef08a;
+    background: rgba(180, 83, 9, 0.72);
+}
+
+.bell-alarm-unit,
+.bell-dome-col {
+    position: relative;
+    background: rgba(3, 22, 14, 0.75);
+    border: 1.5px solid rgba(167, 243, 208, 0.35);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.bell-brass-dome,
+.school-bell-dome {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bell-chrome-shell {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 30%, #f8fafc 0%, #cbd5e1 45%, #64748b 82%, #1e293b 100%);
+    border: 2.5px solid #94a3b8;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.65), inset 0 2px 4px rgba(255, 255, 255, 0.65);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.bell-brass-dome.ringing,
+.school-bell-dome.ringing .bell-chrome-shell {
+    animation: bellDomeVibrate 0.08s infinite alternate ease-in-out;
+    border-color: #fbbf24;
+    box-shadow: 0 0 22px rgba(250, 204, 21, 0.9), 0 0 8px #fef08a;
+}
+
+.bell-dome-bolt,
+.bell-bolt {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #334155;
+    border: 2px solid #e2e8f0;
+}
+
+.bell-engraving {
+    font-size: 0.48rem;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: 0.05em;
+}
+
+.bell-striker-arm,
+.bell-clapper {
+    position: absolute;
+    right: -4px;
+    bottom: 8px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fde047 0%, #ca8a04 100%);
+    border: 1.5px solid #713f12;
+    transform-origin: -14px -14px;
+}
+.bell-brass-dome.ringing + .bell-striker-arm,
+.school-bell-dome.ringing .bell-clapper {
+    animation: bellStrikerHit 0.07s infinite alternate;
+}
+
+.bell-status-text,
+.bell-status-badge {
+    font-size: 0.66rem;
+    font-weight: 800;
+    color: #a7f3d0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(6, 78, 59, 0.45);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+@keyframes bellDomeVibrate {
+    0% { transform: translate(-2px, 0) rotate(-2deg); }
+    100% { transform: translate(2px, 0) rotate(2deg); }
+}
+@keyframes bellStrikerHit {
+    0% { transform: rotate(-14deg); }
+    100% { transform: rotate(14deg); }
+}
+
+.bell-presets-row,
+.ext-preset-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 4px 8px;
+    background: rgba(2, 18, 11, 0.55);
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    border-radius: 4px;
+}
+.bell-presets-label,
+.ext-preset-label {
+    font-size: 0.60rem;
+    font-weight: 800;
+    color: #a7f3d0;
+}
+.ext-io-preset-btn {
+    background: #064e3b;
+    color: #ecfdf5;
+    border: 1px solid #10b981;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+.ext-io-preset-btn:hover:not(:disabled) {
+    background: #047857;
+    border-color: #6ee7b7;
+}
+.ext-io-preset-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ---- Stage 28: 8-Appliance Home Automation Relay Board ---- */
+.appliance-ic-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 8px;
+    background: rgba(2, 18, 11, 0.58);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: 5px;
+}
+
+.dip-40-compact,
+.dip-18-compact {
+    flex: 1;
+    padding: 4px 8px;
+}
+
+.appliance-relays-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.appliance-card {
+    background: linear-gradient(180deg, rgba(15, 35, 66, 0.85) 0%, rgba(3, 22, 14, 0.82) 100%);
+    border: 1.5px solid rgba(59, 130, 246, 0.45);
+    border-radius: 5px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.appliance-card.energized,
+.appliance-card.active {
+    border-color: #fbbf24;
+    background: rgba(120, 53, 15, 0.38);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+}
+
+.appliance-card-top,
+.app-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.appliance-bit,
+.app-pin {
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #fde68a;
+}
+
+.appliance-led,
+.app-pilot-lamp {
+    --led-level: 0;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #1f2937;
+    border: 1px solid #374151;
+}
+.appliance-card.energized .appliance-led,
+.appliance-card.active .appliance-led,
+.appliance-card.energized .app-pilot-lamp,
+.appliance-card.active .app-pilot-lamp {
+    background: #f59e0b;
+    border-color: #fde68a;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+.appliance-name,
+.app-name {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #ecfdf5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.appliance-relay-state,
+.app-state-txt {
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #9ca3af;
+}
+.appliance-card.energized .appliance-relay-state,
+.appliance-card.active .appliance-relay-state,
+.appliance-card.energized .app-state-txt,
+.appliance-card.active .app-state-txt {
+    color: #fef08a;
+}
+
+/* ---- Stage 29: 3-Axis Stepper Motor Robotic Arm + Electromagnet ---- */
+.arm-stage-layout {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.arm-motors-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.arm-motor-card {
+    background: rgba(3, 22, 14, 0.78);
+    border: 1px solid rgba(52, 211, 153, 0.32);
+    border-radius: 5px;
+    padding: 5px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.arm-motor-hdr {
+    font-size: 0.61rem;
+    font-weight: 800;
+    color: #fde68a;
+}
+
+.arm-coils-row {
+    display: flex;
+    gap: 5px;
+}
+
+.arm-coil-led {
+    flex: 1;
+    text-align: center;
+    font-size: 0.56rem;
+    font-weight: 800;
+    padding: 2px 0;
+    border-radius: 3px;
+    background: #111827;
+    color: #6b7280;
+    border: 1px solid #374151;
+}
+.arm-coil-led.active {
+    background: #ef4444;
+    color: #fff;
+    border-color: #fca5a5;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.85);
+}
+
+.arm-motor-metrics {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.58rem;
+    color: #a7f3d0;
+}
+.arm-motor-metrics strong {
+    color: #ecfdf5;
+}
+
+.arm-kinematic-box {
+    background: #041d12;
+    border: 1px solid rgba(167, 243, 208, 0.35);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+}
+
+#ext-arm-svg {
+    width: 100%;
+    height: 165px;
+}
+
+/* ---- Bottom Daughterboard Control Apron ---- */
+.ext-io-apron {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 6px;
+    padding: 6px 10px;
+    background: rgba(3, 20, 13, 0.85);
+    border: 1px solid rgba(167, 243, 208, 0.28);
+    border-radius: 5px;
+}
+
+.ext-io-ppi-summary {
+    font-size: 0.65rem;
+    color: #a7f3d0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ext-io-apron-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ext-io-apron-btn {
+    background: #065f46;
+    color: #ecfdf5;
+    border: 1px solid #34d399;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 3px 9px;
+    cursor: pointer;
+}
+.ext-io-apron-btn:hover:not(:disabled) {
+    background: #047857;
+}
+.ext-io-apron-btn.ext-io-apron-danger {
+    background: #7f1d1d;
+    border-color: #f87171;
+}
+.ext-io-apron-btn.ext-io-apron-danger:hover:not(:disabled) {
+    background: #991b1b;
+}
+.ext-io-apron-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

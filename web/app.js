@@ -79,6 +79,15 @@
             attrs: [],
             programs: [],
             statusRequested: false
+        },
+        extIo: {
+            circuitId: 'none',
+            attached: false,
+            visible: false,
+            exercise: 0,
+            clockTStates: 0,
+            ppi: null,
+            telemetry: null
         }
     };
 
@@ -249,7 +258,10 @@
     }
 
     function setLedOn(el, on) {
-        if (el) el.classList.toggle('active', !!on);
+        if (el) {
+            el.classList.toggle('active', !!on);
+            el.classList.toggle('lit', !!on);
+        }
     }
 
     function applyTelemetry(msg) {
@@ -323,6 +335,7 @@
             state.qb.mode = 'disconnected';
             setQbCrtVisible(false, false);
         }
+        applyExtCircuitTelemetry(msg.ppi, msg.extCircuit);
         scheduleSpeaker(msg.speakerLevel, msg.speakerEdges);
     }
 
@@ -442,6 +455,21 @@
         if (romSelect) {
             romSelect.disabled = !!locked;
         }
+        const extSelect = document.getElementById('ext-io-select');
+        if (extSelect) {
+            extSelect.disabled = !!locked;
+        }
+        const extResetBtn = document.getElementById('btn-ext-io-reset');
+        if (extResetBtn) {
+            extResetBtn.disabled = !!locked;
+        }
+        const extDetachBtn = document.getElementById('btn-ext-io-detach');
+        if (extDetachBtn) {
+            extDetachBtn.disabled = !!locked;
+        }
+        document.querySelectorAll('.ext-io-preset-btn').forEach(btn => {
+            btn.disabled = !!locked;
+        });
         const cancelBtn = document.getElementById('cancel-ai-btn');
         if (cancelBtn) {
             cancelBtn.disabled = !locked;
@@ -571,6 +599,12 @@
         get memState() { return state.mem; },
         get stackState() { return state.stack; },
         get qbState() { return state.qb; },
+        get extIoState() { return state.extIo; },
+        attachExtCircuit: attachExtCircuit,
+        detachExtCircuit: detachExtCircuit,
+        resetExtCircuit: resetExtCircuit,
+        setExtIoVisible: setExtIoVisible,
+        setExtClock: setExtClock,
         setQbFocus: setQbFocus,
         setQbCrtVisible: setQbCrtVisible,
         fetchMemory: fetchMemory,
@@ -758,6 +792,7 @@
                 if (!fid) return;
                 const idInput = document.getElementById('tape-file-id-input');
                 if (idInput) idInput.value = fid;
+                state.tape.fileId = fid;
                 sendHostCommand({ type: 'tape_select', fileId: fid });
             });
         });
@@ -1324,6 +1359,518 @@
                 tubeEl.classList.toggle('power-off', !state.qb.powerOn);
             });
         }
+    }
+
+    // ==========================================================================
+    // External I/O Expansion Daughterboard Window (Exercises 24–29)
+    // ==========================================================================
+
+    const EXT_CIRCUIT_IDS = [
+        'traffic_light',
+        'led_chaser',
+        'oscilloscope',
+        'school_bell',
+        'appliance_control',
+        'robotic_arm'
+    ];
+
+    const EXT_CIRCUIT_META = {
+        none: {
+            title: 'EXTERNAL I/O EXPANSION BOARD (CON1 / CON0)',
+            portBadge: 'PORT: NONE'
+        },
+        traffic_light: {
+            title: 'EX.24: TRAFFIC LIGHT INTERSECTION BOARD',
+            portBadge: 'PORT B: 81H (CTRL 83H)'
+        },
+        led_chaser: {
+            title: 'EX.25: 8-LED CHASER & 4009 INVERTER BOARD',
+            portBadge: 'PORT B: 81H (ACTIVE-LOW)'
+        },
+        oscilloscope: {
+            title: 'EX.26: DUAL R-2R DAC X-Y OSCILLOSCOPE',
+            portBadge: 'PORT B: 81H (4050 + R-2R)'
+        },
+        school_bell: {
+            title: 'EX.27: SCHOOL BELL & RELAY ALARM BOARD',
+            portBadge: 'PORT C: 82H (PC7 + CLOCK)'
+        },
+        appliance_control: {
+            title: 'EX.28: 8-APPLIANCE RELAY AUTOMATION BOARD',
+            portBadge: 'AUX PC: 42H (CTRL 43H)'
+        },
+        robotic_arm: {
+            title: 'EX.29: 3-AXIS STEPPER ROBOTIC ARM BOARD',
+            portBadge: 'EXP 8255: 00H–03H'
+        }
+    };
+
+    function hexByte(val) {
+        const n = (Number(val) || 0) & 0xFF;
+        return n.toString(16).toUpperCase().padStart(2, '0');
+    }
+
+    function toBcdByte(val) {
+        const n = (Number(val) || 0) & 0xFF;
+        // If lower nibble is > 9, caller passed a decimal number (e.g. 58 or 59); convert to BCD.
+        // If both nibbles are valid BCD digits (0..9) and value <= 0x99, preserve if already BCD or convert decimal <= 99:
+        // Note: values like 0x07, 0x08, 0x10, 0x18, 0x58, 0x59 passed as hex literals in JS evaluate to 7, 8, 16, 24, 88, 89.
+        // Check if both nibbles are 0..9 AND n >= 0x10 where decimal interpretation would differ:
+        // Specifically, if (n & 0x0F) <= 9 && ((n >> 4) & 0x0F) <= 9:
+        // Wait: in decimal, 10 is 0x0A (low nibble A > 9), 18 is 0x12, 58 is 0x3A (low nibble A > 9), 59 is 0x3B (low nibble B > 9).
+        // What about 0x07 (7), 0x08 (8), 0x06 (6)? For 0..9, decimal and BCD are identical!
+        // What about 0x58 (88) or 0x59 (89) vs decimal 58 (0x3A) or 59 (0x3B)?
+        // Since valid minutes/seconds are 0..59 (and hours 0..23), any number >= 60 (like 0x60..0x99 or 0x58=88, 0x59=89) CANNOT be a decimal hour/minute/second, so it is definitely a BCD literal!
+        // What about 0x10 (16), 0x18 (24), 0x19 (25)? If someone passes 0x18 (24) for hour, 24 is > 23 so it's BCD 0x18!
+        if ((n & 0x0F) <= 9 && ((n >> 4) & 0x0F) <= 9 && (n < 10 || n >= 24 || n === 0x10 || n === 0x18 || n === 0x19 || n === 0x20)) {
+            return n;
+        }
+        const clamped = Math.max(0, Math.min(99, n));
+        return ((Math.floor(clamped / 10) << 4) | (clamped % 10)) & 0xFF;
+    }
+
+    function formatBcdTime(hh, mm, ss) {
+        return hexByte(hh) + ':' + hexByte(mm) + ':' + hexByte(ss);
+    }
+
+    function updateExtIoHeaderAndWindow() {
+        const select = document.getElementById('ext-io-select');
+        const toggleBtn = document.getElementById('btn-toggle-ext-io');
+        const win = document.getElementById('ext-io-window');
+        const titleEl = document.getElementById('ext-io-title');
+        const portBadgeEl = document.getElementById('ext-io-port-badge');
+
+        const cid = state.extIo.attached ? state.extIo.circuitId : 'none';
+        if (select && select.value !== cid) {
+            select.value = cid;
+        }
+        if (toggleBtn) {
+            toggleBtn.disabled = !state.extIo.attached;
+            toggleBtn.classList.toggle('header-btn-active', !!(state.extIo.attached && state.extIo.visible));
+        }
+        if (win) {
+            win.classList.toggle('hidden', !(state.extIo.attached && state.extIo.visible));
+        }
+
+        const meta = EXT_CIRCUIT_META[cid] || EXT_CIRCUIT_META.none;
+        if (titleEl) titleEl.textContent = meta.title;
+        if (portBadgeEl) portBadgeEl.textContent = meta.portBadge;
+
+        EXT_CIRCUIT_IDS.forEach(id => {
+            const stageEl = document.getElementById('ext-stage-' + id);
+            if (stageEl) {
+                stageEl.classList.toggle('active', !!(state.extIo.attached && cid === id));
+            }
+        });
+    }
+
+    function attachExtCircuit(circuitId, autoShowWindow = true) {
+        if (state.aiLocked) return;
+        if (!circuitId || circuitId === 'none' || !EXT_CIRCUIT_IDS.includes(circuitId)) {
+            detachExtCircuit();
+            return;
+        }
+        state.extIo.circuitId = circuitId;
+        state.extIo.attached = true;
+        if (autoShowWindow) {
+            state.extIo.visible = true;
+        }
+        updateExtIoHeaderAndWindow();
+        sendHostCommand({
+            type: 'ext_circuit',
+            action: 'attach',
+            circuit: circuitId
+        });
+    }
+
+    function detachExtCircuit() {
+        if (state.aiLocked) return;
+        state.extIo.circuitId = 'none';
+        state.extIo.attached = false;
+        state.extIo.visible = false;
+        state.extIo.exercise = 0;
+        updateExtIoHeaderAndWindow();
+        sendHostCommand({
+            type: 'ext_circuit',
+            action: 'detach'
+        });
+    }
+
+    function resetExtCircuit() {
+        if (state.aiLocked) return;
+        sendHostCommand({
+            type: 'ext_circuit',
+            action: 'reset'
+        });
+    }
+
+    function setExtClock(hh, mm, ss) {
+        if (state.aiLocked) return;
+        sendHostCommand({
+            type: 'ext_circuit',
+            action: 'set_clock',
+            hh: toBcdByte(hh),
+            mm: toBcdByte(mm),
+            ss: toBcdByte(ss)
+        });
+    }
+
+    function setExtIoVisible(visible) {
+        if (!state.extIo.attached) {
+            state.extIo.visible = false;
+        } else {
+            state.extIo.visible = !!visible;
+        }
+        updateExtIoHeaderAndWindow();
+    }
+
+    function drawExtScopeCanvas(ext) {
+        const canvas = document.getElementById('ext-scope-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.fillStyle = '#02120a';
+        ctx.fillRect(0, 0, w, h);
+
+        // Draw 16x16 graticule grid
+        const pad = 14;
+        const plotW = w - pad * 2;
+        const plotH = h - pad * 2;
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.16)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 15; i += 3) {
+            const gx = pad + (i / 15) * plotW;
+            const gy = pad + (i / 15) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(gx, pad);
+            ctx.lineTo(gx, h - pad);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pad, gy);
+            ctx.lineTo(w - pad, gy);
+            ctx.stroke();
+        }
+
+        const pts = Array.isArray(ext && ext.points) ? ext.points : [];
+        pts.forEach(pt => {
+            if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return;
+            const px = pad + (Math.max(0, Math.min(15, pt.x)) / 15) * plotW;
+            const py = (h - pad) - (Math.max(0, Math.min(15, pt.y)) / 15) * plotH;
+            const alpha = Math.max(0.35, Math.min(1.0, (Number(pt.dwell) || 100) / 800));
+            ctx.save();
+            ctx.fillStyle = 'rgba(52, 211, 153, ' + alpha.toFixed(2) + ')';
+            ctx.shadowColor = '#10b981';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(px, py, 3.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        if (ext && ext.beamValid) {
+            const bx = pad + (Math.max(0, Math.min(15, ext.beamX || 0)) / 15) * plotW;
+            const by = (h - pad) - (Math.max(0, Math.min(15, ext.beamY || 0)) / 15) * plotH;
+            ctx.save();
+            ctx.fillStyle = '#ecfdf5';
+            ctx.shadowColor = '#34d399';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(bx, by, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function applyExtCircuitTelemetry(ppi, ext) {
+        if (ppi) {
+            state.extIo.ppi = ppi;
+            const ppiSum = document.getElementById('ext-io-ppi-summary');
+            if (ppiSum) {
+                ppiSum.textContent =
+                    '8255 PA:' + hexByte(ppi.pa) + 'H PB:' + hexByte(ppi.pb) +
+                    'H PC:' + hexByte(ppi.pc) + 'H CTRL:' + hexByte(ppi.ctrl) + 'H';
+            }
+        }
+        if (!ext) return;
+
+        state.extIo.telemetry = ext;
+        const srvAttached = !!(ext.attached && ext.id && ext.id !== 'none');
+        const srvId = srvAttached ? ext.id : 'none';
+
+        if (srvId !== state.extIo.circuitId || srvAttached !== state.extIo.attached) {
+            const wasAttached = state.extIo.attached;
+            state.extIo.circuitId = srvId;
+            state.extIo.attached = srvAttached;
+            if (!srvAttached) {
+                state.extIo.visible = false;
+            } else if (!wasAttached) {
+                state.extIo.visible = true;
+            }
+        }
+        state.extIo.exercise = ext.exercise || 0;
+        state.extIo.clockTStates = ext.clockTStates || 0;
+
+        updateExtIoHeaderAndWindow();
+
+        const clkBadge = document.getElementById('ext-io-clock-badge');
+        if (clkBadge) {
+            clkBadge.textContent = 'CLK: ' + (state.extIo.clockTStates || 0) + 'T';
+        }
+
+        if (!srvAttached) return;
+
+        if (srvId === 'traffic_light') {
+            const ra = ext.roadA || {};
+            const rb = ext.roadB || {};
+            const da = Array.isArray(ra.duty) ? ra.duty : [ra.red ? 1 : 0, ra.yellow ? 1 : 0, ra.green ? 1 : 0];
+            const db = Array.isArray(rb.duty) ? rb.duty : [rb.red ? 1 : 0, rb.yellow ? 1 : 0, rb.green ? 1 : 0];
+
+            const elAR = document.getElementById('tl-led-a-red');
+            const elAY = document.getElementById('tl-led-a-yellow');
+            const elAG = document.getElementById('tl-led-a-green');
+            const elBR = document.getElementById('tl-led-b-red');
+            const elBY = document.getElementById('tl-led-b-yellow');
+            const elBG = document.getElementById('tl-led-b-green');
+
+            setLedOn(elAR, ra.red); setLedLevel(elAR, da[0]);
+            setLedOn(elAY, ra.yellow); setLedLevel(elAY, da[1]);
+            setLedOn(elAG, ra.green); setLedLevel(elAG, da[2]);
+            setLedOn(elBR, rb.red); setLedLevel(elBR, db[0]);
+            setLedOn(elBY, rb.yellow); setLedLevel(elBY, db[1]);
+            setLedOn(elBG, rb.green); setLedLevel(elBG, db[2]);
+
+            const pbEl = document.getElementById('tl-portb');
+            if (pbEl) pbEl.textContent = hexByte(ext.portB) + 'H';
+
+            const phaseEl = document.getElementById('tl-phase-summary');
+            if (phaseEl) {
+                const aState = ra.green ? 'GREEN' : (ra.yellow ? 'YELLOW' : (ra.red ? 'RED' : 'OFF'));
+                const bState = rb.green ? 'GREEN' : (rb.yellow ? 'YELLOW' : (rb.red ? 'RED' : 'OFF'));
+                phaseEl.textContent = 'A:' + aState + ' / B:' + bState;
+            }
+            const trEl = document.getElementById('tl-transitions');
+            if (trEl) trEl.textContent = String(ext.transitions || 0);
+        } else if (srvId === 'led_chaser') {
+            const leds = Array.isArray(ext.leds) ? ext.leds : [];
+            const duty = Array.isArray(ext.duty) ? ext.duty : [];
+            for (let i = 0; i < 8; ++i) {
+                const el = document.getElementById('chaser-led-' + i);
+                const lit = !!leds[i];
+                setLedOn(el, lit);
+                setLedLevel(el, duty[i] !== undefined ? duty[i] : (lit ? 1 : 0));
+            }
+            const rawEl = document.getElementById('chaser-raw-pb');
+            if (rawEl) rawEl.textContent = hexByte(ext.rawPortB) + 'H';
+            const maskEl = document.getElementById('chaser-active-mask');
+            if (maskEl) maskEl.textContent = hexByte(ext.activeMask) + 'H';
+            const actEl = document.getElementById('chaser-active-led');
+            if (actEl) {
+                actEl.textContent = (typeof ext.activeLed === 'number' && ext.activeLed >= 0)
+                    ? ('LED' + ext.activeLed)
+                    : 'NONE';
+            }
+            const stEl = document.getElementById('chaser-steps');
+            if (stEl) stEl.textContent = String(ext.steps || 0);
+        } else if (srvId === 'oscilloscope') {
+            const rawEl = document.getElementById('scope-raw-pb');
+            if (rawEl) rawEl.textContent = hexByte(ext.rawPortB) + 'H';
+            const bxEl = document.getElementById('scope-beam-x');
+            if (bxEl) bxEl.textContent = String(ext.beamX ?? 0);
+            const byEl = document.getElementById('scope-beam-y');
+            if (byEl) byEl.textContent = String(ext.beamY ?? 0);
+            const smpEl = document.getElementById('scope-samples');
+            if (smpEl) smpEl.textContent = String(ext.samples || 0);
+            drawExtScopeCanvas(ext);
+        } else if (srvId === 'school_bell') {
+            const ringing = !!ext.bellRinging;
+            const relayEl = document.getElementById('bell-relay');
+            const relayStEl = document.getElementById('bell-relay-state');
+            const domeEl = document.getElementById('bell-dome');
+            const statusEl = document.getElementById('bell-status-text');
+            if (relayEl) relayEl.classList.toggle('energized', ringing);
+            if (relayStEl) relayStEl.textContent = ringing ? 'CLOSED (RING)' : 'OPEN (IDLE)';
+            if (domeEl) domeEl.classList.toggle('ringing', ringing);
+            if (statusEl) statusEl.textContent = ringing ? 'ALARM RINGING!' : 'STANDBY';
+
+            const timeEl = document.getElementById('bell-bcd-time');
+            if (timeEl) timeEl.textContent = formatBcdTime(ext.bcdHour, ext.bcdMinute, ext.bcdSecond);
+            const pcEl = document.getElementById('bell-portc');
+            if (pcEl) pcEl.textContent = hexByte(ext.portC) + 'H';
+            const rcEl = document.getElementById('bell-ring-count');
+            if (rcEl) rcEl.textContent = String(ext.ringCount || 0);
+            const seEl = document.getElementById('bell-speaker-edges');
+            if (seEl) seEl.textContent = String(ext.speakerEdges || 0);
+        } else if (srvId === 'appliance_control') {
+            const relays = Array.isArray(ext.relays) ? ext.relays : [];
+            const duty = Array.isArray(ext.duty) ? ext.duty : [];
+            for (let i = 0; i < 8; ++i) {
+                const card = document.getElementById('appliance-relay-' + i);
+                if (!card) continue;
+                const on = !!relays[i];
+                card.classList.toggle('energized', on);
+                card.classList.toggle('active', on);
+                const led = card.querySelector('.appliance-led, .app-pilot-lamp');
+                if (led) {
+                    setLedOn(led, on);
+                    setLedLevel(led, duty[i] !== undefined ? duty[i] : (on ? 1 : 0));
+                }
+                const st = card.querySelector('.appliance-relay-state, .app-state-txt');
+                if (st) st.textContent = on ? 'ON' : 'OFF';
+            }
+            const timeEl = document.getElementById('appliance-bcd-time');
+            if (timeEl) timeEl.textContent = formatBcdTime(ext.bcdHour, ext.bcdMinute, ext.bcdSecond);
+            const maskEl = document.getElementById('appliance-relay-mask');
+            if (maskEl) maskEl.textContent = hexByte(ext.relayMask) + 'H';
+            const updEl = document.getElementById('appliance-updates');
+            if (updEl) updEl.textContent = String(ext.updates || 0);
+        } else if (srvId === 'robotic_arm') {
+            const motors = Array.isArray(ext.motors) ? ext.motors : [];
+            for (let m = 0; m < 3; ++m) {
+                const mData = motors[m] || { phase: 0, coils: 0, steps: 0, totalSteps: 0 };
+                const card = document.getElementById('arm-motor-' + m);
+                if (card) {
+                    card.querySelectorAll('.arm-coil-led').forEach(coilEl => {
+                        const cIdx = parseInt(coilEl.getAttribute('data-coil') || '0', 10);
+                        coilEl.classList.toggle('active', ((mData.coils || 0) & (1 << cIdx)) !== 0);
+                    });
+                }
+                const phEl = document.getElementById('arm-motor-' + m + '-phase');
+                if (phEl) phEl.textContent = String(mData.phase ?? 0);
+                const stEl = document.getElementById('arm-motor-' + m + '-steps');
+                if (stEl) {
+                    const s = Number(mData.steps) || 0;
+                    stEl.textContent = (s > 0 ? '+' : '') + String(s);
+                }
+                const totEl = document.getElementById('arm-motor-' + m + '-total');
+                if (totEl) totEl.textContent = String(mData.totalSteps ?? 0);
+            }
+
+            const shoulderG = document.getElementById('arm-joint-shoulder');
+            const elbowG = document.getElementById('arm-joint-elbow');
+            const clawEl = document.getElementById('arm-gripper-claw');
+            const orbEl = document.getElementById('arm-payload-orb');
+
+            const m0Steps = (motors[0] && motors[0].steps) || 0;
+            const m1Steps = (motors[1] && motors[1].steps) || 0;
+            const m2Steps = (motors[2] && motors[2].steps) || 0;
+            const shoulderDeg = Math.max(-45, Math.min(45, (m0Steps + m1Steps) * 4));
+            const elbowDeg = Math.max(-55, Math.min(55, m2Steps * 5));
+
+            if (shoulderG) {
+                shoulderG.setAttribute('transform', 'translate(0, -14) rotate(' + shoulderDeg + ')');
+            }
+            if (elbowG) {
+                elbowG.setAttribute('transform', 'translate(0, -58) rotate(' + elbowDeg + ')');
+            }
+            const magOn = !!ext.electromagnet;
+            if (clawEl) {
+                clawEl.setAttribute('stroke', magOn ? '#fbbf24' : '#f8fafc');
+            }
+            if (orbEl) {
+                orbEl.setAttribute('opacity', magOn ? '1' : '0.25');
+            }
+
+            const portsEl = document.getElementById('arm-ports-readout');
+            if (portsEl) {
+                portsEl.textContent =
+                    'PA:' + hexByte(ext.portA) + 'H PB:' + hexByte(ext.portB) + 'H PC:' + hexByte(ext.portC) + 'H';
+            }
+            const magBadge = document.getElementById('arm-magnet-badge');
+            if (magBadge) {
+                magBadge.textContent = magOn ? 'ON (ENERGIZED)' : 'OFF';
+            }
+        }
+    }
+
+    function initExtIoWindow() {
+        const select = document.getElementById('ext-io-select');
+        const toggleBtn = document.getElementById('btn-toggle-ext-io');
+        const win = document.getElementById('ext-io-window');
+        const closeBtn = document.getElementById('btn-ext-io-close');
+        const dragHandle = document.getElementById('ext-io-drag-handle');
+        const resetBtn = document.getElementById('btn-ext-io-reset');
+        const detachBtn = document.getElementById('btn-ext-io-detach');
+
+        if (select) {
+            select.addEventListener('change', () => {
+                const val = select.value;
+                if (!val || val === 'none') {
+                    detachExtCircuit();
+                } else {
+                    attachExtCircuit(val, true);
+                }
+            });
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                if (!state.extIo.attached) return;
+                setExtIoVisible(!state.extIo.visible);
+            });
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setExtIoVisible(false);
+            });
+        }
+
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => resetExtCircuit());
+        }
+
+        if (detachBtn) {
+            detachBtn.addEventListener('click', () => detachExtCircuit());
+        }
+
+        // Draggable PCB bezel
+        if (dragHandle && win) {
+            dragHandle.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button')) return;
+                e.preventDefault();
+                const rect = win.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const origLeft = rect.left;
+                const origTop = rect.top;
+
+                function onMove(ev) {
+                    const nx = Math.max(8, Math.min(window.innerWidth - 120, origLeft + (ev.clientX - startX)));
+                    const ny = Math.max(48, Math.min(window.innerHeight - 80, origTop + (ev.clientY - startY)));
+                    win.style.right = 'auto';
+                    win.style.left = Math.round(nx) + 'px';
+                    win.style.top = Math.round(ny) + 'px';
+                }
+                function onUp() {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                }
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+            });
+        }
+
+        // Exercise 27 School Bell BCD clock preset buttons
+        const bell0800 = document.getElementById('btn-bell-preset-0800');
+        const bell0810 = document.getElementById('btn-bell-preset-0810');
+        if (bell0800) bell0800.addEventListener('click', () => setExtClock(0x07, 0x59, 0x58));
+        if (bell0810) bell0810.addEventListener('click', () => setExtClock(0x08, 0x09, 0x58));
+
+        // Exercise 28 Appliance Relay BCD clock preset buttons
+        const app0600 = document.getElementById('btn-app-preset-0600');
+        const app0800 = document.getElementById('btn-app-preset-0800');
+        const app1000 = document.getElementById('btn-app-preset-1000');
+        const app1900 = document.getElementById('btn-app-preset-1900');
+        if (app0600) app0600.addEventListener('click', () => setExtClock(0x05, 0x59, 0x58));
+        if (app0800) app0800.addEventListener('click', () => setExtClock(0x07, 0x59, 0x58));
+        if (app1000) app1000.addEventListener('click', () => setExtClock(0x09, 0x59, 0x58));
+        if (app1900) app1900.addEventListener('click', () => setExtClock(0x18, 0x59, 0x58));
+
+        updateExtIoHeaderAndWindow();
     }
 
     function initInspector() {
@@ -2423,6 +2970,7 @@
 
         initCassetteDeck();
         initQbCrtWindow();
+        initExtIoWindow();
 
         const helpBtn = document.getElementById('btn-help');
         const helpModal = document.getElementById('help-modal');
