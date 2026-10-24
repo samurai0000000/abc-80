@@ -136,7 +136,10 @@ Abc80Status Abc80Board::powerOn(const std::string& romPath)
 Abc80Status Abc80Board::powerOnRom(RomId id, const std::string& root)
 {
     const RomProfile& profile = romProfile(id);
-    Abc80Status st = powerOn(root + "/" + profile.relPath);
+    const std::string romPath = (root.empty() || root == ".")
+        ? std::string(profile.relPath)
+        : (root + "/" + profile.relPath);
+    Abc80Status st = powerOn(romPath);
     if (st != Abc80Status::OK) {
         return st;
     }

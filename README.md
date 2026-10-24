@@ -1,5 +1,7 @@
 # ABC-80 Microcomputer Emulator
 
+**Version: 1.0.0**
+
 An emulator and toolchain project for the **ABC-80**, a classic Taiwanese Z80-based educational single-board microcomputer kit from the 1980s.
 
 ## Project Overview

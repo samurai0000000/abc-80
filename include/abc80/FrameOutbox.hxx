@@ -13,6 +13,8 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
+#include <deque>
 #include <mutex>
 #include <string>
 
@@ -20,7 +22,9 @@ namespace abc80 {
 
 class FrameOutbox {
 public:
-    // Replaces any unsent frame. Ignored after close().
+    static constexpr size_t kMaxQueuedEvents = 64;
+
+    // Replaces any unsent telemetry frame. Ignored after close().
     void post(const std::string &frame)
     {
         {
@@ -34,13 +38,38 @@ public:
         _cv.notify_one();
     }
 
+    // Queues a control/error/reply event so back-to-back responses are not overwritten by telemetry.
+    void postEvent(const std::string &event)
+    {
+        {
+            std::lock_guard<std::mutex> lock(_mtx);
+            if (_closed) {
+                return;
+            }
+            if (_events.size() >= kMaxQueuedEvents) {
+                _events.pop_front();
+            }
+            _events.push_back(event);
+        }
+        _cv.notify_one();
+    }
+
     // Waits up to timeoutMs for a frame. Returns true and moves the frame into out;
     // false on timeout or after close() (check closed()).
     bool wait(std::string &out, unsigned timeoutMs)
     {
         std::unique_lock<std::mutex> lock(_mtx);
-        _cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return _has || _closed; });
-        if (_closed || !_has) {
+        _cv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+                     [this] { return !_events.empty() || _has || _closed; });
+        if (_closed) {
+            return false;
+        }
+        if (!_events.empty()) {
+            out = std::move(_events.front());
+            _events.pop_front();
+            return true;
+        }
+        if (!_has) {
             return false;
         }
         out = std::move(_frame);
@@ -67,6 +96,7 @@ public:
 private:
     mutable std::mutex _mtx;
     std::condition_variable _cv;
+    std::deque<std::string> _events;
     std::string _frame;
     bool _has{false};
     bool _closed{false};

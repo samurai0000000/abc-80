@@ -38,6 +38,8 @@ struct ServerConfig {
     double litDutyMin{0.05};            // share of a frame a segment must be on to count as lit
     std::string tapesDir;               // empty = default ~/.config/abc-80/tapes
     std::string programsDir;            // empty = default ~/.config/abc-80/programs
+    std::string configPath;             // empty = defaultPath() (/etc/abc-80/abc-80.cfg or ~/.config/abc-80/abc-80.cfg)
+    bool showVersion{false};            // true when -v or --version was passed on CLI
 };
 
 class Abc80WebServer {

@@ -99,6 +99,24 @@ TEST(Abc80ServerArgs, HelpIsReported)
     CHECK(help);
 }
 
+TEST(Abc80ServerArgs, VersionAndConfigPathFlagsAreParsed)
+{
+    CHECK(parse({ "--version" }, cfg, err, help));
+    CHECK(cfg.showVersion);
+
+    ServerConfig cfgShort;
+    CHECK(parse({ "-v" }, cfgShort, err, help));
+    CHECK(cfgShort.showVersion);
+
+    ServerConfig cfgPath;
+    CHECK(parse({ "--config", "/etc/abc-80/abc-80.cfg" }, cfgPath, err, help));
+    STRCMP_EQUAL("/etc/abc-80/abc-80.cfg", cfgPath.configPath.c_str());
+
+    const std::string usage = serverUsage();
+    CHECK(usage.find("--version") != std::string::npos);
+    CHECK(usage.find("/etc/abc-80/abc-80.cfg") != std::string::npos);
+}
+
 TEST(Abc80ServerArgs, BadOptionsAreRejectedWithAReason)
 {
     const std::vector<std::vector<std::string>> bad = {

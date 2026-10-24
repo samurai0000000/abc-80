@@ -12,7 +12,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <pwd.h>
 #include <sstream>
+#include <sys/types.h>
+#include <unistd.h>
 #include <libconfig.h++>
 
 namespace abc80 {
@@ -21,13 +24,83 @@ Abc80Config::Abc80Config()
 {
 }
 
-std::string Abc80Config::defaultPath()
+std::filesystem::path Abc80Config::systemDir()
 {
-    const char *home = std::getenv("HOME");
-    if (home != nullptr && *home != '\0') {
-        return (std::filesystem::path(home) / ".config" / "abc-80" / "abc-80.cfg").string();
+    const char *sysDir = std::getenv("ABC80_SYSTEM_DIR");
+    if (sysDir != nullptr && sysDir[0] != '\0') {
+        return std::filesystem::path(sysDir);
     }
-    return "./abc-80.cfg";
+    return std::filesystem::path("/etc/abc-80");
+}
+
+std::filesystem::path Abc80Config::defaultDirForUid(uid_t euid)
+{
+    const char *cfgDir = std::getenv("ABC80_CONFIG_DIR");
+    if (cfgDir != nullptr && cfgDir[0] != '\0') {
+        return std::filesystem::path(cfgDir);
+    }
+    if (euid == 0) {
+        return systemDir();
+    }
+    const char *xdg = std::getenv("XDG_CONFIG_HOME");
+    if (xdg != nullptr && xdg[0] != '\0') {
+        return std::filesystem::path(xdg) / "abc-80";
+    }
+    const char *home = std::getenv("HOME");
+    if (home != nullptr && home[0] != '\0') {
+        return std::filesystem::path(home) / ".config" / "abc-80";
+    }
+    struct passwd *pw = ::getpwuid(euid);
+    if (pw != nullptr && pw->pw_dir != nullptr && pw->pw_dir[0] != '\0') {
+        return std::filesystem::path(pw->pw_dir) / ".config" / "abc-80";
+    }
+    return std::filesystem::path("abc-80");
+}
+
+std::filesystem::path Abc80Config::defaultDir()
+{
+    return defaultDirForUid(::geteuid());
+}
+
+std::filesystem::path Abc80Config::defaultPathForUid(uid_t euid)
+{
+    return defaultDirForUid(euid) / "abc-80.cfg";
+}
+
+std::filesystem::path Abc80Config::defaultPath()
+{
+    return defaultPathForUid(::geteuid());
+}
+
+std::filesystem::path Abc80Config::resolveResourcePath(const std::filesystem::path &relPath, uid_t euid)
+{
+    if (relPath.empty() || relPath.is_absolute()) {
+        return relPath;
+    }
+
+    const std::filesystem::path cleanRel = relPath.lexically_normal();
+    std::error_code ec;
+
+    const char *ignoreCwd = std::getenv("ABC80_IGNORE_CWD_RESOURCES");
+    const bool skipCwd = (ignoreCwd != nullptr && std::string(ignoreCwd) == "1");
+    if (!skipCwd && std::filesystem::exists(relPath, ec)) {
+        return relPath;
+    }
+
+    const std::filesystem::path userCand = defaultDirForUid(euid) / cleanRel;
+    if (std::filesystem::exists(userCand, ec)) {
+        return userCand;
+    }
+
+    const std::filesystem::path sysCand = systemDir() / cleanRel;
+    if (std::filesystem::exists(sysCand, ec)) {
+        return sysCand;
+    }
+
+    if (euid == 0) {
+        return userCand;
+    }
+    return relPath;
 }
 
 bool Abc80Config::parseAndValidate(void *configHandle, std::string *error)
@@ -36,6 +109,30 @@ bool Abc80Config::parseAndValidate(void *configHandle, std::string *error)
     if (!cfg) {
         if (error) *error = "null config handle";
         return false;
+    }
+
+    // Top-level server setting fallbacks (e.g. port = 8008; rom = "vintage";)
+    {
+        int topPort = _server.port;
+        if (cfg->lookupValue("port", topPort)) {
+            _server.port = topPort;
+        }
+        std::string topWebRoot;
+        if (cfg->lookupValue("web_root", topWebRoot)) {
+            _server.webRoot = topWebRoot;
+        }
+        std::string topRom;
+        if (cfg->lookupValue("rom", topRom)) {
+            _server.rom = topRom;
+        }
+        std::string topBootMode;
+        if (cfg->lookupValue("boot_mode", topBootMode)) {
+            _server.bootMode = topBootMode;
+        }
+        bool topBootTurbo = _server.bootTurbo;
+        if (cfg->lookupValue("boot_turbo", topBootTurbo)) {
+            _server.bootTurbo = topBootTurbo;
+        }
     }
 
     // Server settings
@@ -137,7 +234,7 @@ bool Abc80Config::parseAndValidate(void *configHandle, std::string *error)
 
 bool Abc80Config::load(const std::string &path, std::string *error)
 {
-    const std::string resolved = path.empty() ? defaultPath() : path;
+    const std::string resolved = path.empty() ? defaultPath().string() : path;
 
     if (!std::filesystem::exists(resolved)) {
         // Auto-generate default configuration file if it does not exist
@@ -218,7 +315,7 @@ std::string Abc80Config::toString() const
 
 bool Abc80Config::save(const std::string &path, std::string *error) const
 {
-    const std::string resolved = path.empty() ? defaultPath() : path;
+    const std::string resolved = path.empty() ? defaultPath().string() : path;
     const std::filesystem::path p(resolved);
 
     std::error_code ec;
@@ -253,7 +350,9 @@ ServerConfig Abc80Config::toServerConfig(const std::string &root) const
     c.port = _server.port;
     c.webRoot = _server.webRoot;
     c.root = root;
-    c.defaultRom = (_server.rom == "1993") ? RomId::Vintage1993 : RomId::Monitor;
+    c.defaultRom = (_server.rom == "1993" || _server.rom == "vintage")
+        ? RomId::Vintage1993
+        : RomId::Monitor;
     c.coldBoot = (_server.bootMode == "cold");
     c.bootTurbo = _server.bootTurbo;
     c.createResident = true;

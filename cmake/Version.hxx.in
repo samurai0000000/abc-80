@@ -1,0 +1,34 @@
+/*
+ * Version.hxx.in
+ *
+ * Copyright (C) 2026, Charles Chiou
+ */
+
+#ifndef ABC80_VERSION_HXX
+#define ABC80_VERSION_HXX
+
+#define ABC80_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define ABC80_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define ABC80_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define ABC80_VERSION_STRING "@PROJECT_VERSION@"
+
+namespace abc80 {
+
+inline const char *versionString() noexcept
+{
+    return ABC80_VERSION_STRING;
+}
+
+} // namespace abc80
+
+#endif // ABC80_VERSION_HXX
+
+/*
+ * Local variables:
+ * mode: C++
+ * c-file-style: "BSD"
+ * c-basic-offset: 4
+ * tab-width: 4
+ * indent-tabs-mode: nil
+ * End:
+ */

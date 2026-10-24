@@ -179,7 +179,8 @@ void AimonGatewayClient::stop()
             tv.tv_usec = 50000;
             if (::select(sock + 1, &rfds, nullptr, nullptr, &tv) > 0) {
                 char drain[512];
-                (void)::read(sock, drain, sizeof(drain));
+                const ssize_t drained = ::read(sock, drain, sizeof(drain));
+                (void)drained;
             }
         }
         ::shutdown(sock, SHUT_RDWR);

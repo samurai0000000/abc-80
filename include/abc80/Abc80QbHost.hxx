@@ -9,6 +9,7 @@
 
 #include <abc80/Abc80Board.hxx>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <array>
@@ -90,6 +91,7 @@ public:
     const std::string& getStatusMessage() const noexcept { return _statusMessage; }
     const std::string& getProgramsDir() const noexcept { return _programsDir; }
     void setProgramsDir(const std::string& dir) { _programsDir = dir; }
+    static std::filesystem::path defaultExercisesDir();
 
     // Disconnect / reset host state (e.g. when board resets or switches ROM)
     void disconnect();

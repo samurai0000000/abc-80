@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# prerm
+#
+# Copyright (C) 2026, Charles Chiou
+#
+
+set -e
+
+if { [ "$1" = "remove" ] || [ "$1" = "deconfigure" ]; } && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl --no-reload disable --now abc-80.service >/dev/null 2>&1 || true
+fi
+
+exit 0

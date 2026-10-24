@@ -1,0 +1,31 @@
+#
+# abc-80.service
+#
+# Copyright (C) 2026, Charles Chiou
+#
+
+[Unit]
+Description=ABC-80 Z80 Microcomputer Emulator and Web Front Panel Server
+Documentation=https://www.selfso.com/software/ubuntu/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/etc/abc-80
+EnvironmentFile=-/etc/default/abc-80
+ExecStart=/usr/sbin/abc80_server $ABC80_OPTS
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/etc/abc-80
+
+[Install]
+WantedBy=multi-user.target

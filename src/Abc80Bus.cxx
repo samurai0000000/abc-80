@@ -5,7 +5,9 @@
  */
 
 #include <abc80/Abc80Bus.hxx>
+#include <abc80/Abc80Config.hxx>
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <vector>
 
@@ -154,7 +156,11 @@ Abc80Status Abc80Bus::loadRomFile(const char *filepath)
         return Abc80Status::INVALID_ARG;
     }
 
-    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    const std::filesystem::path resolved = Abc80Config::resolveResourcePath(filepath);
+    std::ifstream file(resolved, std::ios::binary | std::ios::ate);
+    if (!file.is_open() && resolved != std::filesystem::path(filepath)) {
+        file.open(filepath, std::ios::binary | std::ios::ate);
+    }
     if (!file.is_open()) {
         return Abc80Status::NOT_FOUND;
     }

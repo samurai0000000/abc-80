@@ -5,6 +5,7 @@
  */
 
 #include <abc80/Abc80Board.hxx>
+#include <abc80/Abc80Config.hxx>
 #include <abc80/Abc80WebServer.hxx>
 #include <abc80/FrameOutbox.hxx>
 #include <abc80/KeyQueue.hxx>
@@ -15,6 +16,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
+#include <filesystem>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -113,11 +115,7 @@ struct Abc80WebServer::Impl {
         if (!config.tapesDir.empty()) {
             return config.tapesDir;
         }
-        const char *home = std::getenv("HOME");
-        if (home != nullptr && home[0] != '\0') {
-            return std::string(home) + "/.config/abc-80/tapes";
-        }
-        return config.root + "/tapes";
+        return Abc80Config::resolveResourcePath("tapes").string();
     }
 
     std::string resolvedProgramsDir() const
@@ -125,11 +123,30 @@ struct Abc80WebServer::Impl {
         if (!config.programsDir.empty()) {
             return config.programsDir;
         }
-        const char *home = std::getenv("HOME");
-        if (home != nullptr && home[0] != '\0') {
-            return std::string(home) + "/.config/abc-80/programs";
+        return (Abc80Config::defaultDir() / "programs").string();
+    }
+
+    std::string resolvedWebDir() const
+    {
+        std::error_code ec;
+        if (!config.root.empty() && config.root != ".") {
+            const std::filesystem::path cand = std::filesystem::path(config.root) / config.webRoot;
+            if (std::filesystem::exists(cand / "index.html", ec)) {
+                return cand.string();
+            }
         }
-        return config.root + "/programs";
+        const std::string rel = config.webRoot.empty() ? "web" : config.webRoot;
+        const std::filesystem::path resolvedWeb = Abc80Config::resolveResourcePath(rel);
+        if (std::filesystem::exists(resolvedWeb / "index.html", ec)) {
+            return resolvedWeb.string();
+        }
+        if (config.webRoot.empty() || config.webRoot == "web") {
+            const std::filesystem::path sysWeb = Abc80Config::systemDir() / "web";
+            if (std::filesystem::exists(sysWeb / "index.html", ec)) {
+                return sysWeb.string();
+            }
+        }
+        return config.root + "/" + rel;
     }
 
     // ---- session lifecycle ----
@@ -139,9 +156,12 @@ struct Abc80WebServer::Impl {
     {
         s.rom = rom;
         const RomProfile &profile = romProfile(rom);
+        const std::string romPath = (config.root.empty() || config.root == ".")
+            ? std::string(profile.relPath)
+            : (config.root + "/" + profile.relPath);
         Abc80Status st;
         if (config.coldBoot) {
-            st = s.board.powerOn(config.root + "/" + profile.relPath);
+            st = s.board.powerOn(romPath);
         } else {
             st = s.board.powerOnRom(rom, config.root);
         }
@@ -326,10 +346,10 @@ struct Abc80WebServer::Impl {
         const ClientMessage m = parseClientMessage(text);
         switch (m.type) {
         case ClientMessage::Type::Invalid:
-            outbox.post(buildErrorJson(m.error));
+            outbox.postEvent(buildErrorJson(m.error));
             break;
         case ClientMessage::Type::Hello:
-            outbox.post(buildErrorJson("already said hello"));
+            outbox.postEvent(buildErrorJson("already said hello"));
             break;
         case ClientMessage::Type::Key: {
             std::lock_guard<std::mutex> lock(s.mtx);
@@ -338,7 +358,7 @@ struct Abc80WebServer::Impl {
             }
             if (m.down) {
                 if (!s.keys->press(m.keyCode)) {
-                    outbox.post(buildErrorJson("key queue full"));
+                    outbox.postEvent(buildErrorJson("key queue full"));
                 }
             } else {
                 s.keys->release(m.keyCode);
@@ -386,7 +406,7 @@ struct Abc80WebServer::Impl {
                 }
             }
             if (!ok) {
-                outbox.post(buildErrorJson("cannot load the ROM"));
+                outbox.postEvent(buildErrorJson("cannot load the ROM"));
             } else {
                 for (auto &ob : targets) {
                     ob->post(frame);
@@ -469,7 +489,7 @@ struct Abc80WebServer::Impl {
                 std::lock_guard<std::mutex> lock(s.mtx);
                 std::vector<uint8_t> data = s.board.readMemoryBlock(m.memAddr, m.memCount);
                 reply = buildMemDataJson(m.memAddr, data);
-                outbox.post(reply);
+                outbox.postEvent(reply);
             }
             break;
         }
@@ -479,7 +499,7 @@ struct Abc80WebServer::Impl {
                 std::lock_guard<std::mutex> lock(s.mtx);
                 std::vector<DisasmLine> lines = s.board.disassemble(m.memAddr, m.memCount);
                 reply = buildDisasmJson(m.memAddr, lines);
-                outbox.post(reply);
+                outbox.postEvent(reply);
             }
             break;
         }
@@ -497,7 +517,7 @@ struct Abc80WebServer::Impl {
         case ClientMessage::Type::TapeList: {
             std::lock_guard<std::mutex> lock(s.mtx);
             const std::string reply = buildTapeListJson(s.board.getCassetteDeck().listTapes());
-            outbox.post(reply);
+            outbox.postEvent(reply);
             break;
         }
         case ClientMessage::Type::TapeSelect: {
@@ -516,7 +536,7 @@ struct Abc80WebServer::Impl {
             s.board.getCassetteDeck().setAnnotation(m.tapeFileId, m.tapeAnnotation);
             const std::string reply = buildTapeListJson(s.board.getCassetteDeck().listTapes());
             for (auto &ob : s.outboxes) {
-                ob->post(reply);
+                ob->postEvent(reply);
             }
             break;
         }
@@ -528,7 +548,7 @@ struct Abc80WebServer::Impl {
             }
             if (m.tapeAction == "play") {
                 if (deck.play() != Abc80Status::OK) {
-                    outbox.post(buildErrorJson("selected tape has no recorded audio"));
+                    outbox.postEvent(buildErrorJson("selected tape has no recorded audio"));
                     break;
                 }
             } else if (m.tapeAction == "record") {
@@ -845,7 +865,7 @@ struct Abc80WebServer::Impl {
         if (running.load()) {
             return true;
         }
-        const std::string webDir = config.root + "/" + config.webRoot;
+        const std::string webDir = resolvedWebDir();
 
         svr = std::make_unique<httplib::Server>();
         const size_t poolSize = std::max<size_t>(32, config.maxSessions * 2 + 16);
@@ -1076,7 +1096,7 @@ void Abc80WebServer::broadcastAiPunch(const std::string &key, bool down, size_t 
         targets = _impl->residentSession->outboxes;
     }
     for (auto &ob : targets) {
-        ob->post(frame);
+        ob->postEvent(frame);
     }
 }
 

@@ -7,6 +7,7 @@
 #include <abc80/Abc80Board.hxx>
 #include <abc80/Abc80Cli.hxx>
 #include <abc80/ServerRunner.hxx>
+#include <abc80/Version.hxx>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -20,6 +21,7 @@ static void printUsage(const char* prog)
               << "Usage: " << prog << " [options]\n\n"
               << "Options:\n"
               << "  -h, --help            Show this help message and exit\n"
+              << "  -v, --version         Show version and exit\n"
               << "  -r, --rom <name|path> ROM to boot: 'monitor' (Monitor from the Book, default),\n"
               << "                        '1993' (Charles Chiou's ROM), or a path to a ROM file\n"
               << "  -b, --batch <file>    Execute commands from script file and exit\n"
@@ -39,6 +41,9 @@ int main(int argc, char** argv)
         std::string arg = argv[i];
         if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
+            return 0;
+        } else if (arg == "-v" || arg == "--version") {
+            std::cout << "abc80_cli " << abc80::versionString() << "\n";
             return 0;
         } else if ((arg == "-r" || arg == "--rom") && i + 1 < argc) {
             romName = argv[++i];

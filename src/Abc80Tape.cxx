@@ -5,6 +5,7 @@
  */
 
 #include <abc80/Abc80Tape.hxx>
+#include <abc80/Abc80Config.hxx>
 #include <abc80/Abc80Ppi.hxx>
 #include <cmath>
 #include <cstdio>
@@ -246,7 +247,11 @@ Abc80Status Abc80Tape::saveWav(const std::string& filename, const std::vector<in
 
 Abc80Status Abc80Tape::loadWav(const std::string& filename, std::vector<int16_t>& pcmOut, uint32_t* sampleRateOut) const
 {
-    std::ifstream in(filename, std::ios::binary);
+    const std::filesystem::path resolved = Abc80Config::resolveResourcePath(filename);
+    std::ifstream in(resolved, std::ios::binary);
+    if (!in.is_open() && resolved != std::filesystem::path(filename)) {
+        in.open(filename, std::ios::binary);
+    }
     if (!in.is_open()) {
         return Abc80Status::NOT_FOUND;
     }
@@ -785,7 +790,11 @@ Abc80Status Abc80Tape::loadTapeFile(
     runsOut.clear();
     annotationOut.clear();
 
-    std::ifstream in(filename, std::ios::binary);
+    const std::filesystem::path resolved = Abc80Config::resolveResourcePath(filename);
+    std::ifstream in(resolved, std::ios::binary);
+    if (!in.is_open() && resolved != std::filesystem::path(filename)) {
+        in.open(filename, std::ios::binary);
+    }
     if (!in.is_open()) {
         return Abc80Status::NOT_FOUND;
     }
@@ -908,11 +917,14 @@ Abc80Status CassetteDeck::seedDefaultTapes(bool overwrite) const
         }
     }
 
-    // First, if the bundled tapes/ directory is present in the working directory,
+    // First, if the bundled tapes/ directory is present in the working directory or system dir,
     // copy all pre-modulated *.tape files (0001..0029 and 0100..0103) into _tapesDir.
     bool copiedAny = false;
-    if (std::filesystem::exists("tapes", ec) && std::filesystem::is_directory("tapes", ec)) {
-        for (const auto& entry : std::filesystem::directory_iterator("tapes", ec)) {
+    const std::filesystem::path bundledTapes = Abc80Config::resolveResourcePath("tapes");
+    if (std::filesystem::exists(bundledTapes, ec) &&
+        std::filesystem::is_directory(bundledTapes, ec) &&
+        !std::filesystem::equivalent(bundledTapes, std::filesystem::path(_tapesDir), ec)) {
+        for (const auto& entry : std::filesystem::directory_iterator(bundledTapes, ec)) {
             if (!entry.is_regular_file() || entry.path().extension() != ".tape") {
                 continue;
             }

@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# postinst
+#
+# Copyright (C) 2026, Charles Chiou
+#
+
+set -e
+
+if [ "$1" = "configure" ]; then
+    install -d -m 0755 -o root -g root /etc/abc-80
+    install -d -m 0755 -o root -g root /etc/abc-80/programs
+
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        systemctl enable abc-80.service >/dev/null || true
+        if systemctl is-active --quiet abc-80.service; then
+            systemctl restart abc-80.service || true
+        else
+            systemctl start abc-80.service || true
+        fi
+    fi
+fi
+
+exit 0

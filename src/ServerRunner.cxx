@@ -54,6 +54,9 @@ const char *serverUsage()
            "Usage: abc80_server [options]\n\n"
            "Options:\n"
            "  -h, --help           Show this help and exit\n"
+           "  -v, --version        Show version and exit\n"
+           "      --config PATH    Configuration file (default /etc/abc-80/abc-80.cfg as root,\n"
+           "                       or ~/.config/abc-80/abc-80.cfg otherwise)\n"
            "      --port N         TCP port (default 8080; 0 picks a free port)\n"
            "      --bind ADDR      Address to listen on (default 127.0.0.1)\n"
            "      --web-dir DIR    Static files, relative to --root (default web)\n"
@@ -70,6 +73,7 @@ const char *serverUsage()
 bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::string &err, bool &help)
 {
     help = false;
+    cfg.showVersion = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         auto value = [&](const char *name) -> const char * {
@@ -82,6 +86,16 @@ bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::
         long n = 0;
         if (arg == "-h" || arg == "--help") {
             help = true;
+        } else if (arg == "-v" || arg == "--version") {
+            cfg.showVersion = true;
+            return true;
+        } else if (arg == "--config") {
+            const char *v = value("--config");
+            if (v == nullptr || v[0] == '\0') {
+                err = "missing value for --config";
+                return false;
+            }
+            cfg.configPath = v;
         } else if (arg == "--port") {
             const char *v = value("--port");
             if (v == nullptr) return false;

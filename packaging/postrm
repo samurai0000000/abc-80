@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# postrm
+#
+# Copyright (C) 2026, Charles Chiou
+#
+
+set -e
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+
+if [ "$1" = "purge" ]; then
+    rmdir --ignore-fail-on-non-empty /etc/abc-80/programs 2>/dev/null || true
+fi
+
+exit 0

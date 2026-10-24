@@ -15,10 +15,14 @@
 
 namespace abc80 {
 
+using ServerCliArgs = ServerConfig;
+
 // Parses abc80_server options into cfg. Returns false with err set on a bad option or value;
-// help is set when -h/--help was given. Options:
-//   --port N  --bind ADDR  --web-dir DIR  --root DIR  --rom monitor|1993  --boot warm|cold
-//   --boot-turbo  --max-sessions N  --grace SECONDS  --aimon  --no-aimon
+// help is set when -h/--help was given, and cfg.showVersion is set when -v/--version was given.
+// Options:
+//   -v/--version  --config PATH  --port N  --bind ADDR  --web-dir DIR  --root DIR
+//   --rom monitor|1993  --boot warm|cold  --boot-turbo  --max-sessions N  --grace SECONDS
+//   --aimon  --no-aimon
 bool parseServerArgs(int argc, const char *const *argv, ServerConfig &cfg, std::string &err, bool &help);
 
 const char *serverUsage();

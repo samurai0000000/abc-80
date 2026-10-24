@@ -8,28 +8,36 @@
 
 #include <abc80/Abc80Config.hxx>
 #include <abc80/ServerRunner.hxx>
+#include <abc80/Version.hxx>
 #include <iostream>
 
 int main(int argc, char **argv)
 {
-    abc80::Abc80Config appConfig;
-    std::string configErr;
-    if (!appConfig.load("", &configErr)) {
-        std::cerr << "abc80: error loading config: " << configErr << "\n";
-        return 2;
-    }
-
-    abc80::ServerConfig cfg = appConfig.toServerConfig(".");
+    abc80::ServerConfig preCfg;
     std::string err;
     bool help = false;
-    if (!abc80::parseServerArgs(argc, argv, cfg, err, help)) {
+    if (!abc80::parseServerArgs(argc, argv, preCfg, err, help)) {
         std::cerr << "error: " << err << "\n\n" << abc80::serverUsage();
         return 2;
+    }
+    if (preCfg.showVersion) {
+        std::cout << "abc80_server " << abc80::versionString() << "\n";
+        return 0;
     }
     if (help) {
         std::cout << abc80::serverUsage();
         return 0;
     }
+
+    abc80::Abc80Config appConfig;
+    std::string configErr;
+    if (!appConfig.load(preCfg.configPath, &configErr)) {
+        std::cerr << "abc80: error loading config: " << configErr << "\n";
+        return 2;
+    }
+
+    abc80::ServerConfig cfg = appConfig.toServerConfig(".");
+    (void)abc80::parseServerArgs(argc, argv, cfg, err, help);
     return abc80::runServerUntilSignalled(cfg, &appConfig);
 }
 

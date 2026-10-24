@@ -14,7 +14,10 @@
 
 #include <abc80/Abc80WebServer.hxx>
 #include <cstddef>
+#include <filesystem>
 #include <string>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace abc80 {
 
@@ -47,14 +50,34 @@ public:
     Abc80Config();
     ~Abc80Config() = default;
 
-    // Returns standard default config path: ~/.config/abc-80/abc-80.cfg
-    static std::string defaultPath();
+    // Returns system configuration and asset directory (/etc/abc-80 or ABC80_SYSTEM_DIR).
+    static std::filesystem::path systemDir();
+
+    // Returns default config directory for the given effective UID:
+    //   - ABC80_CONFIG_DIR if set
+    //   - systemDir() (/etc/abc-80) when euid == 0
+    //   - $XDG_CONFIG_HOME/abc-80 or $HOME/.config/abc-80 otherwise
+    static std::filesystem::path defaultDirForUid(uid_t euid);
+    static std::filesystem::path defaultDir();
+
+    // Returns default config file path (/etc/abc-80/abc-80.cfg for root, ~/.config/abc-80/abc-80.cfg otherwise).
+    static std::filesystem::path defaultPathForUid(uid_t euid);
+    static std::filesystem::path defaultPath();
+
+    // Resolves a relative resource path (web, tapes, build/rom.bin, vintage/rom.abc, exercises/qb)
+    // by probing CWD (unless ABC80_IGNORE_CWD_RESOURCES=1), defaultDirForUid(euid), and systemDir().
+    static std::filesystem::path resolveResourcePath(const std::filesystem::path &relPath,
+                                                     uid_t euid = ::geteuid());
 
     // Loads config from file path (or defaultPath() if empty).
     // If file does not exist, automatically creates directories and saves default configuration.
     // Validates max_sessions >= 1 (returns false with error if < 1).
     // Clamps max_sessions to kMaxSessionsHardLimit if > 64.
     bool load(const std::string &path = "", std::string *error = nullptr);
+    bool loadFile(const std::string &path = "", std::string *error = nullptr)
+    {
+        return load(path, error);
+    }
 
     // Loads config from an in-memory string representation.
     bool loadFromString(const std::string &content, std::string *error = nullptr);

@@ -5,6 +5,7 @@
  */
 
 #include <abc80/Abc80QbHost.hxx>
+#include <abc80/Abc80Config.hxx>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
@@ -155,6 +156,11 @@ Abc80QbHost::Abc80QbHost(Abc80Board& board)
     , _screen()
 {
     initVintageScreen(_currentAddress);
+}
+
+std::filesystem::path Abc80QbHost::defaultExercisesDir()
+{
+    return Abc80Config::resolveResourcePath(std::filesystem::path("exercises") / "qb");
 }
 
 bool Abc80QbHost::isLinkServerPolling() const noexcept
@@ -998,17 +1004,23 @@ bool Abc80QbHost::loadProgramAbc(const std::string& filename, uint16_t& loadedSt
     }
 
     std::filesystem::path dirPath = _programsDir.empty()
-        ? (std::filesystem::temp_directory_path() / "abc80_programs")
+        ? (Abc80Config::defaultDir() / "programs")
         : std::filesystem::path(_programsDir);
     std::filesystem::path fullPath = dirPath / cleanName;
     if (!std::filesystem::exists(fullPath)) {
-        std::filesystem::path vintagePath = std::filesystem::path("vintage") / cleanName;
+        std::filesystem::path vintagePath =
+            Abc80Config::resolveResourcePath(std::filesystem::path("vintage") / cleanName);
         if (std::filesystem::exists(vintagePath)) {
             fullPath = vintagePath;
         } else {
-            colourKeyPressed(23);
-            errOut = "Program file not found: " + cleanName;
-            return false;
+            std::filesystem::path exPath = defaultExercisesDir() / cleanName;
+            if (std::filesystem::exists(exPath)) {
+                fullPath = exPath;
+            } else {
+                colourKeyPressed(23);
+                errOut = "Program file not found: " + cleanName;
+                return false;
+            }
         }
     }
 

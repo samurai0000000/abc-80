@@ -1,0 +1,9 @@
+#
+# /etc/default/abc-80
+#
+# Copyright (C) 2026, Charles Chiou
+#
+# Primary daemon configuration is stored in /etc/abc-80/abc-80.cfg.
+# Optional command-line flags passed to /usr/sbin/abc80_server in abc-80.service
+# (e.g., "--port 8008 --rom 1993 --no-aimon"):
+ABC80_OPTS=""
