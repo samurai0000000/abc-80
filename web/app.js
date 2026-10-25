@@ -451,6 +451,10 @@
         if (rstBtn) {
             rstBtn.disabled = !!locked;
         }
+        const instanceSelect = document.getElementById('instance-select');
+        if (instanceSelect) {
+            instanceSelect.disabled = !!locked;
+        }
         const romSelect = document.getElementById('rom-select');
         if (romSelect) {
             romSelect.disabled = !!locked;
@@ -631,7 +635,11 @@
             const el = document.getElementById('ai-hand-cursor');
             return el ? !el.classList.contains('ai-hand-hidden') : false;
         },
-        handleAiPunch: handleAiPunch
+        handleAiPunch: handleAiPunch,
+        openManualModal: openManualModal,
+        closeManualModal: closeManualModal,
+        selectTapeFromManual: selectTapeFromManual,
+        get TAPE_PROGRAMS_CATALOG() { return TAPE_PROGRAMS_CATALOG; }
     };
 
     let scopeCanvas, scopeCtx, scopePhase = 0;
@@ -2378,6 +2386,14 @@
                 document.getElementById('btn-toggle-inspector').click();
                 return;
             }
+            const manualModal = document.getElementById('manual-modal');
+            if (manualModal && !manualModal.classList.contains('hidden')) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeManualModal();
+                }
+                return;
+            }
             if (state.aiLocked) {
                 return;
             }
@@ -2461,7 +2477,48 @@
         panStep: 60,
     };
 
+    function updateMobileBoardScale() {
+        const header = document.getElementById('main-header');
+        const toolbar = document.getElementById('board-panel-toolbar');
+        const panel = document.getElementById('hardware-panel-section');
+        const stage = document.getElementById('board-stage');
+        const board = document.getElementById('board-container');
+        if (!board) return;
+
+        if (window.innerWidth <= 900) {
+            const availW = Math.max(240, (panel ? panel.clientWidth : window.innerWidth) - 8);
+            const vpH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+            const topChromeH = (header ? header.offsetHeight : 32) + (toolbar ? toolbar.offsetHeight : 56);
+            const availH = Math.max(300, vpH - topChromeH - 8);
+            const scaleW = availW / 564;
+            const scaleH = availH / 756;
+            const scale = Math.min(1.0, Math.floor(Math.min(scaleW, scaleH) * 1000) / 1000);
+            board.style.transformOrigin = 'top center';
+            board.style.transform = 'scale(' + scale + ')';
+            if (stage) {
+                const scaledH = Math.ceil(756 * scale + 8) + 'px';
+                stage.style.height = scaledH;
+                stage.style.maxHeight = scaledH;
+            }
+        } else {
+            board.style.transformOrigin = '0 0';
+            if (stage) {
+                stage.style.height = '';
+                stage.style.maxHeight = '';
+            }
+            const badge = document.getElementById('view-zoom-badge');
+            if (badge) {
+                badge.textContent = `${Math.round(viewportState.scale * 100)}%`;
+            }
+            board.style.transform = `translate(${viewportState.panX}px, ${viewportState.panY}px) scale(${viewportState.scale})`;
+        }
+    }
+
     function updateBoardTransform() {
+        if (window.innerWidth <= 900) {
+            updateMobileBoardScale();
+            return;
+        }
         const board = document.getElementById('board-container');
         if (board) {
             board.style.transform = `translate(${viewportState.panX}px, ${viewportState.panY}px) scale(${viewportState.scale})`;
@@ -2535,6 +2592,7 @@
 
         // Mouse wheel zoom
         panel.addEventListener('wheel', (e) => {
+            if (window.innerWidth <= 900) return;
             e.preventDefault();
             const rect = panel.getBoundingClientRect();
             const focalX = e.clientX - rect.left;
@@ -2545,6 +2603,8 @@
 
         // Canvas drag panning
         panel.addEventListener('pointerdown', (e) => {
+            if (window.innerWidth <= 900) return;
+            if (e.target.closest('#board-panel-toolbar')) return;
             if (e.target.closest('#canvas-view-controls') || e.target.closest('#ic-calibration-hud')) return;
             if (isCalibrating && e.target.closest('.calibratable-component, .ic-socket-package')) return;
             if (e.target.closest('button, input, select, a')) return;
@@ -2594,6 +2654,10 @@
             }
         });
 
+        window.addEventListener('resize', updateMobileBoardScale);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateMobileBoardScale);
+        }
         updateBoardTransform();
     }
 
@@ -2877,6 +2941,744 @@
         }
     }
 
+    // =========================================================================
+    // User's Manual Book & Cassette Program Catalog Engine
+    // =========================================================================
+
+    const TAPE_PROGRAMS_CATALOG = [
+        {
+            id: "0001",
+            title: "Lab 01: Data Transfer (實習 1：資料傳送練習)",
+            category: "basic",
+            range: "1000H–1055H (86 B)",
+            extCircuit: null,
+            whatItDoes: "Transfers 8-bit test patterns between registers and memory (1050H..1054H), performs 16-bit block transfers (1060H..1065H), and animates an interactive [Addr][Data] sweep across the 6-digit display with audible speaker clicks.",
+            howItWorks: "Uses LD A, n, LD (HL), A, LDIR block transfer instructions, and calls Monitor ROM subroutines ADRSDP (0504H) and DADP (0511H) to display address and data before looping.",
+            loadSteps: [
+                "Select Tape Slot 0001 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0001 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe 6-digit display animate address and data pairs."
+            ]
+        },
+        {
+            id: "0002",
+            title: "Lab 02: Logic AND & OR (實習 2：邏輯指令練習 (一))",
+            category: "basic",
+            range: "1000H–1052H (83 B)",
+            extCircuit: null,
+            whatItDoes: "Computes 3-byte bitwise AND (590760H) and bitwise OR (FF4FF3H) operations on test vectors, cycling both results on the 6-digit display with rhythmic audio pulses.",
+            howItWorks: "Loads operands from RAM buffers at 1030H..1035H, executes AND and OR instructions across accumulator bytes, converts results to 7-segment segment patterns via 2BYSEG (0525H), and multiplexes via SCD&K (04A6H).",
+            loadSteps: [
+                "Select Tape Slot 0002 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0002 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe alternating AND/OR results on 7-segment digits."
+            ]
+        },
+        {
+            id: "0003",
+            title: "Lab 03: XOR, CPL & NEG (實習 3：邏輯指令練習 (二))",
+            category: "basic",
+            range: "1000H–1053H (84 B)",
+            extCircuit: null,
+            whatItDoes: "Demonstrates XOR (0FH), one's complement CPL (A4H), and two's complement NEG (A5H), cycling the composite pattern A5A40F and individual address/result pairs on the 7-segment display.",
+            howItWorks: "Applies XOR, CPL, and NEG instructions on test register values, formats output to dspbf (13F2H..13F7H), and calls SCD_K1 (04CDH) in a delay loop with speaker ticks.",
+            loadSteps: [
+                "Select Tape Slot 0003 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0003 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe A5A40F composite pattern cycling on display."
+            ]
+        },
+        {
+            id: "0004",
+            title: "Lab 04: BCD Addition (實習 4：算術加法練習)",
+            category: "basic",
+            range: "1000H–1062H (99 B)",
+            extCircuit: null,
+            whatItDoes: "Performs 6-digit packed BCD addition (473256 + 422344 = 895600), cycling operands A and B and the computed sum on the 7-segment display with audio feedback.",
+            howItWorks: "Iterates byte-by-byte using ADC A, (HL) followed by DAA (Decimal Adjust Accumulator) to maintain packed BCD digits and carry propagation, then renders into the display buffer.",
+            loadSteps: [
+                "Select Tape Slot 0004 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0004 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe operand 1 (473256), operand 2 (422344), and sum (895600)."
+            ]
+        },
+        {
+            id: "0005",
+            title: "Lab 05: BCD Subtraction (實習 5：算術減法練習)",
+            category: "basic",
+            range: "1000H–1062H (99 B)",
+            extCircuit: null,
+            whatItDoes: "Performs 6-digit packed BCD subtraction (796825 - 335836 = 460989), alternating minuend, subtrahend, and difference on the 7-segment display.",
+            howItWorks: "Subtracts packed BCD bytes using SBC A, (HL) with DAA handling borrow propagation, demonstrating Z80 N-flag handling in BCD arithmetic.",
+            loadSteps: [
+                "Select Tape Slot 0005 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0005 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe minuend, subtrahend, and computed difference on digits."
+            ]
+        },
+        {
+            id: "0006",
+            title: "Lab 06: Loop & Jump Delay (實習 6：迴轉及跳越練習)",
+            category: "basic",
+            range: "1000H–1011H (18 B)",
+            extCircuit: null,
+            whatItDoes: "Generates a continuous square-wave audio tone on the speaker while toggling 8255 Port C bit 7 using nested B and C register delay loops.",
+            howItWorks: "Inverts bit 7 of accumulator and outputs to 8255 Port C (82H), executing DJNZ inner loops to control half-period delay and frequency.",
+            loadSteps: [
+                "Select Tape Slot 0006 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0006 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the continuous square-wave audio tone on the speaker."
+            ]
+        },
+        {
+            id: "0007",
+            title: "Lab 07: Max/Min Search (實習 7：找尋最大值、最小值)",
+            category: "basic",
+            range: "1000H–1056H (87 B)",
+            extCircuit: null,
+            whatItDoes: "Scans a 5-byte array at 1052H..1056H to find the maximum value (9AH at 1050H), showing each candidate value scanning across the display before flashing the winner.",
+            howItWorks: "Initializes max tracker in accumulator, compares each element using CP (HL) and JR NC, updates the running maximum, and calls ADRSDP/DADP to show the result.",
+            loadSteps: [
+                "Select Tape Slot 0007 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0007 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch candidate values scan and winner 9AH flash on the display."
+            ]
+        },
+        {
+            id: "0008",
+            title: "Lab 08: Shift & Rotate (實習 8：移位與旋轉練習)",
+            category: "basic",
+            range: "1000H–1052H (83 B)",
+            extCircuit: null,
+            whatItDoes: "Applies arithmetic and logical shift/rotate instructions (SLA A -> DEH, RRCA -> 9FH) on test patterns and animates rotating bit sequences across the 7-segment digits.",
+            howItWorks: "Executes SLA, SRA, RLCA, and RRCA on register A, transfers intermediate states into the 6-digit display buffer, and calls SCD_K1 (04CDH) between shift steps.",
+            loadSteps: [
+                "Select Tape Slot 0008 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0008 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe dynamic bit-shifting patterns on the 6-digit display."
+            ]
+        },
+        {
+            id: "0009",
+            title: "Lab 09: Monitor Calls (實習 9：呼叫副程式)",
+            category: "display",
+            range: "1000H–104BH (76 B)",
+            extCircuit: null,
+            whatItDoes: "Displays the scrolling greeting ' HELLO' via Monitor ROM SCD&K (04A6H). Pressing keypad '-' (11H) blanks the display, while '+' (10H) scrolls ' HELLO' back in.",
+            howItWorks: "Loads 7-segment segment font bytes for 'H', 'E', 'L', 'L', 'O' into dspbf (13F2H..13F7H), polls keypad input via SCD&K (04A6H), and branches based on returned key codes in register A.",
+            loadSteps: [
+                "Select Tape Slot 0009 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0009 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Press '-' on keypad to blank display; press '+' to scroll HELLO in."
+            ]
+        },
+        {
+            id: "0010",
+            title: "Lab 10: Hex/BCD Display (實習 10：資料顯示)",
+            category: "display",
+            range: "1000H–1052H (83 B)",
+            extCircuit: null,
+            whatItDoes: "Takes raw binary data from 1050H..1052H, decimal-adjusts into BCD ('354071'), and converts to 7-segment glyphs via Monitor ROM 2BYSEG (0525H) for stable display.",
+            howItWorks: "Separates high and low nibbles, translates through the Monitor ROM 7-segment lookup table via 2BYSEG (0525H), writes to display buffer, and refreshes the digits.",
+            loadSteps: [
+                "Select Tape Slot 0010 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0010 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe decimal-adjusted numbers '35 40 71' on display."
+            ]
+        },
+        {
+            id: "0011",
+            title: "Lab 11: Subroutines (實習 11：副程式練習)",
+            category: "display",
+            range: "1000H–104BH (76 B)",
+            extCircuit: null,
+            whatItDoes: "Scrolls the hexadecimal pattern 'FEDCBA' continuously across all 6 display digits, calling a modular buffer-clearing subroutine (CLRBF at 1030H) and waiting for keypad pause.",
+            howItWorks: "Demonstrates structured Z80 assembly programming with CALL/RET subroutines, shifting memory buffers left on each iteration and scanning keys with SCD&K.",
+            loadSteps: [
+                "Select Tape Slot 0011 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0011 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch FEDCBA marquee scrolling continuously across 6 digits."
+            ]
+        },
+        {
+            id: "0012",
+            title: "Lab 12: Blinking Display (實習 12：交互顯示)",
+            category: "display",
+            range: "1000H–102BH (44 B)",
+            extCircuit: null,
+            whatItDoes: "Alternates between displaying 'StOP' (1020H..1025H) and '  GO  ' (1026H..102BH) every 0.5 seconds in a continuous traffic-safety visual loop.",
+            howItWorks: "Copies 6-byte font buffers into dspbf (13F2H..13F7H), calls SCD_K1 multiplexing in a 50-iteration delay loop, and alternates string pointers.",
+            loadSteps: [
+                "Select Tape Slot 0012 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0012 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe rhythmic alternating 'StOP' and '  GO  ' messages."
+            ]
+        },
+        {
+            id: "0013",
+            title: "Lab 13: Scrolling Marquee (實習 13：移動顯示)",
+            category: "display",
+            range: "1000H–1065H (102 B)",
+            extCircuit: null,
+            whatItDoes: "Scrolls the complete 26-letter 7-segment alphabet ('A' through 'Z') continuously across the 6-digit display from right to left like an electronic news ticker.",
+            howItWorks: "Maintains a circular pointer into a 26-byte font table at 1030H..1049H, shifts dspbf bytes left by 1 digit, inserts the next character at digit D0, and multiplexes.",
+            loadSteps: [
+                "Select Tape Slot 0013 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0013 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch complete A through Z alphabet scroll across digits."
+            ]
+        },
+        {
+            id: "0014",
+            title: "Lab 14: Telephone Ring (實習 14：電話聲響)",
+            category: "display",
+            range: "1000H–1035H (54 B)",
+            extCircuit: null,
+            whatItDoes: "Synthesizes a realistic telephone ringing cadence: bursts of dual-frequency audio (320 Hz and 480 Hz alternating) followed by a 2-second silent pause.",
+            howItWorks: "Calls Monitor ROM SOUND subroutine (047CH) with frequency values in register C and duration in B, toggling between ringing tones and delay loops.",
+            loadSteps: [
+                "Select Tape Slot 0014 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0014 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the dual-frequency telephone ring burst cadence."
+            ]
+        },
+        {
+            id: "0015",
+            title: "Lab 15: Police Siren (實習 15：警車鳴聲)",
+            category: "display",
+            range: "1000H–1011H (18 B)",
+            extCircuit: null,
+            whatItDoes: "Generates a continuous European two-tone emergency police siren (Hi-Lo), alternating between 265 Hz and 352 Hz tones every 0.3 seconds.",
+            howItWorks: "Loads C=00H (265 Hz) and C=0C0H (352 Hz) into register C and calls Monitor ROM SOUND (047CH) in a tight infinite loop.",
+            loadSteps: [
+                "Select Tape Slot 0015 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0015 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the continuous two-tone emergency police siren."
+            ]
+        },
+        {
+            id: "0016",
+            title: "Lab 16: Roulette Game (實習 16：輪盤遊戲)",
+            category: "display",
+            range: "1000H–1060H (97 B)",
+            extCircuit: null,
+            whatItDoes: "Simulates an electronic roulette wheel by spinning a single lit segment around the outer perimeter of the 6 digits. Holding keypad '+' decelerates the wheel until it lands on a random segment.",
+            howItWorks: "Steps through a 16-state segment/digit lookup table, gradually increasing delay loop counts when keypad '+' is detected via SCD&K (04A6H) until stopping.",
+            loadSteps: [
+                "Select Tape Slot 0016 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0016 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Hold '+' on keypad to decelerate wheel and watch where it lands."
+            ]
+        },
+        {
+            id: "0017",
+            title: "Lab 17: Pac-Man Sprite (實習 17：小精靈)",
+            category: "display",
+            range: "1000H–108EH (143 B)",
+            extCircuit: null,
+            whatItDoes: "Animates a chomping Pac-Man sprite across the 6 digits (opening and closing jaws) eating food dots, accompanied by 1 kHz and 2 kHz audio chirps (MS1K / MS2K).",
+            howItWorks: "Swaps custom 7-segment segment glyphs for open mouth, closed mouth, and dot across dspbf (13F2H..13F7H), calling MS1K (0470H) and MS2K (0475H) for authentic retro sound effects.",
+            loadSteps: [
+                "Select Tape Slot 0017 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0017 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch Pac-Man chomp food dots across digits with retro sound effects."
+            ]
+        },
+        {
+            id: "0018",
+            title: "Lab 18: Computer Music (實習 18：電腦音樂)",
+            category: "display",
+            range: "1000H–103CH (61 B)",
+            extCircuit: null,
+            whatItDoes: "Plays a multi-measure melody through the dynamic speaker from a 53-byte musical score table stored at 1008H..103CH.",
+            howItWorks: "Points HL to the score table (pitch byte + duration byte pairs, terminated by 00H) and calls Monitor ROM MUSIC subroutine (0411H).",
+            loadSteps: [
+                "Select Tape Slot 0018 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0018 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the melodious multi-measure computer music playback."
+            ]
+        },
+        {
+            id: "0019",
+            title: "Lab 19: Electronic Organ (實習 19：電子琴)",
+            category: "display",
+            range: "1000H–1032H (51 B)",
+            extCircuit: null,
+            whatItDoes: "Transforms the 24-key tactile keypad into a 16-note live musical keyboard: pressing keys 0 through F plays the corresponding pitch from C4 to D6.",
+            howItWorks: "Scans keypad continuously with SCD&K (04A6H); when a key 0..F is detected, it indexes pitch table at 1023H..1032H and calls SOUND (047CH) until key release.",
+            loadSteps: [
+                "Select Tape Slot 0019 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0019 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Press keypad keys 0 through F to play live musical organ notes."
+            ]
+        },
+        {
+            id: "0020",
+            title: "Lab 20: Digital Stopwatch (實習 20：馬錶)",
+            category: "clock",
+            range: "1000H–1027H (40 B)",
+            extCircuit: null,
+            whatItDoes: "1/100th-second precision BCD digital stopwatch displaying seconds and hundredths (00-00 to 99-99). Holding any keypad button pauses the stopwatch (lap time).",
+            howItWorks: "Increments hundredths counter, applies DAA, cascades to seconds, formats into dspbf, and calls SCD&K (04A6H) calibrated to 10 ms per cycle.",
+            loadSteps: [
+                "Select Tape Slot 0020 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0020 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch 1/100-sec timer run; hold any key to pause lap time."
+            ]
+        },
+        {
+            id: "0021",
+            title: "Lab 21: 24-Hour Clock (實習 21：時鐘)",
+            category: "clock",
+            range: "1000H–1108H (265 B)",
+            extCircuit: null,
+            whatItDoes: "Full 24-hour digital clock displaying HH.MM.SS on all 6 digits with blinking decimal point separators and an automated hourly chime sequence.",
+            howItWorks: "Maintains packed BCD time bytes at 1200H..1208H, handles 60-second, 60-minute, and 24-hour rollover logic, and calls chime routine (1100H..1108H) on the hour.",
+            loadSteps: [
+                "Select Tape Slot 0021 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0021 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe 24-hour clock run with blinking second dots and hourly chime."
+            ]
+        },
+        {
+            id: "0022",
+            title: "Lab 22: Signal Generator (實習 22：信號產生器)",
+            category: "clock",
+            range: "1000H–1017H (24 B)",
+            extCircuit: null,
+            whatItDoes: "Produces a calibrated continuous 1.00 kHz precision square wave on 8255 Port C bit 7 (MIC/speaker output) for audio and oscilloscope test calibration.",
+            howItWorks: "Calculates exact T-state counts for loop instructions to generate 500 μs high and 500 μs low half-periods on 8255 Port C (82H) bit 7.",
+            loadSteps: [
+                "Select Tape Slot 0022 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0022 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the calibrated 1.00 kHz reference test frequency."
+            ]
+        },
+        {
+            id: "0023",
+            title: "Lab 23: Pulse Counter (實習 23：計數器)",
+            category: "clock",
+            range: "1000H–110AH (267 B)",
+            extCircuit: null,
+            whatItDoes: "6-digit BCD event and pulse counter (000000 to 999999), incrementing on every low-to-high transition detected on the cassette EAR input (Port A bit 7).",
+            howItWorks: "Polls 8255 Port A (80H) bit 7 with software debouncing, increments 3-byte BCD counter via ADD A, 1 / DAA, and refreshes the 6-digit display.",
+            loadSteps: [
+                "Select Tape Slot 0023 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0023 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Feed pulses into EAR line or cassette and observe counter increment."
+            ]
+        },
+        {
+            id: "0024",
+            title: "Lab 24: Traffic Light (實習 24：紅綠燈)",
+            category: "extio",
+            range: "1000H–1056H (87 B)",
+            extCircuit: "traffic_light",
+            whatItDoes: "Controls a 4-way traffic intersection with North-South and East-West Red, Yellow, and Green LEDs, including a 3-pulse yellow warning phase on transitions.",
+            howItWorks: "Outputs state bit patterns (0CH, 0AH, 08H, 21H, 11H, 01H) to 8255 PPI Port B (81H), using software timing loops to hold green and flash yellow.",
+            loadSteps: [
+                "Select Tape Slot 0024 & ensure EXT I/O is set to Ex 24: Traffic Light.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0024 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch interactive traffic intersection LEDs cycle realistically."
+            ]
+        },
+        {
+            id: "0025",
+            title: "Lab 25: 8-LED Chaser (實習 25：燈光順序控制)",
+            category: "extio",
+            range: "1000H–1018H (25 B)",
+            extCircuit: "led_chaser",
+            whatItDoes: "Sequences a running light pattern across 8 discrete LEDs (LED0 through LED7), continuously rotating an active-low single lit indicator.",
+            howItWorks: "Initializes register A with FEH (11111110b), drives 8255 Port B (81H), executes RLCA to rotate the active bit left, and delays with a 16-bit register decrement loop.",
+            loadSteps: [
+                "Select Tape Slot 0025 & ensure EXT I/O is set to Ex 25: LED Chaser.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0025 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch the light chaser sequence run smoothly across 8 LEDs."
+            ]
+        },
+        {
+            id: "0026",
+            title: "Lab 26: X-Y Scope Pattern (實習 26：顯示圖案)",
+            category: "extio",
+            range: "1000H–1065H (102 B)",
+            extCircuit: "oscilloscope",
+            whatItDoes: "Generates dynamic geometric vector drawings on an oscilloscope in X-Y mode using dual 4-bit R-2R ladder digital-to-analog converters.",
+            howItWorks: "Reads 37 (Y, X) coordinate pairs from table at 1040H..1064H, outputting combined 8-bit DAC bytes (upper nibble Y, lower nibble X) to 8255 Port B (81H) in a continuous raster refresh.",
+            loadSteps: [
+                "Select Tape Slot 0026 & ensure EXT I/O is set to Ex 26: X-Y Scope.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0026 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe geometric vector artwork rendered on the oscilloscope CRT."
+            ]
+        },
+        {
+            id: "0027",
+            title: "Lab 27: School Bell Clock (實習 27：校鐘)",
+            category: "extio",
+            range: "1000H–10D6H (215 B)",
+            extCircuit: "school_bell",
+            whatItDoes: "24-hour BCD classroom clock that automatically rings an external electric bell relay and plays an 8-note melodic Westminster chime at class periods (:00 and :10 for hours >= 08:00).",
+            howItWorks: "Tracks BCD time, compares hours/minutes against schedule thresholds, drives 8255 Port C bit 6 low to energize the relay, and plays chime notes via SOUND (047CH).",
+            loadSteps: [
+                "Select Tape Slot 0027 & ensure EXT I/O is set to Ex 27: School Bell.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0027 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe bell relay activation and melodic chime at period times."
+            ]
+        },
+        {
+            id: "0028",
+            title: "Lab 28: Appliance Timer (實習 28：家庭電器電腦化控制)",
+            category: "extio",
+            range: "1000H–1124H (293 B)",
+            extCircuit: "appliance_control",
+            whatItDoes: "Automated 24-hour household energy timer controlling 8 independent AC power relays (lights, heating, water pump, appliances) based on programmable scheduled time slots.",
+            howItWorks: "Maintains 24-hour BCD clock, scans a 37-byte schedule table at 1100H..1124H matching current hour/minute, and outputs relay activation masks to Auxiliary 8255 Port C (42H).",
+            loadSteps: [
+                "Select Tape Slot 0028 & ensure EXT I/O is set to Ex 28: Appliance Relays.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0028 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch 8 household relays toggle according to schedule times."
+            ]
+        },
+        {
+            id: "0029",
+            title: "Lab 29: Robotic Arm (實習 29：模擬機械手)",
+            category: "extio",
+            range: "1000H–1173H (372 B)",
+            extCircuit: "robotic_arm",
+            whatItDoes: "Controls a 3-axis articulated robotic arm (Base rotation, Shoulder elevation, Elbow flex) and electromagnetic solenoid gripper through pick-and-place trajectories.",
+            howItWorks: "Reads 4-phase stepper pulse sequences from table at 1100H..1173H, outputting motor coil steps to Expansion 8255 Ports 00H, 01H, and 02H with acceleration profiling.",
+            loadSteps: [
+                "Select Tape Slot 0029 & ensure EXT I/O is set to Ex 29: Robotic Arm.",
+                "Click PLAY on Cassette Deck.",
+                "Keypad: FROM TAPE + 0029 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch robotic arm move through base, shoulder, elbow and gripper sequence."
+            ]
+        },
+        {
+            id: "0100",
+            title: "Showcase 0100: BCD Up-Counter (BCD 十進位計數器)",
+            category: "showcase",
+            range: "1000H–1018H (25 B)",
+            extCircuit: null,
+            whatItDoes: "Continuously counts upwards in decimal from 00 to 99 on data digits D1-D0 at approximately 3 counts per second, rolling over smoothly from 99 to 00.",
+            howItWorks: "Maintains counter in RAM at 1030H, uses ADD A, 01H and DAA for decimal adjustment, formats to display via DADP (0511H), and multiplexes with SCD_K1 (04CDH).",
+            loadSteps: [
+                "Select Tape Slot 0100 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0100 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch smooth BCD up-counter incrementing on data digits D1-D0."
+            ]
+        },
+        {
+            id: "0101",
+            title: "Showcase 0101: Segment Chaser (七段顯示器跑馬燈)",
+            category: "showcase",
+            range: "1000H–1015H (22 B)",
+            extCircuit: null,
+            whatItDoes: "Directly drives the 8255 PPI segment bus and digit cathodes to race a single lit segment in a circular loop around all 6 display positions simultaneously.",
+            howItWorks: "Directly writes active-low segment mask to 8255 Port B (81H), pulls all digit cathodes low via Port C (82H = C0H), rotates the segment bit via RLC A, and delays with a 16-bit loop.",
+            loadSteps: [
+                "Select Tape Slot 0101 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0101 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Watch single illuminated segment race around the 7-segment display."
+            ]
+        },
+        {
+            id: "0102",
+            title: "Showcase 0102: Dual-Tone Chime (雙音調門鈴聲)",
+            category: "showcase",
+            range: "1000H–100EH (15 B)",
+            extCircuit: null,
+            whatItDoes: "Generates a continuous two-tone electronic doorbell chime, alternating between 250 cycles of a 1 kHz tone and 500 cycles of a 2 kHz tone on the dynamic speaker.",
+            howItWorks: "Calls Monitor ROM subroutines MS1K (0470H) and MS2K (0475H) with cycle counts loaded into HL register, creating a clean repeating dual-tone chime without external timer ICs.",
+            loadSteps: [
+                "Select Tape Slot 0102 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0102 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Listen to the continuous repeating two-tone electronic doorbell chime."
+            ]
+        },
+        {
+            id: "0103",
+            title: "Showcase 0103: Fibonacci Display (費氏數列顯示器)",
+            category: "showcase",
+            range: "1000H–1023H (36 B)",
+            extCircuit: null,
+            whatItDoes: "Computes the decimal Fibonacci sequence (01, 01, 02, 03, 05, 08, 13, 21, 34, 55, 89), displaying destination RAM address on A3-A0, term value on D1-D0, and clicking the speaker on each term.",
+            howItWorks: "Stores sequence into RAM table at 1040H..104AH, calculates terms with ADD A, B and DAA, updates display via ADRSDP (0504H) and DADP (0511H), emits tick via MS3K17 (0464H), and resets on BCD overflow.",
+            loadSteps: [
+                "Select Tape Slot 0103 in Cassette Deck and click PLAY.",
+                "Keypad: FROM TAPE + 0103 + GO EXEC.",
+                "Keypad: ADRS + 1000 + GO EXEC.",
+                "Observe Fibonacci terms (01..89) compute and store in memory with audio ticks."
+            ]
+        }
+    ];
+
+    let currentManualChapter = 'ch1';
+    const manualChapters = ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8'];
+
+    function renderTapeCatalogCards(filterCat, searchQuery) {
+        if (!filterCat) filterCat = 'all';
+        const container = document.getElementById('manual-tape-cards');
+        if (!container) return;
+
+        const q = (searchQuery || '').trim().toLowerCase();
+        const filtered = TAPE_PROGRAMS_CATALOG.filter(p => {
+            const matchesCat = (filterCat === 'all' || p.category === filterCat);
+            if (!matchesCat) return false;
+            if (!q) return true;
+            return p.id.includes(q) ||
+                p.title.toLowerCase().includes(q) ||
+                p.whatItDoes.toLowerCase().includes(q) ||
+                p.howItWorks.toLowerCase().includes(q);
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<div class="book-empty-search">No matching cassette tape programs found for "${escapeHtml(searchQuery)}".</div>`;
+            return;
+        }
+
+        container.innerHTML = filtered.map(p => {
+            const extBadge = p.extCircuit ? `<span class="tape-card-ext-badge">EXT I/O: ${escapeHtml(p.extCircuit)}</span>` : '';
+            const stepsHtml = p.loadSteps.map((s, idx) => `<li><span class="step-num">${idx + 1}.</span> ${escapeHtml(s)}</li>`).join('');
+            return `
+            <div class="book-tape-card" data-tape-id="${p.id}" data-cat="${p.category}">
+                <div class="tape-card-header">
+                    <div class="tape-card-badges">
+                        <span class="tape-id-badge">FILE ${p.id}</span>
+                        <span class="tape-range-badge">${escapeHtml(p.range)}</span>
+                        ${extBadge}
+                    </div>
+                    <h3 class="tape-card-title">${escapeHtml(p.title)}</h3>
+                </div>
+                <div class="tape-card-body">
+                    <div class="tape-card-block">
+                        <div class="tape-block-label">What It Does</div>
+                        <p class="tape-block-text">${escapeHtml(p.whatItDoes)}</p>
+                    </div>
+                    <div class="tape-card-block">
+                        <div class="tape-block-label">How It Works</div>
+                        <p class="tape-block-text">${escapeHtml(p.howItWorks)}</p>
+                    </div>
+                    <div class="tape-card-block">
+                        <div class="tape-block-label">How to Load &amp; Run</div>
+                        <ul class="tape-steps-mini">${stepsHtml}</ul>
+                    </div>
+                </div>
+                <div class="tape-card-actions">
+                    <button type="button" class="book-load-tape-btn" data-load-tape="${p.id}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span>Select Slot ${p.id} in Tape Deck</span>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Wire click handlers on load buttons
+        container.querySelectorAll('.book-load-tape-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-load-tape');
+                if (id) selectTapeFromManual(id);
+            });
+        });
+    }
+
+    function switchManualChapter(chId) {
+        if (!manualChapters.includes(chId)) chId = 'ch1';
+        currentManualChapter = chId;
+
+        // Update TOC buttons
+        document.querySelectorAll('.book-toc-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-chapter') === chId);
+        });
+
+        // Show active chapter article
+        document.querySelectorAll('.book-chapter').forEach(art => {
+            art.classList.toggle('active', art.getAttribute('data-chapter') === chId);
+        });
+
+        // Update header indicator
+        const chNum = manualChapters.indexOf(chId) + 1;
+        const ind = document.getElementById('manual-ch-indicator');
+        if (ind) ind.textContent = `Chapter ${chNum} of 8`;
+
+        // Update Prev / Next buttons
+        const prevBtn = document.getElementById('btn-manual-prev-ch');
+        const nextBtn = document.getElementById('btn-manual-next-ch');
+        if (prevBtn) prevBtn.disabled = (chNum === 1);
+        if (nextBtn) nextBtn.disabled = (chNum === manualChapters.length);
+
+        // Scroll page container to top
+        const content = document.getElementById('manual-content');
+        if (content) content.scrollTop = 0;
+
+        // If mobile TOC drawer is open, close it on selection
+        const sidebar = document.getElementById('manual-sidebar');
+        if (sidebar) sidebar.classList.remove('mobile-toc-open');
+    }
+
+    function openManualModal(chapterId) {
+        const modal = document.getElementById('manual-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        if (chapterId) {
+            switchManualChapter(chapterId);
+        } else {
+            switchManualChapter(currentManualChapter || 'ch1');
+        }
+    }
+
+    function closeManualModal() {
+        const modal = document.getElementById('manual-modal');
+        if (modal) modal.classList.add('hidden');
+        const sidebar = document.getElementById('manual-sidebar');
+        if (sidebar) sidebar.classList.remove('mobile-toc-open');
+    }
+
+    function selectTapeFromManual(id) {
+        const prog = TAPE_PROGRAMS_CATALOG.find(p => p.id === id);
+        // Switch to tape tab
+        const tapeTabBtn = document.querySelector('.tab-btn[data-tab="tab-tape"]');
+        if (tapeTabBtn) tapeTabBtn.click();
+
+        // Expand inspector if collapsed
+        const inspector = document.getElementById('inspector-section');
+        if (inspector && inspector.classList.contains('inspector-collapsed')) {
+            const toggleBtn = document.getElementById('btn-toggle-inspector');
+            if (toggleBtn) toggleBtn.click();
+        }
+
+        // Update tape input & state
+        const idInput = document.getElementById('tape-file-id-input');
+        if (idInput) idInput.value = id;
+        state.tape.fileId = id;
+        const labelId = document.getElementById('cassette-label-id');
+        if (labelId) labelId.textContent = 'FILE ' + id;
+        sendHostCommand({ type: 'tape_select', fileId: id });
+
+        // If program has an external circuit, attach it
+        if (prog && prog.extCircuit) {
+            const extSelect = document.getElementById('ext-io-select');
+            if (extSelect) {
+                extSelect.value = prog.extCircuit;
+                attachExtCircuit(prog.extCircuit, true);
+            }
+        }
+
+        // Close manual modal
+        closeManualModal();
+    }
+
+    function initManualBook() {
+        const btnManual = document.getElementById('btn-manual');
+        const btnClose = document.getElementById('btn-close-manual');
+        const modal = document.getElementById('manual-modal');
+        const prevBtn = document.getElementById('btn-manual-prev-ch');
+        const nextBtn = document.getElementById('btn-manual-next-ch');
+        const tocToggle = document.getElementById('btn-manual-toc-toggle');
+        const sidebar = document.getElementById('manual-sidebar');
+        const searchInput = document.getElementById('manual-search-input');
+
+        if (btnManual) {
+            btnManual.addEventListener('click', () => openManualModal());
+        }
+        if (btnClose) {
+            btnClose.addEventListener('click', () => closeManualModal());
+        }
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeManualModal();
+            });
+        }
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                const idx = manualChapters.indexOf(currentManualChapter);
+                if (idx > 0) switchManualChapter(manualChapters[idx - 1]);
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const idx = manualChapters.indexOf(currentManualChapter);
+                if (idx < manualChapters.length - 1) switchManualChapter(manualChapters[idx + 1]);
+            });
+        }
+        if (tocToggle && sidebar) {
+            tocToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('mobile-toc-open');
+            });
+        }
+
+        // TOC list buttons
+        document.querySelectorAll('.book-toc-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ch = btn.getAttribute('data-chapter');
+                if (ch) switchManualChapter(ch);
+            });
+        });
+
+        // Category filter buttons in Chapter 5
+        let activeCat = 'all';
+        document.querySelectorAll('#manual-cat-filters .book-cat-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#manual-cat-filters .book-cat-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeCat = btn.getAttribute('data-cat') || 'all';
+                renderTapeCatalogCards(activeCat, searchInput ? searchInput.value : '');
+            });
+        });
+
+        // Search input handling
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                const q = searchInput.value.trim().toLowerCase();
+                // If query matches a 4-digit hex or tape name, switch to Chapter 5
+                const isTapeMatch = TAPE_PROGRAMS_CATALOG.some(p => p.id === q || p.title.toLowerCase().includes(q));
+                if (isTapeMatch && currentManualChapter !== 'ch5') {
+                    switchManualChapter('ch5');
+                }
+                renderTapeCatalogCards(activeCat, q);
+            });
+        }
+
+        // Initial render of tape cards
+        renderTapeCatalogCards('all', '');
+    }
+
     function initAll() {
         initDisplayDigits();
         initInspector();
@@ -2971,6 +3773,7 @@
         initCassetteDeck();
         initQbCrtWindow();
         initExtIoWindow();
+        initManualBook();
 
         const helpBtn = document.getElementById('btn-help');
         const helpModal = document.getElementById('help-modal');

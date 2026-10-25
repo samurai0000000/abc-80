@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;700;800&family=Inter:wght@400;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <style>
         .col-left-chips {
             position: relative !important;
@@ -148,29 +148,6 @@
                     <span class="status-dot dot-connected" id="host-ws-dot"></span>
                     <span class="status-text" id="host-ws-text">HOST: CONNECTING</span>
                 </div>
-                <label class="instance-picker" title="Select between a private unique emulator session or the shared resident emulator instance.">INSTANCE
-                    <select id="instance-select">
-                        <option value="unique" selected>Unique Emulator</option>
-                        <option value="resident">Resident Emulator</option>
-                    </select>
-                </label>
-                <label class="rom-picker" title="Which ROM the board boots. Changing it power-cycles the board.">ROM
-                    <select id="rom-select">
-                        <option value="monitor">Monitor from the Book</option>
-                        <option value="1993">Charles Chiou's ROM</option>
-                    </select>
-                </label>
-                <label class="ext-io-picker" title="Attach or detach a mutually-exclusive external I/O circuit (Exercises 24–29).">EXT I/O
-                    <select id="ext-io-select">
-                        <option value="none" selected>None (Detached)</option>
-                        <option value="traffic_light">Ex 24: Traffic Light (81H)</option>
-                        <option value="led_chaser">Ex 25: LED Chaser (81H)</option>
-                        <option value="oscilloscope">Ex 26: X-Y Scope (81H)</option>
-                        <option value="school_bell">Ex 27: School Bell (82H)</option>
-                        <option value="appliance_control">Ex 28: Appliance Relays (42H)</option>
-                        <option value="robotic_arm">Ex 29: Robotic Arm (00H–02H)</option>
-                    </select>
-                </label>
                 <button id="cancel-ai-btn" class="btn-cancel-ai" disabled title="Cancel active AI key sequence">
                     Cancel AI
                 </button>
@@ -213,7 +190,40 @@
         <!-- Main Workspace (Trainer on Left/Center, Debugger Drawer on Right) -->
         <main id="main-workspace">
             <section id="hardware-panel-section">
-                <!-- Floating Viewport Pan & Zoom Controls -->
+                <!-- Board Configuration Toolbar Ribbon: Instance, ROM, Ext I/O & Manual -->
+                <div id="board-panel-toolbar" class="board-panel-toolbar" role="toolbar" aria-label="Board Configuration and User Manual">
+                    <label class="instance-picker" title="Select between a private unique emulator session or the shared resident emulator instance.">INSTANCE
+                        <select id="instance-select">
+                            <option value="unique" selected>Unique Emulator</option>
+                            <option value="resident">Resident Emulator</option>
+                        </select>
+                    </label>
+                    <label class="rom-picker" title="Which ROM the board boots. Changing it power-cycles the board.">ROM
+                        <select id="rom-select">
+                            <option value="monitor">Monitor from the Book</option>
+                            <option value="1993">Charles Chiou's ROM</option>
+                        </select>
+                    </label>
+                    <label class="ext-io-picker" title="Attach or detach a mutually-exclusive external I/O circuit (Exercises 24–29).">EXT I/O
+                        <select id="ext-io-select">
+                            <option value="none" selected>None (Detached)</option>
+                            <option value="traffic_light">Ex 24: Traffic Light (81H)</option>
+                            <option value="led_chaser">Ex 25: LED Chaser (81H)</option>
+                            <option value="oscilloscope">Ex 26: X-Y Scope (81H)</option>
+                            <option value="school_bell">Ex 27: School Bell (82H)</option>
+                            <option value="appliance_control">Ex 28: Appliance Relays (42H)</option>
+                            <option value="robotic_arm">Ex 29: Robotic Arm (00H–02H)</option>
+                        </select>
+                    </label>
+                    <button id="btn-manual" class="board-manual-btn" type="button" title="Open ABC-80 User's Manual &amp; Sample Tape Program Book">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="16" y2="11"/></svg>
+                        <span>User's Manual</span>
+                    </button>
+                </div>
+
+                <!-- Board Stage Container for Centered Board Layout -->
+                <div id="board-stage" class="board-stage">
+                    <!-- Floating Viewport Pan & Zoom Controls -->
                 <div id="canvas-view-controls" class="canvas-view-controls" title="Board Viewport Navigation">
                     <div class="view-ctrl-group">
                         <button id="btn-zoom-in" class="view-ctrl-btn" title="Zoom In (+)">
@@ -1488,6 +1498,7 @@
                         </div>
                     </div>
                 </div>
+                </div> <!-- End #board-stage -->
             </section>
 
             <!-- Collapsible Developer Inspector Drawer -->
@@ -1806,6 +1817,497 @@
                         <tr><td><code>Reset CPU</code></td><td><kbd>Escape</kbd></td><td>Reset the CPU to 0000H</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABC-80 Interactive User's Manual & Tape Catalog "Book" Modal -->
+    <div id="manual-modal" class="book-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manual-book-title">
+        <div class="book-shell">
+            <header class="book-header">
+                <button id="btn-manual-toc-toggle" class="book-toc-toggle-btn" type="button" title="Toggle Chapters Menu">☰ Chapters</button>
+                <div class="book-title-group">
+                    <span class="book-badge">USER'S MANUAL</span>
+                    <h2 id="manual-book-title">ABC-80 Microcomputer Operating Manual &amp; Cassette Program Book</h2>
+                </div>
+                <div class="book-header-controls">
+                    <button id="btn-manual-prev-ch" class="book-nav-btn" type="button" title="Previous Chapter">◀ Prev</button>
+                    <span id="manual-ch-indicator" class="book-ch-indicator">Chapter 1 of 8</span>
+                    <button id="btn-manual-next-ch" class="book-nav-btn" type="button" title="Next Chapter">Next ▶</button>
+                    <button id="btn-close-manual" class="book-close-btn" type="button" title="Close User's Manual (Esc)">&times;</button>
+                </div>
+            </header>
+            <div class="book-body">
+                <aside id="manual-sidebar" class="book-sidebar">
+                    <div class="book-search-box">
+                        <input type="search" id="manual-search-input" class="book-search-input" placeholder="Search manual or tape ID (0001–0103)..." spellcheck="false" />
+                    </div>
+                    <nav id="manual-toc-list" class="book-toc-list" aria-label="Manual Chapters">
+                        <button type="button" class="book-toc-btn active" data-chapter="ch1">
+                            <span class="toc-num">1</span>
+                            <span class="toc-title">Introduction &amp; System Overview</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch2">
+                            <span class="toc-num">2</span>
+                            <span class="toc-title">Hardware &amp; Front-Panel Tour</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch3">
+                            <span class="toc-num">3</span>
+                            <span class="toc-title">Keypad &amp; Machine Code Tutorial</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch4">
+                            <span class="toc-num">4</span>
+                            <span class="toc-title">Cassette Tape I/O (TO/FROM TAPE)</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch5">
+                            <span class="toc-num">5</span>
+                            <span class="toc-title">Tape Program Catalog (33 Programs)</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch6">
+                            <span class="toc-num">6</span>
+                            <span class="toc-title">External I/O Labs (Ex 24–29)</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch7">
+                            <span class="toc-num">7</span>
+                            <span class="toc-title">QuickBASIC 4.0 PC-Link &amp; CRT</span>
+                        </button>
+                        <button type="button" class="book-toc-btn" data-chapter="ch8">
+                            <span class="toc-num">8</span>
+                            <span class="toc-title">Monitor ROM &amp; Memory Reference</span>
+                        </button>
+                    </nav>
+                </aside>
+                <div id="manual-content" class="book-page-container">
+
+                    <!-- Chapter 1 -->
+                    <article class="book-chapter active" id="manual-chapter-ch1" data-chapter="ch1">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 1</div>
+                            <h2>Introduction &amp; System Overview</h2>
+                            <p class="chapter-lead">Historical heritage, system architecture, CPU timing, memory banking, and dual Intel 8255A Programmable Peripheral Interfaces.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>1.1 Historical Heritage of the ABC-80 Microcomputer</h3>
+                            <p>The <b>ABC-80 Educational Microcomputer Learning Kit</b> was manufactured in Taiwan during the early 1980s as the definitive training system for universities, technical colleges, and vocational institutions teaching 8-bit microprocessors, assembly language, and hardware interfacing. Accompanied by the classic textbook <i>《Z80 微電腦入門 — 原理與應用程式》</i>, it enabled an entire generation of engineers to learn machine architecture through tactile, hands-on experimentation.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>1.2 System Block Diagram &amp; Architecture</h3>
+                            <p>The ABC-80 is organized around the classic Zilog Z80A 8-bit CPU, communicating with memory and I/O devices over an isolated 16-bit address bus (<code>A0</code>–<code>A15</code>), an 8-bit bidirectional data bus (<code>D0</code>–<code>D7</code>), and an active-low control bus (<code>/MREQ</code>, <code>/IORQ</code>, <code>/RD</code>, <code>/WR</code>, <code>/M1</code>, <code>/WAIT</code>, <code>/RESET</code>).</p>
+                            <table class="manual-table">
+                                <thead>
+                                    <tr><th>Subsystem</th><th>Component</th><th>Bus Addressing</th><th>Functional Role</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td><b>CPU</b></td><td>Zilog Z80A (DIP-40)</td><td>0000H–FFFFH (64KB)</td><td>Central execution unit clocked at 1.7897725 MHz</td></tr>
+                                    <tr><td><b>Monitor ROM</b></td><td>2716 / 2732 EPROM (U2)</td><td>0000H–07FFH (2KB)</td><td>Resident keypad monitor, display multiplexer &amp; tape I/O</td></tr>
+                                    <tr><td><b>Expansion ROM</b></td><td>2716 / 2732 EPROM (U3)</td><td>0800H–0FFFH (2KB/4KB)</td><td>Auxiliary laboratory firmware (e.g. 1993 QuickBASIC PC-Link)</td></tr>
+                                    <tr><td><b>User SRAM</b></td><td>6116 2K×8 Static RAM (U4)</td><td>1000H–17FFH (2KB)</td><td>User program space (1000H–13CBH), monitor workspace &amp; stack</td></tr>
+                                    <tr><td><b>System PPI #1</b></td><td>Intel 8255A-5 (U5)</td><td>I/O Ports 80H–83H</td><td>Keypad scanning, 7-segment display drive, speaker &amp; cassette</td></tr>
+                                    <tr><td><b>User PPI #2</b></td><td>Intel 8255A-5 (U6)</td><td>I/O Ports 88H–8BH</td><td>External peripheral daughterboards (Traffic Light, Arm, etc.)</td></tr>
+                                    <tr><td><b>ZIF Socket</b></td><td>28-Pin ZIF Socket (U7)</td><td>Onboard Programmer</td><td>Hardware programmer for 2716 / 2732 UV-erasable EPROMs</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>1.3 Master Clock &amp; Instruction T-States</h3>
+                            <p>The master clock oscillator uses a standard <b>3.579545 MHz NTSC colorburst crystal</b> (<code>XTAL1</code>) buffered through a 74LS04 inverter stage and divided by two via a 74LS74 dual D-type flip-flop (<code>U12</code>). This delivers a symmetrical <b>1.7897725 MHz</b> clock (nominal 1.79 MHz) to the Z80 <code>CLK</code> pin (pin 6). Each clock cycle (T-state) has a duration of:</p>
+                            <div class="code-callout">$$T = \frac{1}{1.7897725 \text{ MHz}} \approx 558.7 \text{ ns}$$</div>
+                            <p>Basic Z80 instructions require 4 T-states for opcode fetch (M1 cycle: 2.235 μs). Internal register-to-register operations take 4 T-states, while memory read/write cycles require 7 to 11 T-states. Delay subroutines in the Monitor ROM are mathematically calibrated against this exact frequency.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>1.4 Memory Layout &amp; Dynamic RAM Detection (<code>ramchk</code>)</h3>
+                            <p>The ABC-80 hardware map allocates the lower 4KB (<code>0000H</code>–<code>0FFFH</code>) to ROM and the range <code>1000H</code>–<code>FFFFH</code> to RAM. On cold reset, the Monitor ROM executes the <code>ramchk</code> routine at <code>06DCH</code>: it writes test bit patterns (<code>55H</code> / <code>AAH</code>) to ascending memory boundaries, reading them back to determine the highest installed RAM address. On the standard trainer with a single 2KB 6116 SRAM, RAM ends at <code>17FFH</code>. When extended with 6264 or 62256 chips, the full 64KB boundary is supported.</p>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 2 -->
+                    <article class="book-chapter" id="manual-chapter-ch2" data-chapter="ch2">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 2</div>
+                            <h2>Hardware &amp; Front-Panel Tour</h2>
+                            <p class="chapter-lead">Anatomy of the molded beige chassis, PCB component layer, 7-segment display, tactile keypad matrix, speaker driver, and single-step circuit.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>2.1 The Classic Molded Beige Console Enclosure</h3>
+                            <p>The ABC-80 is housed in a distinctive molded beige-cream structural plastic enclosure measuring 563 mm wide by 756 mm deep in scaled digital representation. A stepped rim and recessed well cradle the authentic double-sided drilled printed circuit board (Page 98 artwork). The front panel is inclined towards the operator for comfortable tactile keypad data entry.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>2.2 Integrated Circuit Complement &amp; Glue Logic</h3>
+                            <p>All ICs on the ABC-80 are socketed dual in-line packages (DIP) adhering to authentic 1980s specifications:</p>
+                            <ul class="manual-bullets">
+                                <li><b>U1 (Z80A CPU)</b>: 40-pin DIP. Runs the Z80 instruction set with 158 instructions, dual register sets (<code>AF</code>/<code>BC</code>/<code>DE</code>/<code>HL</code> and <code>AF'</code>/<code>BC'</code>/<code>DE'</code>/<code>HL'</code>), index registers <code>IX</code>/<code>IY</code>, stack pointer <code>SP</code>, and program counter <code>PC</code>.</li>
+                                <li><b>U2 &amp; U3 (2716/2732 EPROMs)</b>: 24-pin DIP 600mil. U2 contains the 2KB Monitor ROM (<code>0000H</code>–<code>07FFH</code>). U3 provides the socket for expansion firmwares (<code>0800H</code>–<code>0FFFH</code>).</li>
+                                <li><b>U4 (6116 SRAM)</b>: 24-pin DIP 600mil. High-speed 2K×8 static RAM holding user code, register save buffers, and stack.</li>
+                                <li><b>U5 &amp; U6 (8255A-5 PPIs)</b>: 40-pin DIP. U5 manages the human-machine interface; U6 manages the external daughterboard interface.</li>
+                                <li><b>U7 (ZIF Socket)</b>: 28-pin levered Zero Insertion Force socket for programming 2716 and 2732 EPROMs.</li>
+                                <li><b>U8 (74LS138)</b>: 16-pin 3-to-8 line address decoder generating chip select pulses (<code>/CS_ROM0</code>, <code>/CS_ROM1</code>, <code>/CS_RAM</code>, <code>/CS_PPI1</code>, <code>/CS_PPI2</code>).</li>
+                                <li><b>U9 (74LS04)</b>: Hex inverters for crystal oscillator feedback, reset conditioning, and bus polarity inversion.</li>
+                                <li><b>U10 (74LS00) &amp; U11 (74LS10)</b>: NAND gates synthesizing read/write strobes and wait-state qualification.</li>
+                                <li><b>U12 (74LS74)</b>: Dual D-type flip-flop used for clock frequency division and the hardware single-step wait generator.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>2.3 6-Digit 7-Segment Multiplexed LED Display</h3>
+                            <p>The display consists of six red 7-segment LED displays arranged as four address digits (<code>A3</code>, <code>A2</code>, <code>A1</code>, <code>A0</code>) on the left and two data digits (<code>D1</code>, <code>D0</code>) on the right. Digit multiplexing is driven by 8255 PPI #1:</p>
+                            <ul class="manual-bullets">
+                                <li><b>Port B (81H)</b>: Active-low segment anode bus (<code>PB0</code>=seg a, <code>PB1</code>=seg b, <code>PB2</code>=seg c, <code>PB3</code>=seg d, <code>PB4</code>=seg e, <code>PB5</code>=seg f, <code>PB6</code>=seg g, <code>PB7</code>=decimal point).</li>
+                                <li><b>Port C (82H)</b>: Active-low digit cathode selection (<code>PC0</code>=A3, <code>PC1</code>=A2, <code>PC2</code>=A1, <code>PC3</code>=A0, <code>PC4</code>=D1, <code>PC5</code>=D0).</li>
+                            </ul>
+                            <p>The Monitor ROM subroutines <code>scd_k</code> (<code>04A6H</code>) and <code>scd_k1</code> (<code>04CDH</code>) sweep each cathode sequentially for approximately 1.5 ms, achieving a flicker-free refresh rate of ~110 Hz.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>2.4 Ferro-Magnetic Dynamic Speaker Audio Subsystem</h3>
+                            <p>The audio output transducer (marked <code>SP</code> on the silkscreen) is an authentic <b>8Ω 0.25W ferro-magnetic dynamic speaker</b> driven by a complementary push-pull transistor pair: <b>Q7 (9013 NPN)</b> and <b>Q8 (9012 PNP)</b>. The speaker driver is tied directly to <b>Port C bit 7 (PC7)</b> of 8255 PPI #1 (pin 14). By toggling PC7 between high and low logic levels, the CPU creates clean, high-amplitude square waves without loading the digital bus.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>2.5 Front-Panel LEDs &amp; Single-Step Circuit</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Indicator</th><th>Color</th><th>Circuit Source</th><th>Significance</th></tr></thead>
+                                <tbody>
+                                    <tr><td><b>EP</b></td><td>Red</td><td>Q1 / EPROM Vpp switch</td><td>Illuminated when high programming voltage (+21V/+25V) is applied to U7.</td></tr>
+                                    <tr><td><b>HALT</b></td><td>Red</td><td>Z80 pin 18 (<code>/HALT</code>)</td><td>Illuminated when the CPU executes opcode <code>76H</code> and suspends bus activity.</td></tr>
+                                    <tr><td><b>SP-G</b></td><td>Green</td><td>74LS74 single-step gate</td><td>Indicates that the hardware single-step wait-state generator is armed.</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 3 -->
+                    <article class="book-chapter" id="manual-chapter-ch3" data-chapter="ch3">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 3</div>
+                            <h2>Keypad &amp; Machine Code Tutorial</h2>
+                            <p class="chapter-lead">Cold reset, Address and Data operating modes, memory inspection, entering machine code, program termination, and register inspection.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>3.1 Cold Boot &amp; Hardware Reset</h3>
+                            <p>When power is applied or the red disc button (<code>RST</code>) is pressed, the CPU receives an active-low pulse on <code>/RESET</code>. The Z80 initializes <code>PC = 0000H</code>, configures 8255 PPI #1, performs memory sizing via <code>ramchk</code>, initializes the display buffer <code>dspbf</code> (<code>13F2H</code>–<code>13F7H</code>), and displays the welcome banner: <code>ABC-80</code>.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>3.2 Operating Modes: Address Mode vs. Data Mode</h3>
+                            <p>The ABC-80 front panel operates in two primary input modes indicated by the display's decimal points:</p>
+                            <ul class="manual-bullets">
+                                <li><b>Address Mode (ADRS)</b>: Press <kbd class="kbd-pill">ADRS</kbd> (or PC key <kbd class="kbd-key">A</kbd> / <kbd class="kbd-key">M</kbd>). All four decimal points on address digits <code>A3. A2. A1. A0.</code> illuminate. Hex keypad presses shift in from the right to form a 16-bit address (e.g. <code>1 0 0 0</code>).</li>
+                                <li><b>Data Mode (DATA)</b>: Press <kbd class="kbd-pill">DATA</kbd> (or PC key <kbd class="kbd-key">D</kbd>). The two decimal points on data digits <code>D1. D0.</code> illuminate. Hex keypad presses shift in to form an 8-bit byte that is written directly into the current memory address in RAM.</li>
+                                <li><b>Next Address (+)</b>: Press <kbd class="kbd-pill">+</kbd> (or PC key <kbd class="kbd-key">+</kbd> / <kbd class="kbd-key">→</kbd>). Increments the memory pointer by 1 and displays the byte stored at that location.</li>
+                                <li><b>Single-Step Execution (-)</b>: Press <kbd class="kbd-pill">-</kbd> (or PC key <kbd class="kbd-key">-</kbd> / <kbd class="kbd-key">F10</kbd>). Triggers single-instruction execution through the 74LS74 wait-state gate.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>3.3 Tutorial: Entering a Machine Code Program</h3>
+                            <p>Follow these exact steps to enter and run a test program that writes alternating patterns to Port B:</p>
+                            <ol class="manual-steps">
+                                <li>Press <kbd class="kbd-pill">ADRS</kbd> and enter <code>1 0 0 0</code>. The display shows <code>1000 xx</code>.</li>
+                                <li>Press <kbd class="kbd-pill">DATA</kbd>. Decimal points appear under the data digits.</li>
+                                <li>Enter <code>3 E</code> (opcode for <code>LD A, n</code>), then press <kbd class="kbd-pill">+</kbd>. Address advances to <code>1001</code>.</li>
+                                <li>Enter <code>5 5</code> (immediate operand 55H), then press <kbd class="kbd-pill">+</kbd>. Address advances to <code>1002</code>.</li>
+                                <li>Enter <code>D 3</code> (opcode for <code>OUT (n), A</code>), then press <kbd class="kbd-pill">+</kbd>. Address advances to <code>1003</code>.</li>
+                                <li>Enter <code>8 1</code> (Port B address 81H), then press <kbd class="kbd-pill">+</kbd>. Address advances to <code>1004</code>.</li>
+                                <li>Enter <code>1 8</code> (opcode for <code>JR e</code>), then press <kbd class="kbd-pill">+</kbd>. Address advances to <code>1005</code>.</li>
+                                <li>Enter <code>F C</code> (relative offset -4 to loop back to 1002H), then press <kbd class="kbd-pill">+</kbd>.</li>
+                            </ol>
+                        </section>
+                        <section class="chapter-section">
+                            <div class="manual-warning-card">
+                                <h4>CRITICAL RULE: Re-Arm Address Before GO EXEC</h4>
+                                <p>After entering data or loading from cassette tape, the current address pointer points to the address <i>after</i> your last byte (e.g. <code>1006H</code>). If you press <kbd class="kbd-pill">GO EXEC</kbd> immediately, the CPU will execute uninitialized memory and crash! <b>Always press <kbd class="kbd-pill">ADRS</kbd> + <code>1 0 0 0</code> + <kbd class="kbd-pill">GO EXEC</kbd>!</b></p>
+                            </div>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>3.4 Program Termination &amp; Returning to Monitor</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Instruction</th><th>Machine Code</th><th>Behavior</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>RST 38H</code></td><td><code>FF</code></td><td>Software breakpoint trap. Pushes PC to stack, vectors to 0038H, saves all CPU registers to RAM workspace, and restores the monitor prompt.</td></tr>
+                                    <tr><td><code>HALT</code></td><td><code>76</code></td><td>Suspends CPU bus activity. The <code>HALT</code> LED lights up. Press <kbd class="kbd-pill">RST</kbd> to recover.</td></tr>
+                                    <tr><td><code>JP 0070H</code></td><td><code>C3 70 00</code></td><td>Direct jump to the monitor warm-start entry point (<code>entry1</code>). Restores prompt without re-sizing RAM.</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>3.5 Inspecting CPU Registers in RAM Workspace</h3>
+                            <p>When returning to the Monitor via <code>RST 38H</code> or <code>JP 0070H</code>, all CPU registers are saved in a structured table in RAM (<code>13CCH</code>–<code>13E3H</code>). You can inspect and modify them using standard <kbd class="kbd-pill">ADRS</kbd> and <kbd class="kbd-pill">DATA</kbd> commands:</p>
+                            <table class="manual-table">
+                                <thead><tr><th>RAM Address</th><th>Register Pair</th><th>RAM Address</th><th>Register Pair</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>13CCH–13CDH</code></td><td>IX (low, high)</td><td><code>13D8H–13D9H</code></td><td>HL (L, H)</td></tr>
+                                    <tr><td><code>13CEH–13CFH</code></td><td>IY (low, high)</td><td><code>13DAH–13DBH</code></td><td>DE (E, D)</td></tr>
+                                    <tr><td><code>13D0H–13D1H</code></td><td>HL' alternate (L', H')</td><td><code>13DCH–13DDH</code></td><td>BC (C, B)</td></tr>
+                                    <tr><td><code>13D2H–13D3H</code></td><td>DE' alternate (E', D')</td><td><code>13DEH–13DFH</code></td><td>AF (F flags, A accum)</td></tr>
+                                    <tr><td><code>13D4H–13D5H</code></td><td>BC' alternate (C', B')</td><td><code>13E0H–13E1H</code></td><td>SP stack pointer</td></tr>
+                                    <tr><td><code>13D6H–13D7H</code></td><td>AF' alternate (F', A')</td><td><code>13E2H–13E3H</code></td><td>PC program counter</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 4 -->
+                    <article class="book-chapter" id="manual-chapter-ch4" data-chapter="ch4">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 4</div>
+                            <h2>Cassette Tape Storage (TO/FROM TAPE)</h2>
+                            <p class="chapter-lead">Kansas City / FSK audio modulation, 7-byte header format, recording and playback operating sequences, and checksum diagnostics.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>4.1 Kansas City / FSK Audio Modulation Standard</h3>
+                            <p>The ABC-80 records digital machine code onto audio cassette tape using Frequency Shift Keying (FSK). The audio tone frequencies are derived directly from the Z80 CPU clock:</p>
+                            <ul class="manual-bullets">
+                                <li><b>Leader Tone &amp; Logic '0'</b>: 1.00 kHz square wave (8 half-periods per data bit).</li>
+                                <li><b>Logic '1'</b>: 2.00 kHz square wave (16 half-periods per data bit).</li>
+                                <li><b>Hardware Wiring</b>: 8255 PPI #1 Port C bit 6 (<code>PC6</code>) drives the MIC audio output jack; Port A bit 7 (<code>PA7</code>) reads the Schmitt-trigger amplified EAR audio input jack.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>4.2 Tape Frame Format &amp; 7-Byte <code>stepbf</code> Header</h3>
+                            <p>Every cassette recording begins with ~1,000 cycles (1.0 s) of a 1 kHz leader tone, followed by an alignment sync byte (<code>E6H</code>), a 7-byte header buffer (<code>stepbf</code> at <code>17BFH</code>), a 0.5 s inter-block tone, the data payload, and an 8-bit checksum byte:</p>
+                            <table class="manual-table">
+                                <thead><tr><th>Byte Offset</th><th>Buffer Field</th><th>Format</th><th>Description</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>00H–01H</code></td><td>File ID</td><td>16-bit little-endian</td><td>4-digit hex program identifier (e.g. 0001H–0103H)</td></tr>
+                                    <tr><td><code>02H–03H</code></td><td>Start Address</td><td>16-bit little-endian</td><td>Target memory load address (typically 1000H)</td></tr>
+                                    <tr><td><code>04H–05H</code></td><td>End Address</td><td>16-bit little-endian</td><td>Last memory address included in payload</td></tr>
+                                    <tr><td><code>06H</code></td><td>Header Checksum</td><td>8-bit arithmetic sum</td><td>Sum of bytes 00H through 05H modulo 256</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>4.3 Step-by-Step Walkthrough: TO TAPE (Saving Programs)</h3>
+                            <ol class="manual-steps">
+                                <li>Place the Cassette Deck in record standby mode by clicking <kbd class="kbd-pill">● REC</kbd>.</li>
+                                <li>On the ABC-80 keypad, press <kbd class="kbd-pill">TO TAPE</kbd> (or PC key <kbd class="kbd-key">W</kbd>). The display prompts for the File ID.</li>
+                                <li>Enter the 4-digit hex File ID (e.g., <code>0 0 0 1</code>).</li>
+                                <li>Press <kbd class="kbd-pill">ADRS</kbd> and enter the 4-digit start address (e.g., <code>1 0 0 0</code>).</li>
+                                <li>Press <kbd class="kbd-pill">ADRS</kbd> and enter the 4-digit end address (e.g., <code>1 0 5 5</code>).</li>
+                                <li>Press <kbd class="kbd-pill">GO EXEC</kbd>. The CPU outputs the leader tone, sync byte, header block, payload data, and checksum. When finished, the Monitor returns to Address Mode.</li>
+                            </ol>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>4.4 Step-by-Step Walkthrough: FROM TAPE (Loading Programs)</h3>
+                            <ol class="manual-steps">
+                                <li>In the Cassette Deck, enter the 4-digit File ID (e.g., <code>0001</code>) and click <kbd class="kbd-pill">▶ PLAY</kbd>. The reels turn and the 1 kHz tone begins streaming.</li>
+                                <li>On the ABC-80 keypad, press <kbd class="kbd-pill">FROM TAPE</kbd> (or PC key <kbd class="kbd-key">L</kbd>).</li>
+                                <li>Enter the 4-digit File ID (e.g., <code>0 0 0 1</code>).</li>
+                                <li>Press <kbd class="kbd-pill">GO EXEC</kbd>.</li>
+                                <li>The Monitor locks onto the leader tone, reads the header, flashes the File ID on the 6-digit display for ~1.5 seconds, streams the code into RAM, and stops at the end address in Data Mode.</li>
+                                <li><b>Re-arm and execute:</b> Press <kbd class="kbd-pill">ADRS</kbd> + <code>1 0 0 0</code> + <kbd class="kbd-pill">GO EXEC</kbd>!</li>
+                            </ol>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>4.5 Diagnostics: Checksum Error (<code>-Err</code>)</h3>
+                            <p>If tape audio is corrupted or audio volume is too low, the calculated 8-bit checksum will mismatch the recorded checksum. The Monitor aborts loading and displays <code>-Err</code> on the data digits. If this occurs, press <kbd class="kbd-pill">RST</kbd>, rewind the tape, and re-run the <code>FROM TAPE</code> sequence.</p>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 5 -->
+                    <article class="book-chapter" id="manual-chapter-ch5" data-chapter="ch5">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 5</div>
+                            <h2>Cassette Tape Program Catalog (All 33 Programs)</h2>
+                            <p class="chapter-lead">Complete laboratory library from <i>《Z80 微電腦入門 — 原理與應用程式》</i> (Labs 01–29) plus 4 custom interactive demonstration programs (Showcase 0100–0103).</p>
+                        </header>
+                        <div class="tape-catalog-guide-banner">
+                            <div class="guide-banner-title">Standard 3-Step Program Loading Procedure</div>
+                            <ol class="guide-steps-list">
+                                <li><b>Select Slot &amp; Start Deck:</b> In the Cassette Deck tab, pick the 4-digit File ID (or click <i>Load Slot</i> on any card below) and press <kbd class="kbd-pill">▶ PLAY</kbd>.</li>
+                                <li><b>Load via Monitor:</b> On the ABC-80 keypad, press <kbd class="kbd-pill">FROM TAPE</kbd> + <code>&lt;d3&gt;&lt;d2&gt;&lt;d1&gt;&lt;d0&gt;</code> + <kbd class="kbd-pill">GO EXEC</kbd>. Wait until the filename flashes and the end address appears in Data mode.</li>
+                                <li><b>Re-Arm Address &amp; Execute:</b> Press <kbd class="kbd-pill">ADRS</kbd> + <code>1 0 0 0</code> + <kbd class="kbd-pill">GO EXEC</kbd>.</li>
+                            </ol>
+                        </div>
+                        <div class="book-catalog-filter-bar" id="manual-cat-filters">
+                            <button type="button" class="book-cat-btn active" data-cat="all">All Programs (33)</button>
+                            <button type="button" class="book-cat-btn" data-cat="basic">Basic &amp; Math (0001–0008)</button>
+                            <button type="button" class="book-cat-btn" data-cat="display">Display &amp; Sound (0009–0019)</button>
+                            <button type="button" class="book-cat-btn" data-cat="clock">Clocks &amp; Instruments (0020–0023)</button>
+                            <button type="button" class="book-cat-btn" data-cat="extio">External I/O Labs (0024–0029)</button>
+                            <button type="button" class="book-cat-btn" data-cat="showcase">Showcase Demos (0100–0103)</button>
+                        </div>
+                        <div id="manual-tape-cards" class="book-tape-cards-grid">
+                            <!-- Cards rendered dynamically by app.js from TAPE_PROGRAMS_CATALOG -->
+                        </div>
+                    </article>
+
+                    <!-- Chapter 6 -->
+                    <article class="book-chapter" id="manual-chapter-ch6" data-chapter="ch6">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 6</div>
+                            <h2>External I/O Labs (Exercises 24–29)</h2>
+                            <p class="chapter-lead">Hardware schematics, port assignments, and operating theory for the 6 modular peripheral daughterboards.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>6.1 External Peripheral Interface Architecture</h3>
+                            <p>Exercises 24 through 29 interface the ABC-80 with physical external hardware experiments via 8255 PPI #2 and expansion bus connectors. The emulator provides high-fidelity interactive digital twin simulations for all six circuits, selectable from the <b>EXT I/O</b> dropdown in the board toolbar.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.2 Exercise 24: Traffic Light Controller (實習 24：紅綠燈)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Port</b>: 8255 #1 Port B (<code>81H</code>).</li>
+                                <li><b>Wiring</b>: PB0: NS Red, PB1: NS Yellow, PB2: NS Green; PB3: EW Red, PB4: EW Yellow, PB5: EW Green. Active-high logic.</li>
+                                <li><b>Sequence</b>: Cycles through North-South Green (0CH) $ightarrow$ North-South Yellow blink (0AH) $ightarrow$ All Red (08H) $ightarrow$ East-West Green (21H) $ightarrow$ East-West Yellow blink (11H) $ightarrow$ All Red (01H).</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.3 Exercise 25: 8-LED Sequence Chaser (實習 25：燈光順序控制)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Port</b>: 8255 #1 Port B (<code>81H</code>).</li>
+                                <li><b>Wiring</b>: PB0 through PB7 connected to cathodes of 8 discrete LEDs (active-low drive).</li>
+                                <li><b>Sequence</b>: Starts with <code>FEH</code> (11111110b), executing <code>RLCA</code> in a loop with a 16-bit delay counter, rotating the single lit LED continuously.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.4 Exercise 26: X-Y Oscilloscope Vector Pattern (實習 26：顯示圖案)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Port</b>: 8255 #1 Port B (<code>81H</code>).</li>
+                                <li><b>DAC Network</b>: Dual 4-bit R-2R resistor ladder DACs. Upper nibble (PB4–PB7) generates analog Y deflection (0–5V); lower nibble (PB0–PB3) generates analog X deflection (0–5V).</li>
+                                <li><b>Sequence</b>: Streams 37 coordinate pairs from RAM (1040H–1064H) at high speed, tracing geometric vector figures on an oscilloscope in X-Y Lissajous mode.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.5 Exercise 27: School Bell Clock &amp; Relay (實習 27：校鐘)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Port</b>: 8255 #1 Port C (<code>82H</code>).</li>
+                                <li><b>Relay Circuit</b>: Bit 6 (<code>PC6</code>) controls an NPN transistor driving an electromechanical bell relay coil (active-low).</li>
+                                <li><b>Sequence</b>: 24-hour BCD clock display. When minutes match :00 or :10 for hours $\ge 08:00$, the relay energizes and an 8-note melodic chime plays on the speaker.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.6 Exercise 28: Automated Home Appliance Timer (實習 28：家庭電器電腦化控制)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Port</b>: Auxiliary 8255 #2 Port C (<code>42H</code>).</li>
+                                <li><b>Relay Outputs</b>: Controls 8 independent 110V/220V AC relays for lighting, water heaters, air conditioners, and irrigation pumps.</li>
+                                <li><b>Sequence</b>: Compares current 24-hour time against a 37-byte programmable schedule table at 1100H–1124H to automatically switch loads on and off.</li>
+                            </ul>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>6.7 Exercise 29: 3-Axis Robotic Arm &amp; Gripper (實習 29：模擬機械手)</h3>
+                            <ul class="manual-bullets">
+                                <li><b>Ports</b>: Expansion 8255: Port 00H (Base rotation), Port 01H (Shoulder elevation), Port 02H (Elbow/Wrist &amp; Solenoid clamp).</li>
+                                <li><b>Drive Scheme</b>: 4-phase unipolar stepper motor drive sequences with half-step and full-step tables at 1100H–1173H.</li>
+                                <li><b>Sequence</b>: Executes repeatable automated pick-and-place trajectories, picking objects and transferring them to designated drop zones.</li>
+                            </ul>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 7 -->
+                    <article class="book-chapter" id="manual-chapter-ch7" data-chapter="ch7">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 7</div>
+                            <h2>QuickBASIC 4.0 PC-Link &amp; CRT</h2>
+                            <p class="chapter-lead">1993 PC/AT host connection, parallel handshake protocol on ports C0H–C3H, resident server loop at 0B00H, and CRT monitor controls.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>7.1 The 1993 QuickBASIC 4.0 PC-Link Heritage</h3>
+                            <p>In 1993, Charles Chiou developed a custom EPROM replacement for the ABC-80 that connected the trainer to an IBM PC/AT clone running Microsoft QuickBASIC 4.0. Using an 8255 parallel handshake cable, the PC acts as a smart host terminal, enabling high-speed assembly uploading, memory editing, and disassembling on a color VGA CRT monitor.</p>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>7.2 Connecting the Emulated PC/AT CRT Terminal</h3>
+                            <ol class="manual-steps">
+                                <li>In the board toolbar, change the <b>ROM</b> selector to <b>Charles Chiou's ROM (1993)</b>. The trainer power-cycles and displays <code>009B</code>.</li>
+                                <li>In the main header, click the <b>PC/AT CRT</b> button to open the floating early-'90s VGA CRT window.</li>
+                                <li>Press <kbd class="kbd-pill">F1</kbd> to initiate the hardware handshake. The CRT displays <i>ABC-80 SYSTEM READY</i> and establishes communication with the server loop running at <code>0B00H</code>.</li>
+                            </ol>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>7.3 QuickBASIC Environment Hotkeys</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Command</th><th>Key</th><th>Description</th></tr></thead>
+                                <tbody>
+                                    <tr><td><b>Connect</b></td><td><kbd>F1</kbd></td><td>Establish bidirectional parallel handshake with the ABC-80 CPU.</td></tr>
+                                    <tr><td><b>ADDs</b></td><td><kbd>A</kbd></td><td>Set the starting memory address pointer for display and entry.</td></tr>
+                                    <tr><td><b>Data</b></td><td><kbd>D</kbd></td><td>Enter machine code bytes into the target RAM buffer.</td></tr>
+                                    <tr><td><b>INS</b></td><td><kbd>I</kbd></td><td>Insert a byte into the current memory address, shifting subsequent bytes.</td></tr>
+                                    <tr><td><b>DEL</b></td><td><kbd>X</kbd></td><td>Delete a byte from the current memory address, shifting subsequent bytes.</td></tr>
+                                    <tr><td><b>Run</b></td><td><kbd>R</kbd></td><td>Execute the machine code program starting at the active address.</td></tr>
+                                    <tr><td><b>Exit</b></td><td><kbd>Shift+Esc</kbd></td><td>Exit PC-Link and return execution to the ABC-80 standalone keypad prompt (009BH).</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                    </article>
+
+                    <!-- Chapter 8 -->
+                    <article class="book-chapter" id="manual-chapter-ch8" data-chapter="ch8">
+                        <header class="chapter-header">
+                            <div class="chapter-badge">CHAPTER 8</div>
+                            <h2>Monitor ROM &amp; Memory Reference</h2>
+                            <p class="chapter-lead">Authoritative memory map, RAM workspace variables, Monitor ROM API subroutines, and 7-segment hex glyph encoding table.</p>
+                        </header>
+                        <section class="chapter-section">
+                            <h3>8.1 Complete Memory Map Reference (0000H–FFFFH)</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Address Range</th><th>Size</th><th>Device</th><th>Description</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>0000H–07FFH</code></td><td>2048 B</td><td>2716 EPROM (U2)</td><td>Resident Monitor ROM (Reset vectors, keypad, display, cassette tape)</td></tr>
+                                    <tr><td><code>0800H–0FFFH</code></td><td>2048 B</td><td>2716/32 EPROM (U3)</td><td>Expansion ROM socket (QuickBASIC PC-Link or user custom ROM)</td></tr>
+                                    <tr><td><code>1000H–13CBH</code></td><td>972 B</td><td>6116 SRAM (U4)</td><td>User program RAM area (standard load address for all labs)</td></tr>
+                                    <tr><td><code>13CCH–13E3H</code></td><td>24 B</td><td>6116 SRAM (U4)</td><td>CPU saved register workspace (IX, IY, HL', DE', BC', AF', HL, DE, BC, AF, SP, PC)</td></tr>
+                                    <tr><td><code>13E4H–17FAH</code></td><td>1047 B</td><td>6116 SRAM (U4)</td><td>Monitor system buffers, display buffer (dspbf), and tape buffers</td></tr>
+                                    <tr><td><code>17FBH–17FFH</code></td><td>5 B</td><td>6116 SRAM (U4)</td><td>Hardware monitor stack area (top of onboard 2KB SRAM)</td></tr>
+                                    <tr><td><code>1800H–FFFFH</code></td><td>59392 B</td><td>Expansion RAM</td><td>Optional extended memory space dynamically probed by ramchk (06DCH)</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>8.2 Monitor ROM RAM System Workspace Variables</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Address</th><th>Identifier</th><th>Size</th><th>Description</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>13EEH</code></td><td><code>kbuf</code></td><td>1 B</td><td>Active pressed key code byte</td></tr>
+                                    <tr><td><code>13F1H</code></td><td><code>dpf</code></td><td>1 B</td><td>Display mode flag: <code>00H</code> = Address Mode (ADRS), <code>01H</code> = Data Mode (DATA)</td></tr>
+                                    <tr><td><code>13F2H–13F7H</code></td><td><code>dspbf</code></td><td>6 B</td><td>7-segment display font buffer: <code>[D0, D1, A0, A1, A2, A3]</code></td></tr>
+                                    <tr><td><code>13F8H–13F9H</code></td><td><code>adrs</code></td><td>2 B</td><td>Current 16-bit memory address pointer (little-endian)</td></tr>
+                                    <tr><td><code>17BFH–17C5H</code></td><td><code>stepbf</code></td><td>7 B</td><td>Cassette header buffer: <code>[FileID(2), Start(2), End(2), Checksum(1)]</code></td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>8.3 Monitor ROM Subroutines API Table</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Routine</th><th>Address</th><th>Inputs</th><th>Outputs</th><th>Description</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>rst38</code></td><td><code>0038H</code></td><td>None</td><td>None</td><td>Software breakpoint handler; saves registers and restores monitor.</td></tr>
+                                    <tr><td><code>entry1</code></td><td><code>0070H</code></td><td>None</td><td>None</td><td>Warm-start monitor entry; refreshes display without RAM erase.</td></tr>
+                                    <tr><td><code>ewt</code></td><td><code>0193H</code></td><td>stepbf</td><td>Carry</td><td>Write memory block to audio cassette tape (TO TAPE).</td></tr>
+                                    <tr><td><code>ert</code></td><td><code>01CEH</code></td><td>stepbf</td><td>Carry</td><td>Read memory block from audio cassette tape (FROM TAPE).</td></tr>
+                                    <tr><td><code>music</code></td><td><code>0411H</code></td><td>HL = score</td><td>None</td><td>Play encoded musical score from memory table through speaker.</td></tr>
+                                    <tr><td><code>ms3k17</code></td><td><code>0464H</code></td><td>None</td><td>None</td><td>Emit short 3 kHz speaker click.</td></tr>
+                                    <tr><td><code>ms1k</code></td><td><code>0470H</code></td><td>HL = cycles</td><td>None</td><td>Emit 1 kHz square wave for specified cycles on speaker.</td></tr>
+                                    <tr><td><code>ms2k</code></td><td><code>0475H</code></td><td>HL = cycles</td><td>None</td><td>Emit 2 kHz square wave for specified cycles on speaker.</td></tr>
+                                    <tr><td><code>sound</code></td><td><code>047CH</code></td><td>C = freq, B = dur</td><td>None</td><td>Tone generator subroutine driving speaker.</td></tr>
+                                    <tr><td><code>scd_k</code></td><td><code>04A6H</code></td><td>None</td><td>A = key, Z flag</td><td>Multiplex 6-digit display once and scan keypad for pressed key.</td></tr>
+                                    <tr><td><code>scd_k1</code></td><td><code>04CDH</code></td><td>None</td><td>None</td><td>Multiplex 6-digit display once without keypad polling.</td></tr>
+                                    <tr><td><code>adrsdp</code></td><td><code>0504H</code></td><td>DE = 16-bit addr</td><td>dspbf</td><td>Convert 16-bit binary in DE into 4 address digits A3..A0.</td></tr>
+                                    <tr><td><code>dadp</code></td><td><code>0511H</code></td><td>A = byte</td><td>dspbf</td><td>Convert 8-bit binary in A into 2 data digits D1..D0.</td></tr>
+                                    <tr><td><code>twobyseg</code></td><td><code>0525H</code></td><td>A = byte</td><td>HL font</td><td>Convert 8-bit byte into two 7-segment segment font bytes.</td></tr>
+                                    <tr><td><code>ramchk</code></td><td><code>06DCH</code></td><td>None</td><td>HL = max RAM</td><td>Dynamic RAM sizing routine executed at cold reset.</td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                        <section class="chapter-section">
+                            <h3>8.4 7-Segment Hex Glyph Truth Table</h3>
+                            <table class="manual-table">
+                                <thead><tr><th>Glyph</th><th>Hex Byte</th><th>Active Segments</th><th>Binary Pattern (Active-Low: 0 = Lit)</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>0</code></td><td><code>03H</code></td><td>a, b, c, d, e, f</td><td><code>0000 0011b</code></td></tr>
+                                    <tr><td><code>1</code></td><td><code>9FH</code></td><td>b, c</td><td><code>1001 1111b</code></td></tr>
+                                    <tr><td><code>2</code></td><td><code>25H</code></td><td>a, b, d, e, g</td><td><code>0010 0101b</code></td></tr>
+                                    <tr><td><code>3</code></td><td><code>0DH</code></td><td>a, b, c, d, g</td><td><code>0000 1101b</code></td></tr>
+                                    <tr><td><code>4</code></td><td><code>99H</code></td><td>b, c, f, g</td><td><code>1001 1001b</code></td></tr>
+                                    <tr><td><code>5</code></td><td><code>49H</code></td><td>a, c, d, f, g</td><td><code>0100 1001b</code></td></tr>
+                                    <tr><td><code>6</code></td><td><code>41H</code></td><td>a, c, d, e, f, g</td><td><code>0100 0001b</code></td></tr>
+                                    <tr><td><code>7</code></td><td><code>1FH</code></td><td>a, b, c</td><td><code>0001 1111b</code></td></tr>
+                                    <tr><td><code>8</code></td><td><code>01H</code></td><td>a, b, c, d, e, f, g</td><td><code>0000 0001b</code></td></tr>
+                                    <tr><td><code>9</code></td><td><code>09H</code></td><td>a, b, c, d, f, g</td><td><code>0000 1001b</code></td></tr>
+                                    <tr><td><code>A</code></td><td><code>11H</code></td><td>a, b, c, e, f, g</td><td><code>0001 0001b</code></td></tr>
+                                    <tr><td><code>b</code></td><td><code>C1H</code></td><td>c, d, e, f, g</td><td><code>1100 0001b</code></td></tr>
+                                    <tr><td><code>C</code></td><td><code>63H</code></td><td>a, d, e, f</td><td><code>0110 0011b</code></td></tr>
+                                    <tr><td><code>d</code></td><td><code>85H</code></td><td>b, c, d, e, g</td><td><code>1000 0101b</code></td></tr>
+                                    <tr><td><code>E</code></td><td><code>61H</code></td><td>a, d, e, f, g</td><td><code>0110 0001b</code></td></tr>
+                                    <tr><td><code>F</code></td><td><code>71H</code></td><td>a, e, f, g</td><td><code>0111 0001b</code></td></tr>
+                                </tbody>
+                            </table>
+                        </section>
+                    </article>
+
+                </div>
             </div>
         </div>
     </div>
@@ -2532,7 +3034,7 @@
         <div class="ai-hand-indicator">AI</div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=5"></script>
 
 </body>
 </html>
