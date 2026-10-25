@@ -414,6 +414,17 @@ TEST(Abc80Config, DebPackageMatchesReadmeVersionAndSystemdSpec)
     CHECK_TRUE(std::filesystem::exists(tmpDirStr + "/root/etc/abc-80/exercises/qb"));
     CHECK_TRUE(std::filesystem::exists(tmpDirStr + "/root/etc/abc-80/programs"));
 
+    for (const char *webRel : {"web/index.html", "web/app.js", "web/style.css"}) {
+        std::string srcContent = readFileText(webRel);
+        if (srcContent.empty()) {
+            srcContent = readFileText(std::string("../") + webRel);
+        }
+        CHECK_FALSE(srcContent.empty());
+        std::string pkgContent = readFileText(tmpDirStr + "/root/etc/abc-80/" + webRel);
+        LONGS_EQUAL(srcContent.size(), pkgContent.size());
+        CHECK_TRUE(srcContent == pkgContent);
+    }
+
     runCmd("rm -rf '" + tmpDirStr + "'");
 }
 

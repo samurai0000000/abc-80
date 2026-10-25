@@ -135,6 +135,9 @@ if(UNIX AND NOT APPLE AND NOT ENABLE_ASAN)
                 "${CMAKE_CURRENT_SOURCE_DIR}/packaging/postinst"
                 "${CMAKE_CURRENT_SOURCE_DIR}/packaging/prerm"
                 "${CMAKE_CURRENT_SOURCE_DIR}/packaging/postrm"
+                "${CMAKE_CURRENT_SOURCE_DIR}/web/index.html"
+                "${CMAKE_CURRENT_SOURCE_DIR}/web/app.js"
+                "${CMAKE_CURRENT_SOURCE_DIR}/web/style.css"
         COMMENT "Generating Debian package: ${ABC80_DEB_OUTPUT}"
         VERBATIM
     )

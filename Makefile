@@ -36,6 +36,7 @@ endif
 	@$(MAKE) --no-print-directory tapes
 
 deb:
+	@rm -f build/abc-80_*.deb
 	@if [ "$(SANITIZE)" = "1" ]; then \
 		$(MAKE) SANITIZE=0 all; \
 	else \
