@@ -405,7 +405,7 @@ TEST(Abc80Config, DebPackageMatchesReadmeVersionAndSystemdSpec)
     std::string cfgErr;
     CHECK_TRUE_TEXT(parsedCfg.loadFile(cfgPath, &cfgErr), cfgErr.c_str());
     LONGS_EQUAL(8008, parsedCfg.server().port);
-    STRCMP_EQUAL("vintage", parsedCfg.server().rom.c_str());
+    STRCMP_EQUAL("monitor", parsedCfg.server().rom.c_str());
 
     CHECK_TRUE(std::filesystem::exists(tmpDirStr + "/root/etc/abc-80/build/rom.bin"));
     CHECK_TRUE(std::filesystem::exists(tmpDirStr + "/root/etc/abc-80/vintage/rom.abc"));

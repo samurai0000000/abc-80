@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;700;800&family=Inter:wght@400;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
     <style>
         .col-left-chips {
             position: relative !important;
@@ -3034,7 +3034,42 @@
         <div class="ai-hand-indicator">AI</div>
     </div>
 
-    <script src="app.js?v=5"></script>
+    <!-- Splash / Welcome Modal Dialog -->
+    <div id="splash-modal" class="splash-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="splash-title">
+        <div class="splash-card">
+            <div class="splash-badge">Z80A @ 1.79 MHz &bull; SINGLE-BOARD MICROCOMPUTER DIGITAL TWIN</div>
+            <div class="splash-title-row">
+                <h1 id="splash-title">ABC-80 Microcomputer Emulator</h1>
+                <span class="splash-version-pill">v1.1.2</span>
+            </div>
+            <p class="splash-description">
+                Interactive digital twin of the 1980s Taiwanese Chuan-Hwa Book Co. (全華科技圖書)
+                ABC-80 educational trainer. Features a cycle-accurate Z80A CPU, dual 8255A PPIs,
+                6-digit 7-segment display, 24-key matrix keypad, 8&Omega; dynamic speaker,
+                Kansas City FSK cassette tape deck, and external I/O peripheral expansion boards.
+            </p>
+            <div class="splash-meta-grid">
+                <div class="splash-meta-row">
+                    <span class="splash-meta-label">Author</span>
+                    <span class="splash-meta-val">Charles Chiou</span>
+                </div>
+                <div class="splash-meta-row">
+                    <span class="splash-meta-label">Default Firmware</span>
+                    <span class="splash-meta-val">Monitor from the Book (2 KB EPROM)</span>
+                </div>
+                <div class="splash-meta-row">
+                    <span class="splash-meta-label">Copyright</span>
+                    <span class="splash-meta-val">Copyright (C) 2026, Charles Chiou. All rights reserved.</span>
+                </div>
+            </div>
+            <div class="splash-actions">
+                <button id="btn-splash-ok" class="splash-ok-btn" type="button">OK</button>
+                <div class="splash-boot-hint">Click OK to power on the board and enable startup audio</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=6"></script>
 
 </body>
 </html>

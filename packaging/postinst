@@ -11,6 +11,10 @@ if [ "$1" = "configure" ]; then
     install -d -m 0755 -o root -g root /etc/abc-80
     install -d -m 0755 -o root -g root /etc/abc-80/programs
 
+    if [ -n "$2" ] && dpkg --compare-versions "$2" le-nl "1.1.1" && [ -f /etc/abc-80/abc-80.cfg ]; then
+        sed -i 's/rom = "vintage";/rom = "monitor";/' /etc/abc-80/abc-80.cfg || true
+    fi
+
     if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
         systemctl enable abc-80.service >/dev/null || true

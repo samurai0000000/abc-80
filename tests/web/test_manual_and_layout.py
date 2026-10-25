@@ -299,3 +299,159 @@ def test_mobile_responsive_layout_and_manual_drawer(panel):
         what="sidebar mobile-toc-open removed after chapter selection",
     )
     assert page.is_visible("#manual-chapter-ch3")
+
+
+def test_splash_modal_holds_boot_and_unlocks_startup_audio_on_visit_and_reload(abc80_server, page):
+    page.goto(f"{abc80_server.url}/?splash=1", wait_until="domcontentloaded")
+
+    # Verify splash modal is visible
+    wait_for(
+        lambda: not page.locator("#splash-modal").evaluate("el => el.classList.contains('hidden')"),
+        what="splash modal visible",
+    )
+    assert page.is_visible("#splash-modal")
+    assert "ABC-80 Microcomputer Emulator" in page.inner_text("#splash-title")
+    assert "v1.1.2" in page.inner_text(".splash-version-pill")
+    assert "Charles Chiou" in page.inner_text(".splash-meta-grid")
+    assert "Monitor from the Book (2 KB EPROM)" in page.inner_text(".splash-meta-grid")
+    assert "Copyright (C) 2026, Charles Chiou" in page.inner_text(".splash-meta-grid")
+
+    # Verify board is held prior to boot
+    assert page.evaluate("window.__abc80 && window.__abc80.splashHold === true")
+    assert page.evaluate("window.__abc80 && window.__abc80.ws === null")
+
+    # Click OK to dismiss splash and boot
+    page.click("#btn-splash-ok")
+    wait_for(
+        lambda: page.locator("#splash-modal").evaluate("el => el.classList.contains('hidden')"),
+        what="splash modal hidden after OK",
+    )
+    assert page.evaluate("window.__abc80 && window.__abc80.splashHold === false")
+
+    # Verify WebSocket connects with rom == 'monitor'
+    wait_for(
+        lambda: page.evaluate("window.__abc80 && window.__abc80.ws && window.__abc80.ws.readyState === 1"),
+        what="ws connected",
+    )
+    assert page.evaluate("document.getElementById('rom-select').value") == "monitor"
+
+    # Verify WebAudio unlocked and running
+    wait_for(
+        lambda: page.evaluate("window.__abc80 && window.__abc80.audioCtx && window.__abc80.audioCtx.state === 'running'"),
+        what="audioCtx running",
+    )
+
+    # Verify AbC-80 startup chime speaker edges arrive
+    wait_for(
+        lambda: page.evaluate(
+            "Boolean(window.__abc80 && window.__abc80.lastTelemetry && "
+            "(window.__abc80.lastTelemetry.speakerEdges.length > 0 || "
+            "window.__abc80.lastTelemetry.displayDigits.join('').includes('AbC')))"
+        ),
+        what="AbC-80 startup chime or display",
+    )
+
+    # Test page reload: splash holds again on reload and audio unlocks on second OK click
+    page.reload(wait_until="domcontentloaded")
+    wait_for(
+        lambda: not page.locator("#splash-modal").evaluate("el => el.classList.contains('hidden')"),
+        what="splash modal visible on reload",
+    )
+    assert page.evaluate("window.__abc80 && window.__abc80.splashHold === true")
+
+    page.click("#btn-splash-ok")
+    wait_for(
+        lambda: page.locator("#splash-modal").evaluate("el => el.classList.contains('hidden')"),
+        what="splash modal hidden after reload OK",
+    )
+    wait_for(
+        lambda: page.evaluate("window.__abc80 && window.__abc80.audioCtx && window.__abc80.audioCtx.state === 'running'"),
+        what="audioCtx running after reload",
+    )
+    wait_for(
+        lambda: page.evaluate(
+            "Boolean(window.__abc80 && window.__abc80.lastTelemetry && "
+            "(window.__abc80.lastTelemetry.speakerEdges.length > 0 || "
+            "window.__abc80.lastTelemetry.displayDigits.join('').includes('AbC')))"
+        ),
+        what="AbC-80 startup chime after reload",
+    )
+
+
+def test_mobile_single_screen_layout(abc80_server, browser):
+    ctx = browser.new_context(viewport={"width": 375, "height": 667}, has_touch=True)
+    page = ctx.new_page()
+    page.goto(abc80_server.url, wait_until="domcontentloaded")
+
+    # If splash modal is shown, dismiss it
+    if not page.locator("#splash-modal").evaluate("el => el.classList.contains('hidden')"):
+        page.click("#btn-splash-ok")
+
+    wait_for(
+        lambda: page.evaluate("window.__abc80 && window.__abc80.lastTelemetry !== null"),
+        what="telemetry on mobile",
+    )
+
+    # Verify #app-container has overflow-y visible (no nested scroll container trapping scroll)
+    overflow_y = page.evaluate("getComputedStyle(document.getElementById('app-container')).overflowY")
+    assert overflow_y == "visible", f"Expected app-container overflowY == 'visible', got {overflow_y}"
+
+    # Verify touch-action on #board-container and keypad buttons is 'pan-y'
+    board_touch_action = page.evaluate("getComputedStyle(document.getElementById('board-container')).touchAction")
+    assert "pan-y" in board_touch_action, f"Expected board-container touchAction pan-y, got {board_touch_action}"
+
+    key_touch_action = page.evaluate("getComputedStyle(document.querySelector('button.key-btn')).touchAction")
+    assert "pan-y" in key_touch_action, f"Expected key-btn touchAction pan-y, got {key_touch_action}"
+
+    # Verify dispatching cancelable touchstart across the board and keypad does NOT defaultPrevent
+    for sel, desc in [
+        ("#board-stage", "top of board"),
+        ("#digit-a3", "7-segment display area"),
+        ("button.key-btn[data-key='RST']", "keypad RST button"),
+        ("button.key-btn[data-key='0']", "keypad 0 button"),
+    ]:
+        dp = page.evaluate(f"""(() => {{
+            const el = document.querySelector("{sel}");
+            if (!el) return null;
+            const touch = new Touch({{
+                identifier: 1,
+                target: el,
+                clientX: 100,
+                clientY: 200,
+                pageX: 100,
+                pageY: 200
+            }});
+            const evt = new TouchEvent('touchstart', {{
+                bubbles: true,
+                cancelable: true,
+                touches: [touch],
+                targetTouches: [touch]
+            }});
+            el.dispatchEvent(evt);
+            return evt.defaultPrevented;
+        }})()""")
+        assert dp is False, f"touchstart was unexpectedly defaultPrevented on {desc} ({sel})"
+
+    # Verify board drag panning is disabled on mobile touch
+    is_panning = page.evaluate("""(() => {
+        const panel = document.getElementById('hardware-panel-section');
+        const evt = new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerType: 'touch',
+            clientX: 150,
+            clientY: 250,
+            button: 0
+        });
+        panel.dispatchEvent(evt);
+        return panel.classList.contains('is-panning');
+    })()""")
+    assert is_panning is False, "Board center panel panning unexpectedly activated on mobile touch"
+
+    # Verify vertical scrolling brings #inspector-section into viewport
+    page.evaluate("document.getElementById('inspector-section').scrollIntoView()")
+    insp_box = page.locator("#inspector-section").bounding_box()
+    assert insp_box is not None
+    assert insp_box["y"] < 667, f"Inspector section not scrolled into viewport: y={insp_box['y']}"
+
+    ctx.close()

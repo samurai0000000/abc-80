@@ -23,6 +23,8 @@
     // Page state. Everything shown comes from the server's board; nothing is simulated here.
     const state = {
         soundEnabled: true,
+        splashHold: false,
+        bootFromSplash: false,
         wsConnected: false,
         lastTelemetry: null,
         paused: false,
@@ -176,6 +178,7 @@
     }
 
     function connectHostWebSocket() {
+        if (state.splashHold) return;
         const url = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws';
         try {
             ws = new WebSocket(url);
@@ -192,6 +195,12 @@
             updateHostStatus();
             updateExecutionControls();
             ws.send(JSON.stringify({ type: 'hello', token: sessionToken(), rom: selectedRom() }));
+            if (state.bootFromSplash) {
+                state.bootFromSplash = false;
+                if (selectedInstance() === 'unique') {
+                    ws.send(JSON.stringify({ type: 'reset' }));
+                }
+            }
             fetchMemory(state.mem.baseAddr);
         };
         ws.onmessage = function (event) {
@@ -322,8 +331,6 @@
         const select = document.getElementById('rom-select');
         if (select && msg.rom && select.value !== msg.rom) {
             select.value = msg.rom;
-            const store = storage();
-            if (store) store.setItem('abc80_rom', msg.rom);
         }
         if (msg.rom === '1993' && !state.qb.statusRequested) {
             state.qb.statusRequested = true;
@@ -336,47 +343,37 @@
             setQbCrtVisible(false, false);
         }
         applyExtCircuitTelemetry(msg.ppi, msg.extCircuit);
-        scheduleSpeaker(msg.speakerLevel, msg.speakerEdges);
+        scheduleSpeaker(msg.speakerEdges, FRAME_TSTATES, CPU_HZ, msg.speakerLevel);
     }
 
     // ---- Speaker: replay the board's Port C bit 7 edges as a square wave ----
 
     let audioCtx = null;
     let speakerNextStart = 0;
+    let pendingSpeakerFrames = [];
 
-    function initAudio() {
-        if (!audioCtx) {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioContextClass) audioCtx = new AudioContextClass();
-        }
-        if (audioCtx && audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(function () {});
-        }
-    }
-
-    // Each telemetry frame is exactly FRAME_TSTATES of emulated time. The edge offsets (in T-states)
-    // become sample positions in a one-frame buffer, played back to back on a continuous timeline.
-    function scheduleSpeaker(endLevel, edges) {
-        if (!audioCtx || !state.soundEnabled || audioCtx.state !== 'running') {
-            speakerNextStart = 0;
-            return;
-        }
-        const frameSeconds = FRAME_TSTATES / CPU_HZ;
+    function playSpeakerFrame(edges, frameCycles, clockHz, endLevel) {
+        if (!audioCtx || !state.soundEnabled || audioCtx.state !== 'running') return;
+        if (!edges || edges.length === 0) return;
+        const cycles = frameCycles || FRAME_TSTATES;
+        const hz = clockHz || CPU_HZ;
+        const frameSeconds = cycles / hz;
         const now = audioCtx.currentTime;
-        if (speakerNextStart < now + 0.02) speakerNextStart = now + 0.05;  // (re)start with a small buffer
+        if (speakerNextStart < now + 0.02) {
+            speakerNextStart = now + 0.05;
+        }
         const start = speakerNextStart;
         speakerNextStart += frameSeconds;
-        if (!edges || edges.length === 0) return;  // a steady level makes no sound
 
         const sr = audioCtx.sampleRate;
         const length = Math.ceil(frameSeconds * sr) + 1;
         const buffer = audioCtx.createBuffer(1, length, sr);
         const data = buffer.getChannelData(0);
-        let level = !!endLevel;
-        if (edges.length % 2 === 1) level = !level;  // the level at the start of the frame
+        let level = (endLevel !== undefined) ? !!endLevel : false;
+        if (edges.length % 2 === 1) level = !level;
         let index = 0;
         for (let i = 0; i < edges.length; ++i) {
-            const stop = Math.min(length, Math.round(edges[i] / CPU_HZ * sr));
+            const stop = Math.min(length, Math.round(edges[i] / hz * sr));
             data.fill(level ? 1 : -1, index, stop);
             index = Math.max(index, stop);
             level = !level;
@@ -390,6 +387,70 @@
         source.connect(gain);
         gain.connect(audioCtx.destination);
         source.start(start);
+    }
+
+    function flushPendingSpeakerFrames() {
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        while (pendingSpeakerFrames.length > 0) {
+            const frame = pendingSpeakerFrames.shift();
+            playSpeakerFrame(frame.edges, frame.frameCycles, frame.clockHz, frame.endLevel);
+        }
+    }
+
+    function initAudio() {
+        if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                audioCtx = new AudioContextClass();
+                audioCtx.addEventListener('statechange', function () {
+                    if (audioCtx && audioCtx.state === 'running' && pendingSpeakerFrames.length > 0) {
+                        flushPendingSpeakerFrames();
+                    }
+                });
+            }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().then(function () {
+                if (audioCtx && audioCtx.state === 'running' && pendingSpeakerFrames.length > 0) {
+                    flushPendingSpeakerFrames();
+                }
+            }).catch(function () {});
+        }
+    }
+
+    // Each telemetry frame is exactly FRAME_TSTATES of emulated time. The edge offsets (in T-states)
+    // become sample positions in a one-frame buffer, played back to back on a continuous timeline.
+    function scheduleSpeaker(arg1, arg2, arg3, arg4) {
+        let edges = null;
+        let frameCycles = FRAME_TSTATES;
+        let clockHz = CPU_HZ;
+        let endLevel = undefined;
+
+        if (Array.isArray(arg1)) {
+            edges = arg1;
+            frameCycles = arg2 || FRAME_TSTATES;
+            clockHz = arg3 || CPU_HZ;
+            endLevel = arg4;
+        } else if (Array.isArray(arg2)) {
+            endLevel = arg1;
+            edges = arg2;
+            frameCycles = arg3 || FRAME_TSTATES;
+            clockHz = arg4 || CPU_HZ;
+        }
+
+        const audioEnabled = state.soundEnabled;
+        if (!audioEnabled || !edges || edges.length === 0) return;
+
+        initAudio();
+        if (!audioCtx || audioCtx.state !== 'running') {
+            if (pendingSpeakerFrames.length < 60) {
+                pendingSpeakerFrames.push({ edges, frameCycles, clockHz, endLevel });
+            }
+            return;
+        }
+
+        flushPendingSpeakerFrames();
+        playSpeakerFrame(edges, frameCycles, clockHz, endLevel);
     }
 
     // ---- Keys and reset ----
@@ -639,7 +700,12 @@
         openManualModal: openManualModal,
         closeManualModal: closeManualModal,
         selectTapeFromManual: selectTapeFromManual,
-        get TAPE_PROGRAMS_CATALOG() { return TAPE_PROGRAMS_CATALOG; }
+        get TAPE_PROGRAMS_CATALOG() { return TAPE_PROGRAMS_CATALOG; },
+        get splashHold() { return state.splashHold; },
+        get bootFromSplash() { return state.bootFromSplash; },
+        get pendingSpeakerFrames() { return pendingSpeakerFrames; },
+        dismissSplashAndBoot: dismissSplashAndBoot,
+        shouldShowSplash: shouldShowSplash
     };
 
     let scopeCanvas, scopeCtx, scopePhase = 0;
@@ -2495,13 +2561,14 @@
             const scale = Math.min(1.0, Math.floor(Math.min(scaleW, scaleH) * 1000) / 1000);
             board.style.transformOrigin = 'top center';
             board.style.transform = 'scale(' + scale + ')';
+            board.style.marginBottom = (-Math.ceil(756 * (1 - scale))) + 'px';
             if (stage) {
-                const scaledH = Math.ceil(756 * scale + 8) + 'px';
-                stage.style.height = scaledH;
-                stage.style.maxHeight = scaledH;
+                stage.style.height = 'auto';
+                stage.style.maxHeight = '';
             }
         } else {
             board.style.transformOrigin = '0 0';
+            board.style.marginBottom = '';
             if (stage) {
                 stage.style.height = '';
                 stage.style.maxHeight = '';
@@ -2592,7 +2659,7 @@
 
         // Mouse wheel zoom
         panel.addEventListener('wheel', (e) => {
-            if (window.innerWidth <= 900) return;
+            if (e.pointerType === 'touch' || window.innerWidth <= 900 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || !document.body.classList.contains('dev-tools-visible')) return;
             e.preventDefault();
             const rect = panel.getBoundingClientRect();
             const focalX = e.clientX - rect.left;
@@ -2603,7 +2670,7 @@
 
         // Canvas drag panning
         panel.addEventListener('pointerdown', (e) => {
-            if (window.innerWidth <= 900) return;
+            if (e.pointerType === 'touch' || window.innerWidth <= 900 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || !document.body.classList.contains('dev-tools-visible')) return;
             if (e.target.closest('#board-panel-toolbar')) return;
             if (e.target.closest('#canvas-view-controls') || e.target.closest('#ic-calibration-hud')) return;
             if (isCalibrating && e.target.closest('.calibratable-component, .ic-socket-package')) return;
@@ -3679,6 +3746,64 @@
         renderTapeCatalogCards('all', '');
     }
 
+    function shouldShowSplash() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('splash') === '1') return true;
+            if (params.get('nosplash') === '1') return false;
+            return !navigator.webdriver && window.self === window.top;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function dismissSplashAndBoot() {
+        const modal = document.getElementById('splash-modal');
+        if (modal) modal.classList.add('hidden');
+        initAudio();
+        state.splashHold = false;
+        state.bootFromSplash = true;
+        if (!state.wsConnected) {
+            connectHostWebSocket();
+        }
+    }
+
+    function initSplashModal() {
+        const modal = document.getElementById('splash-modal');
+        const okBtn = document.getElementById('btn-splash-ok');
+        if (!modal) {
+            connectHostWebSocket();
+            return;
+        }
+
+        if (okBtn) {
+            okBtn.addEventListener('click', () => {
+                dismissSplashAndBoot();
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!modal.classList.contains('hidden')) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    dismissSplashAndBoot();
+                }
+            }
+        });
+
+        if (shouldShowSplash()) {
+            modal.classList.remove('hidden');
+            state.splashHold = true;
+            if (okBtn) {
+                setTimeout(() => okBtn.focus(), 50);
+            }
+        } else {
+            modal.classList.add('hidden');
+            state.splashHold = false;
+            connectHostWebSocket();
+        }
+    }
+
     function initAll() {
         initDisplayDigits();
         initInspector();
@@ -3687,7 +3812,16 @@
         setupKeyboardListeners();
         initInstanceSelect();
         initAiControls();
-        connectHostWebSocket();
+
+        const romSelect = document.getElementById('rom-select');
+        if (romSelect) {
+            const store = storage();
+            const saved = store ? store.getItem('abc80_rom') : null;
+            if (saved === '1993' || saved === 'monitor') romSelect.value = saved;
+            romSelect.addEventListener('change', () => changeRom(romSelect.value));
+        }
+
+        initSplashModal();
 
         // Matrix keys press on mousedown/touchstart and release on mouseup/mouseleave/touchend/touchcancel.
         // The reset keys are not matrix keys: they only reset.
@@ -3709,27 +3843,99 @@
                 btn.setAttribute('aria-label', label);
                 btn.removeAttribute('title');
             }
-            if (key === 'RST') {
-                btn.addEventListener('click', () => { if (!isCalibrating) handleHardwareReset(); });
-                return;
-            }
-            const down = (e) => { if (isCalibrating) return; if (e.cancelable) e.preventDefault(); handleKeypadPress(key); };
-            const up = () => handleKeypadRelease(key);
-            btn.addEventListener('mousedown', down);
-            btn.addEventListener('touchstart', down, { passive: false });
-            btn.addEventListener('mouseup', up);
-            btn.addEventListener('mouseleave', up);
-            btn.addEventListener('touchend', up);
-            btn.addEventListener('touchcancel', up);
-        });
 
-        const romSelect = document.getElementById('rom-select');
-        if (romSelect) {
-            const store = storage();
-            const saved = store ? store.getItem('abc80_rom') : null;
-            if (saved === '1993' || saved === 'monitor') romSelect.value = saved;
-            romSelect.addEventListener('change', () => changeRom(romSelect.value));
-        }
+            let lastTouchTime = 0;
+            let touchMoved = false;
+            let startX = 0, startY = 0;
+            let touchPressTimer = null;
+            let isPressed = false;
+
+            const pressKey = () => {
+                if (isCalibrating || isPressed) return;
+                isPressed = true;
+                handleKeypadPress(key);
+            };
+
+            const releaseKey = () => {
+                if (!isPressed) return;
+                isPressed = false;
+                handleKeypadRelease(key);
+            };
+
+            btn.addEventListener('touchstart', (e) => {
+                if (isCalibrating || !e.touches || e.touches.length === 0) return;
+                lastTouchTime = performance.now();
+                touchMoved = false;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                if (touchPressTimer) clearTimeout(touchPressTimer);
+                touchPressTimer = setTimeout(() => {
+                    touchPressTimer = null;
+                    if (!touchMoved) {
+                        pressKey();
+                    }
+                }, 45);
+            }, { passive: true });
+
+            btn.addEventListener('touchmove', (e) => {
+                lastTouchTime = performance.now();
+                if (!e.touches || e.touches.length === 0) return;
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                if (Math.hypot(dx, dy) > 8) {
+                    touchMoved = true;
+                    if (touchPressTimer) {
+                        clearTimeout(touchPressTimer);
+                        touchPressTimer = null;
+                    }
+                    if (isPressed) {
+                        releaseKey();
+                    }
+                }
+            }, { passive: true });
+
+            btn.addEventListener('touchend', () => {
+                lastTouchTime = performance.now();
+                if (touchPressTimer && !touchMoved) {
+                    clearTimeout(touchPressTimer);
+                    touchPressTimer = null;
+                    pressKey();
+                    setTimeout(releaseKey, 60);
+                } else {
+                    releaseKey();
+                }
+            });
+
+            btn.addEventListener('touchcancel', () => {
+                if (touchPressTimer) {
+                    clearTimeout(touchPressTimer);
+                    touchPressTimer = null;
+                }
+                releaseKey();
+            });
+
+            btn.addEventListener('mousedown', () => {
+                if (performance.now() - lastTouchTime < 500) return;
+                pressKey();
+            });
+
+            btn.addEventListener('mouseup', () => {
+                if (performance.now() - lastTouchTime < 500) return;
+                releaseKey();
+            });
+
+            btn.addEventListener('mouseleave', () => {
+                if (performance.now() - lastTouchTime < 500) return;
+                releaseKey();
+            });
+
+            btn.addEventListener('click', (e) => {
+                if (performance.now() - lastTouchTime < 500) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
+        });
 
         // Tactile Reset Button (#disc-hw-rst and #btn-hw-rst)
         const hwRstBtn = document.getElementById('btn-hw-rst');

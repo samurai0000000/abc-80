@@ -86,6 +86,18 @@ def server(tmp_path_factory):
         raise AssertionError("abc80_server did not exit on SIGTERM")
 
 
+@pytest.fixture
+def abc80_server(server):
+    return server
+
+
+@pytest.fixture
+def page(context):
+    p = context.new_page()
+    yield p
+    p.close()
+
+
 @pytest.fixture(scope="session")
 def browser():
     with sync_playwright() as p:
