@@ -311,7 +311,7 @@ def test_splash_modal_holds_boot_and_unlocks_startup_audio_on_visit_and_reload(a
     )
     assert page.is_visible("#splash-modal")
     assert "ABC-80 Microcomputer Emulator" in page.inner_text("#splash-title")
-    assert "v1.1.2" in page.inner_text(".splash-version-pill")
+    assert "v1.1.3" in page.inner_text(".splash-version-pill")
     assert "Charles Chiou" in page.inner_text(".splash-meta-grid")
     assert "Monitor from the Book (2 KB EPROM)" in page.inner_text(".splash-meta-grid")
     assert "Copyright (C) 2026, Charles Chiou" in page.inner_text(".splash-meta-grid")

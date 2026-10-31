@@ -1,6 +1,6 @@
 # ABC-80 Microcomputer Hardware Specifications & Architecture Reference
 
-The **ABC-80** is a classic Taiwanese Z80-based single-board educational microcomputer kit from the 1980s, manufactured and published by *Chuan-Hwa Science & Technology (全華科技圖書)*, and documented in the authoritative manual *《Z-80 微電腦製作 — 硬體分析・ABC-80製作及監督程式詳解》*.
+The **ABC-80** is a classic Taiwanese Z80-based single-board educational microcomputer kit from the 1980s, documented in the authoritative manual *《Z-80 微電腦製作 — 硬體分析・ABC-80製作及監督程式詳解》*.
 
 All circuitry is integrated onto a single gold-plated, double-sided through-hole printed circuit board (PCB), providing students, engineers, and hobbyists with a complete platform to learn microprocessor architecture, assembly programming, I/O interfacing, and peripheral design.
 

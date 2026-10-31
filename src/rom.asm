@@ -13,7 +13,7 @@
 ;   - Audio: Cassette Tape FSK Modulator / Demodulator & Speaker
 ;
 ; Translated from original reference documentation:
-;   "Z80 Microcomputer Building" (Z-80 Microcomputer Construction, Chuan-Hwa Book Co.)
+;   "Z80 Microcomputer Building" (Z-80 Microcomputer Construction)
 ;   Part 3, Chapter 3: ABC-80 Monitor Program Analysis (Pages 166 - 204)
 ; ==============================================================================
 
