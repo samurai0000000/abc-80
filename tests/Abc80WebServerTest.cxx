@@ -1375,6 +1375,137 @@ TEST(Abc80WebServer, ExtCircuitLockedOutDuringResidentAiPunch)
     }, 4000));
 }
 
+TEST(Abc80WebServer, McpStreamableHttpResidentEndpoints)
+{
+    Abc80WebServer server(residentTestConfig());
+    CHECK(server.start());
+
+    httplib::Client cli("http://127.0.0.1:" + std::to_string(server.port()));
+
+    // 1. OPTIONS /mcp CORS preflight
+    auto res = cli.Options("/mcp");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(204, res->status);
+    CHECK(res->has_header("Access-Control-Allow-Origin"));
+    CHECK(res->has_header("Access-Control-Expose-Headers"));
+    STRCMP_EQUAL("Mcp-Session-Id", res->get_header_value("Access-Control-Expose-Headers").c_str());
+
+    // 2. POST /mcp initialize
+    json initReq = {
+        {"jsonrpc", "2.0"},
+        {"id", 1},
+        {"method", "initialize"},
+        {"params", {
+            {"protocolVersion", "2025-03-26"},
+            {"capabilities", json::object()},
+            {"clientInfo", {{"name", "test-client"}, {"version", "1.0.0"}}}
+        }}
+    };
+    res = cli.Post("/mcp", initReq.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    CHECK(res->has_header("Mcp-Session-Id"));
+    std::string sessionId = res->get_header_value("Mcp-Session-Id");
+    CHECK_EQUAL(32, sessionId.size());
+    json initResp = json::parse(res->body);
+    STRCMP_EQUAL("2025-03-26", initResp["result"]["protocolVersion"].get<std::string>().c_str());
+    STRCMP_EQUAL("abc80", initResp["result"]["serverInfo"]["name"].get<std::string>().c_str());
+
+    // 3. POST /mcp notifications/initialized
+    httplib::Headers headers = {
+        {"Mcp-Session-Id", sessionId}
+    };
+    json notifReq = {
+        {"jsonrpc", "2.0"},
+        {"method", "notifications/initialized"}
+    };
+    res = cli.Post("/mcp", headers, notifReq.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(202, res->status);
+    CHECK_EQUAL(0, res->body.size());
+
+    // 4. POST /mcp tools/list (7 tools)
+    json toolsReq = {
+        {"jsonrpc", "2.0"},
+        {"id", 2},
+        {"method", "tools/list"}
+    };
+    res = cli.Post("/mcp", headers, toolsReq.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    json toolsResp = json::parse(res->body);
+    LONGS_EQUAL(7, toolsResp["result"]["tools"].size());
+
+    // 5. POST /mcp tools/call (abc80_read_cpu)
+    json callReq = {
+        {"jsonrpc", "2.0"},
+        {"id", 3},
+        {"method", "tools/call"},
+        {"params", {
+            {"name", "abc80_read_cpu"},
+            {"arguments", json::object()}
+        }}
+    };
+    res = cli.Post("/mcp", headers, callReq.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    json callResp = json::parse(res->body);
+    CHECK(callResp["result"]["content"].is_array());
+    std::string cpuText = callResp["result"]["content"][0]["text"].get<std::string>();
+    json cpuData = json::parse(cpuText);
+    CHECK(cpuData.contains("registers"));
+    STRCMP_EQUAL("monitor", cpuData["rom"].get<std::string>().c_str());
+
+    // 6. POST /mcp batch array
+    json batchReq = json::array({
+        {{"jsonrpc", "2.0"}, {"id", 10}, {"method", "ping"}},
+        {{"jsonrpc", "2.0"}, {"id", 11}, {"method", "prompts/list"}},
+        {{"jsonrpc", "2.0"}, {"id", 12}, {"method", "resources/list"}}
+    });
+    res = cli.Post("/mcp", headers, batchReq.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    json batchResp = json::parse(res->body);
+    CHECK(batchResp.is_array());
+    LONGS_EQUAL(3, batchResp.size());
+
+    // 7. GET /mcp SSE stream hygiene (zero event: endpoint)
+    httplib::Headers sseHeaders = {
+        {"Accept", "text/event-stream"},
+        {"Mcp-Session-Id", sessionId}
+    };
+    std::string sseData;
+    cli.set_read_timeout(1, 0);
+    res = cli.Get("/mcp", sseHeaders, [&](const char *data, size_t data_length) {
+        sseData.append(data, data_length);
+        return false;
+    });
+    CHECK(sseData.find(": connected\n\n") != std::string::npos);
+    CHECK(sseData.find("event: endpoint") == std::string::npos);
+
+    // 8. DELETE /mcp terminates session
+    res = cli.Delete("/mcp", headers);
+    CHECK(res != nullptr);
+    LONGS_EQUAL(204, res->status);
+
+    // 9. Legacy GET /sse and POST /message
+    res = cli.Get("/sse");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    CHECK(res->body.find("event: endpoint\ndata: /message\n\n") != std::string::npos);
+
+    json legacyMsg = {
+        {"jsonrpc", "2.0"},
+        {"id", 20},
+        {"method", "tools/list"}
+    };
+    res = cli.Post("/message", legacyMsg.dump(), "application/json");
+    CHECK(res != nullptr);
+    LONGS_EQUAL(200, res->status);
+    json legacyResp = json::parse(res->body);
+    LONGS_EQUAL(7, legacyResp["result"]["tools"].size());
+}
+
 /*
  * Local variables:
  * mode: C++

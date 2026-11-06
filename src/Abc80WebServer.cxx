@@ -7,6 +7,7 @@
 #include <abc80/Abc80Board.hxx>
 #include <abc80/Abc80Config.hxx>
 #include <abc80/Abc80WebServer.hxx>
+#include <abc80/AimonGatewayClient.hxx>
 #include <abc80/FrameOutbox.hxx>
 #include <abc80/KeyQueue.hxx>
 #include <abc80/WebProtocol.hxx>
@@ -16,16 +17,23 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
+#include <iomanip>
 #include <map>
 #include <mutex>
+#include <random>
+#include <sstream>
 #include <thread>
 #include <vector>
 
 #include <httplib.h>
+#include <nlohmann/json.hpp>
 #include <sys/socket.h>
 
 namespace abc80 {
+
+using json = nlohmann::json;
 
 namespace {
 
@@ -48,6 +56,19 @@ bool originAllowed(const httplib::Request &req)
         return false;
     }
     return origin.substr(scheme + 3) == host;
+}
+
+std::string generateMcpSessionId()
+{
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937_64 gen(rd());
+    static thread_local std::uniform_int_distribution<uint64_t> dis;
+
+    uint64_t p1 = dis(gen);
+    uint64_t p2 = dis(gen);
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0') << std::setw(16) << p1 << std::setw(16) << p2;
+    return oss.str();
 }
 
 } // namespace
@@ -96,6 +117,191 @@ struct Abc80WebServer::Impl {
 
     AiCancelCallback onAiCancel;
     mutable std::mutex cancelCbMtx;
+
+    struct McpSessionState {
+        std::string sessionId;
+        time_t lastActivity{0};
+        bool closed{false};
+        std::vector<std::string> pendingMessages;
+    };
+    std::mutex mcpMutex;
+    std::condition_variable mcpCv;
+    std::map<std::string, McpSessionState> mcpSessions;
+
+    McpToolHandler mcpToolHandler;
+    std::mutex mcpHandlerMtx;
+
+    std::string executeResidentMcpTool(const std::string &name, const std::string &argumentsJson)
+    {
+        nlohmann::json args = nlohmann::json::object();
+        try {
+            if (!argumentsJson.empty()) {
+                args = nlohmann::json::parse(argumentsJson);
+            }
+        } catch (...) {}
+
+        if (name == "abc80_read_cpu") {
+            if (!residentSession) {
+                return "{\"error\": \"Resident emulator not initialized\"}";
+            }
+            std::lock_guard<std::mutex> lock(residentSession->mtx);
+            const Abc80Cpu &cpu = residentSession->board.getCpu();
+            const uint16_t af = cpu.getAF();
+            const uint8_t f = static_cast<uint8_t>(af & 0xFF);
+            nlohmann::json res = {
+                {"rom", romProfile(residentSession->rom).name},
+                {"cycles", residentSession->cycles},
+                {"paused", residentSession->paused},
+                {"autoPaused", residentSession->autoPaused},
+                {"registers", {
+                    {"pc", residentSession->board.lastFetchAddress()},
+                    {"sp", cpu.getSP()},
+                    {"af", af},
+                    {"bc", cpu.getBC()},
+                    {"de", cpu.getDE()},
+                    {"hl", cpu.getHL()},
+                    {"ix", cpu.getIX()},
+                    {"iy", cpu.getIY()}
+                }},
+                {"flags", {
+                    {"s", (f & 0x80) != 0},
+                    {"z", (f & 0x40) != 0},
+                    {"yf", (f & 0x20) != 0},
+                    {"h", (f & 0x10) != 0},
+                    {"xf", (f & 0x08) != 0},
+                    {"pv", (f & 0x04) != 0},
+                    {"n", (f & 0x02) != 0},
+                    {"c", (f & 0x01) != 0}
+                }}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_read_memory") {
+            uint16_t addr = static_cast<uint16_t>(args.value("addr", 0));
+            uint16_t count = static_cast<uint16_t>(args.value("count", 16));
+            if (count > 256) count = 256;
+            std::vector<uint8_t> data;
+            if (residentSession) {
+                std::lock_guard<std::mutex> lock(residentSession->mtx);
+                data = residentSession->board.readMemoryBlock(addr, count);
+            }
+            std::string hexDump;
+            char buf[16];
+            for (size_t i = 0; i < data.size(); ++i) {
+                if (i % 16 == 0) {
+                    if (i > 0) {
+                        hexDump.push_back('\n');
+                    }
+                    std::snprintf(buf, sizeof(buf), "%04X:", static_cast<unsigned>((addr + i) & 0xFFFF));
+                    hexDump.append(buf);
+                }
+                std::snprintf(buf, sizeof(buf), " %02X", static_cast<unsigned>(data[i]));
+                hexDump.append(buf);
+            }
+            nlohmann::json res = {
+                {"addr", addr},
+                {"count", data.size()},
+                {"bytes", data},
+                {"hex_dump", hexDump}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_read_display") {
+            if (!residentSession) {
+                return "{\"error\": \"Resident emulator not initialized\"}";
+            }
+            std::lock_guard<std::mutex> lock(residentSession->mtx);
+            const auto d = residentSession->board.displayDigits(config.litDutyMin);
+            const std::string digits(d.begin(), d.end());
+            const auto masksArr = residentSession->board.displayMasks(config.litDutyMin);
+            nlohmann::json masks = nlohmann::json::array();
+            for (uint8_t m : masksArr) {
+                masks.push_back(m);
+            }
+            nlohmann::json res = {
+                {"digits", digits},
+                {"display_masks", masks},
+                {"leds", {
+                    {"ep", residentSession->board.epLed()},
+                    {"halt", residentSession->board.haltLed()},
+                    {"speaker", residentSession->board.speakerLedFraction()}
+                }}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_disassemble") {
+            uint16_t addr = static_cast<uint16_t>(args.value("addr", 0));
+            uint16_t count = static_cast<uint16_t>(args.value("count", 10));
+            if (count > 64) count = 64;
+            std::vector<DisasmLine> lines;
+            if (residentSession) {
+                std::lock_guard<std::mutex> lock(residentSession->mtx);
+                lines = residentSession->board.disassemble(addr, count);
+            }
+            nlohmann::json linesArr = nlohmann::json::array();
+            for (const auto &l : lines) {
+                linesArr.push_back({
+                    {"addr", l.addr},
+                    {"bytes", l.bytes},
+                    {"mnemonic", l.mnemonic}
+                });
+            }
+            nlohmann::json res = {
+                {"addr", addr},
+                {"count", lines.size()},
+                {"instructions", linesArr}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_cancel_punching") {
+            AiCancelCallback cb;
+            {
+                std::lock_guard<std::mutex> lock(cancelCbMtx);
+                cb = onAiCancel;
+            }
+            if (cb) {
+                cb();
+            }
+            nlohmann::json res = {
+                {"status", "cancelled"},
+                {"discarded_keys", 0}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_get_punch_status") {
+            nlohmann::json res = {
+                {"is_punching", hasActivePunches()},
+                {"queue_depth", 0},
+                {"remaining", 0},
+                {"current_key", ""}
+            };
+            return res.dump(2);
+        }
+
+        if (name == "abc80_punch_keys") {
+            return "{\"error\": \"No key sequencer attached\"}";
+        }
+
+        return "{\"error\": \"unknown tool: " + name + "\"}";
+    }
+
+    std::string executeMcpTool(const std::string &name, const std::string &argumentsJson)
+    {
+        McpToolHandler customHandler;
+        {
+            std::lock_guard<std::mutex> lock(mcpHandlerMtx);
+            customHandler = mcpToolHandler;
+        }
+        if (customHandler) {
+            return customHandler(name, argumentsJson);
+        }
+        return executeResidentMcpTool(name, argumentsJson);
+    }
 
     void setError(const std::string &e)
     {
@@ -898,6 +1104,253 @@ struct Abc80WebServer::Impl {
             handleConnection(req, ws);
         });
 
+        auto setMcpCorsHeaders = [](httplib::Response &res) {
+            res.headers.erase("Access-Control-Allow-Origin");
+            res.headers.erase("Access-Control-Allow-Methods");
+            res.headers.erase("Access-Control-Allow-Headers");
+            res.headers.erase("Access-Control-Expose-Headers");
+            res.set_header("Access-Control-Allow-Origin", "*");
+            res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+            res.set_header("Access-Control-Allow-Headers",
+                           "Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID");
+            res.set_header("Access-Control-Expose-Headers", "Mcp-Session-Id");
+        };
+
+        auto handleMcpOptions = [setMcpCorsHeaders](const httplib::Request &, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+            res.status = 204;
+        };
+
+        svr->Options("/mcp", handleMcpOptions);
+        svr->Options("/sse", handleMcpOptions);
+        svr->Options("/message", handleMcpOptions);
+
+        auto handleStreamableHttpPost = [this, setMcpCorsHeaders](const httplib::Request &req, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+
+            std::string sessionId;
+            if (req.has_header("Mcp-Session-Id")) {
+                sessionId = req.get_header_value("Mcp-Session-Id");
+            }
+
+            bool isInit = false;
+            try {
+                auto j = nlohmann::json::parse(req.body);
+                if (j.is_object() && j.value("method", "") == "initialize") {
+                    isInit = true;
+                } else if (j.is_array()) {
+                    for (const auto &item : j) {
+                        if (item.is_object() && item.value("method", "") == "initialize") {
+                            isInit = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (...) {}
+
+            time_t now = std::time(nullptr);
+            if (sessionId.empty() && isInit) {
+                sessionId = generateMcpSessionId();
+            }
+
+            if (!sessionId.empty()) {
+                std::lock_guard<std::mutex> lock(mcpMutex);
+                auto it = mcpSessions.find(sessionId);
+                if (it != mcpSessions.end()) {
+                    it->second.lastActivity = now;
+                } else {
+                    McpSessionState state;
+                    state.sessionId = sessionId;
+                    state.lastActivity = now;
+                    state.closed = false;
+                    mcpSessions[sessionId] = std::move(state);
+                }
+                res.set_header("Mcp-Session-Id", sessionId);
+            }
+
+            std::string resp = AimonGatewayClient::dispatchJsonRpcWithCallback(
+                req.body, "2025-03-26",
+                [this](const std::string &name, const std::string &args) {
+                    return executeMcpTool(name, args);
+                });
+
+            if (resp.find("\"code\":-32700") != std::string::npos || resp.find("\"code\": -32700") != std::string::npos) {
+                res.status = 400;
+                res.set_content(resp, "application/json");
+                return;
+            }
+
+            if (resp.empty()) {
+                res.status = 202;
+                res.body.clear();
+            } else {
+                res.status = 200;
+                res.set_content(resp, "application/json");
+            }
+        };
+
+        svr->Post("/mcp", handleStreamableHttpPost);
+        svr->Post("/sse", handleStreamableHttpPost);
+
+        svr->Post("/message", [this, setMcpCorsHeaders](const httplib::Request &req, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+            std::string resp = AimonGatewayClient::dispatchJsonRpcWithCallback(
+                req.body, "2024-11-05",
+                [this](const std::string &name, const std::string &args) {
+                    return executeMcpTool(name, args);
+                });
+            if (resp.find("\"code\":-32700") != std::string::npos || resp.find("\"code\": -32700") != std::string::npos) {
+                res.status = 400;
+                res.set_content(resp, "application/json");
+                return;
+            }
+            if (resp.empty()) {
+                res.status = 202;
+                res.body.clear();
+            } else {
+                res.status = 200;
+                res.set_content(resp, "application/json");
+            }
+        });
+
+        svr->Get("/mcp", [this, setMcpCorsHeaders](const httplib::Request &req, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+
+            if (req.has_header("Accept")) {
+                std::string accept = req.get_header_value("Accept");
+                if (accept.find("text/event-stream") == std::string::npos &&
+                    accept.find("*/*") == std::string::npos) {
+                    res.status = 405;
+                    return;
+                }
+            }
+
+            std::string sessionId;
+            if (req.has_header("Mcp-Session-Id")) {
+                sessionId = req.get_header_value("Mcp-Session-Id");
+            }
+
+            time_t now = std::time(nullptr);
+            if (sessionId.empty()) {
+                sessionId = generateMcpSessionId();
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(mcpMutex);
+                auto it = mcpSessions.find(sessionId);
+                if (it != mcpSessions.end()) {
+                    it->second.lastActivity = now;
+                } else {
+                    McpSessionState state;
+                    state.sessionId = sessionId;
+                    state.lastActivity = now;
+                    state.closed = false;
+                    mcpSessions[sessionId] = std::move(state);
+                }
+            }
+
+            res.set_header("Mcp-Session-Id", sessionId);
+            res.set_header("Cache-Control", "no-cache");
+            res.set_header("X-Accel-Buffering", "no");
+
+            auto lastKeepalive = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
+            auto initialSent = std::make_shared<bool>(false);
+
+            auto provider = [this, sessionId, lastKeepalive, initialSent](size_t offset, httplib::DataSink &sink) -> bool {
+                (void) offset;
+                if (!sink.is_writable() || !running.load()) {
+                    return false;
+                }
+
+                if (!*initialSent) {
+                    *initialSent = true;
+                    std::string connMsg = ": connected\n\n";
+                    return sink.write(connMsg.data(), connMsg.size());
+                }
+
+                std::vector<std::string> toSend;
+                {
+                    std::unique_lock<std::mutex> lock(mcpMutex);
+                    mcpCv.wait_for(lock, std::chrono::milliseconds(200), [this, &sessionId]() {
+                        if (!running.load()) return true;
+                        auto it = mcpSessions.find(sessionId);
+                        if (it == mcpSessions.end() || it->second.closed) return true;
+                        return !it->second.pendingMessages.empty();
+                    });
+
+                    if (!running.load()) {
+                        return false;
+                    }
+
+                    auto it = mcpSessions.find(sessionId);
+                    if (it == mcpSessions.end() || it->second.closed) {
+                        return false;
+                    }
+
+                    it->second.lastActivity = std::time(nullptr);
+
+                    if (!it->second.pendingMessages.empty()) {
+                        toSend = std::move(it->second.pendingMessages);
+                        it->second.pendingMessages.clear();
+                    }
+                }
+
+                if (!toSend.empty()) {
+                    std::string batch;
+                    for (const auto &msg : toSend) {
+                        batch += "event: message\ndata: " + msg + "\n\n";
+                    }
+                    *lastKeepalive = std::chrono::steady_clock::now();
+                    return sink.write(batch.data(), batch.size());
+                }
+
+                auto nowTime = std::chrono::steady_clock::now();
+                if (std::chrono::duration_cast<std::chrono::seconds>(nowTime - *lastKeepalive).count() >= 15) {
+                    *lastKeepalive = nowTime;
+                    std::string ping = ": keepalive\n\n";
+                    return sink.write(ping.data(), ping.size());
+                }
+
+                return true;
+            };
+
+            auto releaser = [this, sessionId](bool success) {
+                (void) success;
+                std::lock_guard<std::mutex> lock(mcpMutex);
+                auto it = mcpSessions.find(sessionId);
+                if (it != mcpSessions.end()) {
+                    it->second.lastActivity = std::time(nullptr);
+                }
+            };
+
+            res.set_chunked_content_provider("text/event-stream", provider, releaser);
+        });
+
+        svr->Get("/sse", [setMcpCorsHeaders](const httplib::Request &, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+            res.set_header("Content-Type", "text/event-stream");
+            res.set_header("Cache-Control", "no-cache");
+            res.set_header("Connection", "keep-alive");
+            res.set_content("event: endpoint\ndata: /message\n\n", "text/event-stream");
+        });
+
+        svr->Delete("/mcp", [this, setMcpCorsHeaders](const httplib::Request &req, httplib::Response &res) {
+            setMcpCorsHeaders(res);
+            if (req.has_header("Mcp-Session-Id")) {
+                std::string sessionId = req.get_header_value("Mcp-Session-Id");
+                {
+                    std::lock_guard<std::mutex> lock(mcpMutex);
+                    auto it = mcpSessions.find(sessionId);
+                    if (it != mcpSessions.end()) {
+                        it->second.closed = true;
+                        mcpSessions.erase(it);
+                    }
+                }
+                mcpCv.notify_all();
+            }
+            res.status = 204;
+        });
+
         int p;
         if (config.port == 0) {
             p = svr->bind_to_any_port(config.bind);
@@ -950,6 +1403,13 @@ struct Abc80WebServer::Impl {
             return;
         }
         wake.notify_all();
+        {
+            std::lock_guard<std::mutex> lock(mcpMutex);
+            for (auto &kv : mcpSessions) {
+                kv.second.closed = true;
+            }
+        }
+        mcpCv.notify_all();
         {
             // Close every attached tab's outbox so its handler returns within a second.
             std::lock_guard<std::mutex> reg(registryMtx);
@@ -1224,6 +1684,12 @@ bool Abc80WebServer::readResidentDisplay(std::string &digits, uint8_t &epLed, ui
     epLed = _impl->residentSession->board.epLed() ? 1 : 0;
     haltLed = _impl->residentSession->board.haltLed() ? 1 : 0;
     return true;
+}
+
+void Abc80WebServer::setMcpToolHandler(McpToolHandler handler)
+{
+    std::lock_guard<std::mutex> lock(_impl->mcpHandlerMtx);
+    _impl->mcpToolHandler = std::move(handler);
 }
 
 } // namespace abc80

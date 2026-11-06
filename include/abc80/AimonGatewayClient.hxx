@@ -13,6 +13,7 @@
 #include <abc80/Abc80WebServer.hxx>
 #include <abc80/AiKeySequencer.hxx>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
 #include <thread>
@@ -39,6 +40,15 @@ public:
     void stop();
     bool isConnected() const noexcept;
     std::string handleToolCall(const std::string &name, const std::string &argumentsJson);
+
+    static std::string toolsListJson();
+    static std::string dispatchJsonRpcWithCallback(
+        const std::string &rawBody,
+        const std::string &defaultProtocolVersion,
+        const std::function<std::string(const std::string &, const std::string &)> &toolCaller);
+    std::string dispatchJsonRpc(
+        const std::string &rawBody,
+        const std::string &defaultProtocolVersion = "2025-03-26");
 
 private:
     void runLoop();

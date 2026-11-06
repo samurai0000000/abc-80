@@ -79,6 +79,10 @@ public:
     void setOnAiCancel(AiCancelCallback cb);
     void cancelAiPunch();
 
+    // MCP tool execution handler
+    using McpToolHandler = std::function<std::string(const std::string &name, const std::string &argumentsJson)>;
+    void setMcpToolHandler(McpToolHandler handler);
+
     // Resident state inspection for aimon gateway tools
     bool readResidentCpu(TelemetryFrame &frame) const;
     std::vector<uint8_t> readResidentMemory(uint16_t addr, uint16_t count) const;

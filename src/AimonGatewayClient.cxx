@@ -8,7 +8,12 @@
  */
 
 #include <abc80/AimonGatewayClient.hxx>
+#include <abc80/Version.hxx>
 #include <abc80/WebProtocol.hxx>
+
+#ifndef ABC80_VERSION
+#define ABC80_VERSION ABC80_VERSION_STRING
+#endif
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -130,6 +135,156 @@ json buildToolsArray()
             }}
         }
     });
+}
+
+std::string dispatchSingleJsonRpc(
+    const json &req,
+    const std::string &defaultProtocolVersion,
+    const std::function<std::string(const std::string &, const std::string &)> &toolCaller)
+{
+    if (!req.is_object()) {
+        json err = {
+            {"jsonrpc", "2.0"},
+            {"id", nullptr},
+            {"error", {
+                {"code", -32600},
+                {"message", "Invalid Request"}
+            }}
+        };
+        return err.dump();
+    }
+
+    if (req.contains("result") || req.contains("error")) {
+        return "";
+    }
+
+    std::string method = req.value("method", "");
+    bool isNotification = !req.contains("id") ||
+                          (req["id"].is_null() && method.rfind("notifications/", 0) == 0) ||
+                          (method.rfind("notifications/", 0) == 0);
+    if (isNotification) {
+        return "";
+    }
+
+    auto reqId = req.value("id", json(nullptr));
+
+    if (method.empty()) {
+        json err = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"error", {
+                {"code", -32600},
+                {"message", "Invalid Request"}
+            }}
+        };
+        return err.dump();
+    }
+
+    if (method == "initialize") {
+        std::string clientVersion;
+        if (req.contains("params") && req["params"].is_object() &&
+            req["params"].contains("protocolVersion") && req["params"]["protocolVersion"].is_string()) {
+            clientVersion = req["params"]["protocolVersion"].get<std::string>();
+        }
+        std::string chosenVersion = defaultProtocolVersion;
+        if (clientVersion == "2024-11-05" || clientVersion == "2025-03-26" || clientVersion == "2025-11-25") {
+            chosenVersion = clientVersion;
+        }
+
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", {
+                {"protocolVersion", chosenVersion},
+                {"capabilities", {
+                    {"tools", json::object()},
+                    {"resources", json::object()},
+                    {"prompts", json::object()}
+                }},
+                {"serverInfo", {
+                    {"name", "abc80"},
+                    {"version", ABC80_VERSION}
+                }}
+            }}
+        };
+        return resp.dump();
+    }
+
+    if (method == "ping") {
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", json::object()}
+        };
+        return resp.dump();
+    }
+
+    if (method == "tools/list") {
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", {
+                {"tools", buildToolsArray()}
+            }}
+        };
+        return resp.dump();
+    }
+
+    if (method == "resources/list") {
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", {
+                {"resources", json::array()}
+            }}
+        };
+        return resp.dump();
+    }
+
+    if (method == "prompts/list") {
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", {
+                {"prompts", json::array()}
+            }}
+        };
+        return resp.dump();
+    }
+
+    if (method == "tools/call") {
+        json params = req.value("params", json::object());
+        std::string toolName = params.value("name", "");
+        json args = params.value("arguments", json::object());
+
+        std::string output;
+        if (toolCaller) {
+            output = toolCaller(toolName, args.dump());
+        } else {
+            output = "{\"error\": \"No tool caller configured\"}";
+        }
+
+        json resp = {
+            {"jsonrpc", "2.0"},
+            {"id", reqId},
+            {"result", {
+                {"content", json::array({
+                    {{"type", "text"}, {"text", output}}
+                })}
+            }}
+        };
+        return resp.dump();
+    }
+
+    json errResp = {
+        {"jsonrpc", "2.0"},
+        {"id", reqId},
+        {"error", {
+            {"code", -32601},
+            {"message", "Unknown method: " + method}
+        }}
+    };
+    return errResp.dump();
 }
 
 } // namespace
@@ -460,6 +615,98 @@ std::string AimonGatewayClient::handleToolCall(const std::string &name, const st
     return "{\"error\": \"unknown tool: " + name + "\"}";
 }
 
+std::string AimonGatewayClient::toolsListJson()
+{
+    return buildToolsArray().dump();
+}
+
+std::string AimonGatewayClient::dispatchJsonRpcWithCallback(
+    const std::string &rawBody,
+    const std::string &defaultProtocolVersion,
+    const std::function<std::string(const std::string &, const std::string &)> &toolCaller)
+{
+    json req;
+    try {
+        req = json::parse(rawBody);
+    } catch (...) {
+        json err = {
+            {"jsonrpc", "2.0"},
+            {"id", nullptr},
+            {"error", {
+                {"code", -32700},
+                {"message", "Parse error"}
+            }}
+        };
+        return err.dump();
+    }
+
+    if (req.is_array()) {
+        if (req.empty()) {
+            json err = {
+                {"jsonrpc", "2.0"},
+                {"id", nullptr},
+                {"error", {
+                    {"code", -32600},
+                    {"message", "Invalid Request"}
+                }}
+            };
+            return err.dump();
+        }
+        json batchResp = json::array();
+        for (const auto &item : req) {
+            if (!item.is_object()) {
+                json err = {
+                    {"jsonrpc", "2.0"},
+                    {"id", nullptr},
+                    {"error", {
+                        {"code", -32600},
+                        {"message", "Invalid Request"}
+                    }}
+                };
+                batchResp.push_back(err);
+            } else {
+                std::string singleResp = dispatchSingleJsonRpc(item, defaultProtocolVersion, toolCaller);
+                if (!singleResp.empty()) {
+                    try {
+                        batchResp.push_back(json::parse(singleResp));
+                    } catch (...) {
+                    }
+                }
+            }
+        }
+        if (batchResp.empty()) {
+            return "";
+        }
+        return batchResp.dump();
+    }
+
+    if (!req.is_object()) {
+        json err = {
+            {"jsonrpc", "2.0"},
+            {"id", nullptr},
+            {"error", {
+                {"code", -32600},
+                {"message", "Invalid Request"}
+            }}
+        };
+        return err.dump();
+    }
+
+    return dispatchSingleJsonRpc(req, defaultProtocolVersion, toolCaller);
+}
+
+std::string AimonGatewayClient::dispatchJsonRpc(
+    const std::string &rawBody,
+    const std::string &defaultProtocolVersion)
+{
+    return dispatchJsonRpcWithCallback(
+        rawBody,
+        defaultProtocolVersion,
+        [this](const std::string &name, const std::string &argumentsJson) {
+            return handleToolCall(name, argumentsJson);
+        });
+}
+
 void AimonGatewayClient::processMessages(int sockFd)
 {
     std::string buffer;
@@ -481,41 +728,9 @@ void AimonGatewayClient::processMessages(int sockFd)
             }
             if (line.empty()) continue;
 
-            json j;
-            try {
-                j = json::parse(line);
-            } catch (...) {
-                continue;
-            }
-
-            if (j.contains("method") && j["method"].is_string()) {
-                std::string method = j["method"].get<std::string>();
-                json id = j.value("id", json(1));
-
-                if (method == "ping") {
-                    json resp = {
-                        {"jsonrpc", "2.0"},
-                        {"id", id},
-                        {"result", json::object()}
-                    };
-                    sendLine(sockFd, resp.dump());
-                } else if (method == "tools/call") {
-                    json params = j.value("params", json::object());
-                    std::string toolName = params.value("name", "");
-                    json args = params.value("arguments", json::object());
-
-                    std::string output = handleToolCall(toolName, args.dump());
-                    json resp = {
-                        {"jsonrpc", "2.0"},
-                        {"id", id},
-                        {"result", {
-                            {"content", json::array({
-                                {{"type", "text"}, {"text", output}}
-                            })}
-                        }}
-                    };
-                    sendLine(sockFd, resp.dump());
-                }
+            std::string resp = dispatchJsonRpc(line, "2025-03-26");
+            if (!resp.empty()) {
+                sendLine(sockFd, resp);
             }
         }
     }

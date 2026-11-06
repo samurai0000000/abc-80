@@ -217,6 +217,9 @@ int runServerUntilSignalled(const ServerConfig &cfg, const Abc80Config *appConfi
         gwCfg.webPort = server.port();
 
         gatewayClient = std::make_unique<AimonGatewayClient>(server, *sequencer, gwCfg);
+        server.setMcpToolHandler([&gatewayClient](const std::string &name, const std::string &args) {
+            return gatewayClient->handleToolCall(name, args);
+        });
         gatewayClient->start();
     }
 
@@ -226,6 +229,7 @@ int runServerUntilSignalled(const ServerConfig &cfg, const Abc80Config *appConfi
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
+    server.setMcpToolHandler(nullptr);
     if (gatewayClient) {
         gatewayClient->stop();
     }
